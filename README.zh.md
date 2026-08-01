@@ -7,7 +7,7 @@
 <div align="center">
 
 <p>
-  <a href="https://github.com/weed33834/KeBaiPay/actions"><img alt="CI" src="https://github.com/weed33834/KeBaiPay/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/KEBAI-CN/Pay"><img alt="CI" src="https://github.com/weed33834/KeBaiPay/actions/workflows/ci.yml/badge.svg" /></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg" />
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%E2%89%A520-green" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-blue" />
@@ -22,7 +22,7 @@
 
 版本 2.1.0 · 214 个 API 端点 · 52 个 Prisma 模型 · 1023 单元测试 + 39 E2E
 
-双平台镜像同步：[GitHub（国际）](https://github.com/weed33834/KeBaiPay) · [gitcode（国内）](https://gitcode.com/badhope/KeBaiPay)
+双平台镜像同步：[GitHub（国际）](https://github.com/KEBAI-CN/Pay) · [gitcode（国内）](https://gitcode.com/KEBAI-PAY/KEBAI-PAY)
 
 [功能矩阵](#二功能矩阵) · [快速开始](#三快速开始) · [架构图](#五系统架构) · [API 文档](docs/API_REFERENCE.md) · [部署指南](docs/DEPLOYMENT.md)
 
@@ -762,6 +762,7 @@ Copyright (c) 2026 KeBaiPay Contributors
 
 | 平台 | 角色 | 主要贡献 |
 |---|---|---|
+|[科佰网络技术（广州）有限公司™](https://kbai.eu.cc/zh)
 | [@weed33834](https://github.com/weed33834)（GitHub） · [@badhope](https://gitcode.com/badhope)（gitcode） | 项目负责人 / 架构师 | 整体架构、资金安全、API 契约、风控引擎、AI 智能体设计 |
 | [@KEBAI-CN](https://github.com/KEBAI-CN) | 联合开发者 | 功能开发、测试用例、文档维护、前端实现、LLM 接入联调 |
 
