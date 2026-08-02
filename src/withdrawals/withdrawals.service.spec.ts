@@ -5,6 +5,9 @@ import { PrismaService } from '../prisma/prisma.service'
 import { UsersService } from '../users/users.service'
 import { RedisService } from '../redis/redis.service'
 import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
+import { PaymentChannelBridge } from '../payment-channels/payment-channel.bridge'
+import { ConnectorRegistry } from '../payment-channels/connector.registry'
+import { ConnectorRouter } from '../payment-channels/connector-router'
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { MockChannel } from '../payment-channels/channels/mock.channel'
 import { JournalService } from '../finance/journal.service'
@@ -103,6 +106,10 @@ describe('WithdrawalsService', () => {
         { provide: RiskEngineService, useValue: riskEngine },
         { provide: JournalService, useValue: journalService },
         { provide: CryptoService, useValue: cryptoService },
+        // 桥接层：连接器未注册时回退直连渠道（经 mocked channelRegistry 走 mockChannel）
+        PaymentChannelBridge,
+        { provide: ConnectorRegistry, useValue: { get: jest.fn().mockReturnValue(undefined) } },
+        { provide: ConnectorRouter, useValue: { route: jest.fn() } },
       ],
     }).compile()
 

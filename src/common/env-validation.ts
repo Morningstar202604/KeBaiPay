@@ -18,7 +18,7 @@ export function validateEnv(config: EnvConfig): EnvConfig {
 
   // NODE_ENV
   const nodeEnv = (config.NODE_ENV as string) || 'development'
-  if (!VALID_NODE_ENV.includes(nodeEnv as any)) {
+  if (!VALID_NODE_ENV.includes(nodeEnv as (typeof VALID_NODE_ENV)[number])) {
     errors.push(`NODE_ENV 必须为 ${VALID_NODE_ENV.join('/')} 之一，当前值: ${nodeEnv}`)
   }
 
@@ -53,7 +53,7 @@ export function validateEnv(config: EnvConfig): EnvConfig {
 
   // SMS_PROVIDER
   const smsProvider = (config.SMS_PROVIDER as string) || 'mock'
-  if (!VALID_SMS_PROVIDER.includes(smsProvider as any)) {
+  if (!VALID_SMS_PROVIDER.includes(smsProvider as (typeof VALID_SMS_PROVIDER)[number])) {
     errors.push(
       `SMS_PROVIDER 必须为 ${VALID_SMS_PROVIDER.join('/')} 之一，当前值: ${smsProvider}`,
     )

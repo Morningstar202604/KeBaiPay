@@ -70,8 +70,8 @@ export class LlmService {
       const openai = await import('@ai-sdk/openai')
       this.dynamicSdk = { ai, openai }
       return this.dynamicSdk
-    } catch (err: any) {
-      this.logger.warn(`Vercel AI SDK 加载失败，降级为 mock 模式: ${err.message}`)
+    } catch (err: unknown) {
+      this.logger.warn(`Vercel AI SDK 加载失败，降级为 mock 模式: ${err instanceof Error ? err.message : String(err)}`)
       this.dynamicInitFailed = true
       return null
     }
@@ -103,8 +103,8 @@ export class LlmService {
 
     try {
       return await this.callWithSdk(sdk, input)
-    } catch (err: any) {
-      this.logger.error(`LLM 调用失败，降级为 mock: ${err.message}`, err.stack)
+    } catch (err: unknown) {
+      this.logger.error(`LLM 调用失败，降级为 mock: ${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined)
       return this.mockChat(input.messages, input.tools ?? [])
     }
   }

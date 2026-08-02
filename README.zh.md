@@ -512,7 +512,6 @@ kebaipay/
 │   ├── migrations/           SQL 迁移文件
 │   └── seed.ts               初始化管理员 + 测试数据
 ├── test/                     E2E 测试
-├── e2e_check.py              Python E2E 自动化测试脚本
 ├── docs/                     完整文档集
 ├── docker-compose.yml        生产部署
 ├── docker-compose.dev.yml    开发环境（PG + Redis）

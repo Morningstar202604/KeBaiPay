@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import Redis from 'ioredis'
+import { randomUUID } from 'crypto'
 
 // 原子释放锁的 Lua 脚本：仅当锁值匹配时才删除，防止误释放他人锁
 const RELEASE_LOCK_SCRIPT = `
@@ -218,7 +219,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`开发环境无 Redis，跳过锁获取: ${lockKey}`)
       return true
     }
-    const token = identifier || `lock:${Date.now()}:${Math.random().toString(36).slice(2)}`
+    const token = identifier || `lock:${Date.now()}:${randomUUID()}`
     const result = await this.ensureClient().set(lockKey, token, 'EX', ttlSeconds, 'NX')
     return result === 'OK'
   }
@@ -254,7 +255,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`开发环境无 Redis，跳过锁执行: ${lockKey}`)
       return fn()
     }
-    const token = identifier || `lock:${Date.now()}:${Math.random().toString(36).slice(2)}`
+    const token = identifier || `lock:${Date.now()}:${randomUUID()}`
     const acquired = await this.acquireLock(lockKey, ttlSeconds, token)
     if (!acquired) {
       throw new Error(`获取锁失败: ${lockKey}`)

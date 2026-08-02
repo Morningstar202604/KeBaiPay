@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto'
+import { customAlphabet } from 'nanoid'
 import { lookup as dnsLookup, type LookupAddress } from 'dns'
 import { isIPv4, isIPv6 } from 'net'
 
@@ -19,44 +19,49 @@ export function fenToYuan(fen: number): string {
   return (fen / 100).toFixed(2)
 }
 
+const HEX = '0123456789abcdef'
+const HEX_UPPER = '0123456789ABCDEF'
+const idHex = customAlphabet(HEX, 16)
+const idHexUpper = customAlphabet(HEX_UPPER, 8)
+const idSecret = customAlphabet(HEX, 32)
+
 export function generateOrderNo(prefix: string): string {
   const now = Date.now().toString(36).toUpperCase()
-  const random = randomBytes(4).toString('hex').toUpperCase()
-  return `${prefix}${now}${random}`
+  return `${prefix}${now}${idHexUpper()}`
 }
 
 export function generatePaymentNo(): string {
-  const random = randomBytes(4).toString('hex').toUpperCase()
-  return `P${Date.now()}${random}`
+  return `P${Date.now()}${idHexUpper()}`
 }
 
 export function generateQrCode(): string {
   const now = Date.now().toString(36).toUpperCase()
-  const random = randomBytes(4).toString('hex').toUpperCase()
-  return `KB-${now}${random}`
+  return `KB-${now}${idHexUpper()}`
 }
 
 export function generateMerchantNo(): string {
-  const random = randomBytes(4).toString('hex').toUpperCase()
-  return `M${Date.now()}${random}`
+  return `M${Date.now()}${idHexUpper()}`
 }
 
 export function generateAppId(): string {
-  return `app_${randomBytes(8).toString('hex')}`
+  return `app_${idHex()}`
 }
 
 export function generateAppSecret(): string {
-  return randomBytes(16).toString('hex')
+  return idSecret()
 }
 
 /**
- * 手机号脱敏：保留前 3 位和后 4 位，中间用 **** 替换
- * 例：13812341234 → 138****1234
- * 长度不足 7 位的号码全部替换为 ****，避免泄露
+ * 安全解析 JSON 字符串：解析失败时返回 fallback 默认值，
+ * 避免恶意/损坏的 JSON 在业务关键路径上抛出未捕获异常。
  */
-export function maskPhone(phone: string): string {
-  if (!phone || phone.length < 7) return '****'
-  return `${phone.slice(0, 3)}****${phone.slice(-4)}`
+export function safeJsonParse<T>(raw: string | null | undefined, fallback: T): T {
+  if (raw == null) return fallback
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
 }
 
 /**

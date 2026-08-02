@@ -18,6 +18,7 @@ import {
 import { UsersService } from '../users/users.service'
 import { RedisService } from '../redis/redis.service'
 import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
+import { PaymentChannelBridge } from '../payment-channels/payment-channel.bridge'
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { JournalService } from '../finance/journal.service'
 import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
@@ -33,6 +34,7 @@ export class TransactionsService {
     private readonly usersService: UsersService,
     private readonly redis: RedisService,
     private readonly channelRegistry: PaymentChannelRegistry,
+    private readonly channelBridge: PaymentChannelBridge,
     private readonly riskEngine: RiskEngineService,
     private readonly journalService: JournalService,
   ) {}
@@ -82,7 +84,7 @@ export class TransactionsService {
       throw new BadRequestException(kbError(KBErrorCodes.NO_RECHARGE_CHANNEL))
     }
 
-    const { channel, config, code } = channelEntry
+    const { config, code } = channelEntry
 
     // 创建 PENDING 订单（捕获 P2002 唯一约束冲突实现并发幂等：
     // 两个并发请求携带相同 idempotencyKey 都通过上方检查时，第二个 create 会触发 P2002，
@@ -124,7 +126,7 @@ export class TransactionsService {
     }
     let rechargeResult
     try {
-      rechargeResult = await channel.createRecharge({
+      rechargeResult = await this.channelBridge.createRecharge(code, {
         orderNo,
         amount,
         userId,

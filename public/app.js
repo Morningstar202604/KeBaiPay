@@ -133,7 +133,7 @@ async function api(path, options = {}) {
         navigate('login')
       }
     }
-    throw new Error(data?.message || `请求失败 ${res.status}`)
+    throw new Error(friendlyApiError(res.status, data?.message))
   }
   return data
 }
@@ -161,9 +161,16 @@ async function adminApi(path, options = {}) {
         navigate('adminLogin')
       }
     }
-    throw new Error(data?.message || `请求失败 ${res.status}`)
+    throw new Error(friendlyApiError(res.status, data?.message))
   }
   return data
+}
+
+function friendlyApiError(status, rawMessage) {
+  if (status === 429) return '操作太频繁，请稍后再试'
+  const msg = rawMessage || ''
+  if (msg.includes('ThrottlerException')) return '操作太频繁，请稍后再试'
+  return msg || `请求失败 ${status}`
 }
 
 function fmtMoney(yuan) {
@@ -5438,7 +5445,7 @@ async function renderAdminMerchants() {
       if (!isNaN(withdrawRateVal)) body.withdrawRate = Math.round(withdrawRateVal * 100)
       if (dailyLimitVal) body.dailyLimit = Math.round(dailyLimitVal * 100)
       try {
-        await adminApi(`/admin/merchants/${id}/rate`, { method: 'POST', body: JSON.stringify(body) })
+        await adminApi(`/admin/merchants/${id}/config`, { method: 'POST', body: JSON.stringify(body) })
         showToast('费率配置已更新', 'success')
         document.querySelector('.modal-overlay')?.remove()
         await load()

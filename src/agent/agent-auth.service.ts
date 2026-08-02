@@ -8,7 +8,7 @@ import {
   AGENT_SCENARIOS,
   type AgentScenario,
 } from '../common/constants'
-import { generateOrderNo, generateAppSecret } from '../common/helpers'
+import { generateOrderNo, generateAppSecret, safeJsonParse } from '../common/helpers'
 import type { AgentCurrentUser } from './agent-current-user.interface'
 
 /**
@@ -69,7 +69,7 @@ export class AgentAuthService {
     }
 
     // 校验申请的 scopes 必须是 Agent 自身 scopes 的子集
-    const agentScopes: string[] = JSON.parse(agent.scopes || '[]')
+    const agentScopes: string[] = safeJsonParse<string[]>(agent.scopes, [])
     const invalidScopes = input.scopes.filter((s) => !agentScopes.includes(s))
     if (invalidScopes.length > 0) {
       throw new UnauthorizedException(
@@ -120,11 +120,11 @@ export class AgentAuthService {
         sub: agent.id,
         typ: JWT_TOKEN_TYPE_AGENT,
         scenario: agent.scenario,
-        scopes: JSON.parse(agent.scopes || '[]'),
+        scopes: safeJsonParse<string[]>(agent.scopes, []),
         subjectType: auth.subjectType,
         subjectId: auth.subjectId,
         authId: auth.id,
-        authScopes: JSON.parse(auth.scopes || '[]'),
+        authScopes: safeJsonParse<string[]>(auth.scopes, []),
       },
       {
         secret: this.configService.get<string>('JWT_AGENT_SECRET'),

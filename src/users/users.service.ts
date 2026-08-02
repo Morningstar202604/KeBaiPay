@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client'
 import { createHash } from 'crypto'
 import { RealNameStatus } from '../common/enums'
 import { fenToYuan } from '../common/helpers'
+import { maskIdCard } from '../common/mask'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
   BCRYPT_SALT_ROUNDS,
@@ -99,23 +100,17 @@ export class UsersService {
         const decrypted = this.crypto.decrypt(safe.identity.idCard)
         safe.identity = {
           ...safe.identity,
-          idCard: this.maskIdCard(decrypted),
+          idCard: maskIdCard(decrypted),
         }
       } catch {
         // 解密失败（旧数据或密钥变更），对明文/旧格式脱敏
         safe.identity = {
           ...safe.identity,
-          idCard: this.maskIdCard(safe.identity.idCard),
+          idCard: maskIdCard(safe.identity.idCard),
         }
       }
     }
     return safe
-  }
-
-  private maskIdCard(idCard: string): string {
-    if (!idCard) return ''
-    if (idCard.length <= 7) return idCard.replace(/.(?=.{1})/g, '*')
-    return idCard.slice(0, 3) + '*'.repeat(idCard.length - 7) + idCard.slice(-4)
   }
 
   async findByCredential(phone?: string, email?: string) {

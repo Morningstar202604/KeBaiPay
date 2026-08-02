@@ -5,6 +5,9 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { PaymentChannelRegistry } from './payment-channel.registry'
+import { PaymentChannelBridge } from './payment-channel.bridge'
+import { ConnectorRegistry } from './connector.registry'
+import { ConnectorRouter } from './connector-router'
 import { TransactionStatus } from '../common/enums'
 
 type PrismaMock = {
@@ -18,7 +21,7 @@ type PrismaMock = {
     aggregate: jest.Mock
   }
   account: { findUnique: jest.Mock; update: jest.Mock }
-  accountLedger: { create: jest.Mock }
+  accountLedger: { create: jest.Mock; findFirst: jest.Mock }
   paymentOrder: { findUnique: jest.Mock; update: jest.Mock }
   $transaction: jest.Mock
 }
@@ -63,7 +66,7 @@ describe('RefundService', () => {
         aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }),
       },
       account: { findUnique: jest.fn(), update: jest.fn() },
-      accountLedger: { create: jest.fn() },
+      accountLedger: { create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
       paymentOrder: { findUnique: jest.fn(), update: jest.fn() },
       // $transaction 接收回调并把同一 prisma 对象作为 tx 传入，让 mock 复用
       $transaction: jest.fn(async (fn: (tx: typeof prisma) => Promise<unknown>) => fn(prisma)),
@@ -90,6 +93,10 @@ describe('RefundService', () => {
         { provide: RedisService, useValue: redis },
         { provide: PaymentChannelRegistry, useValue: channelRegistry },
         { provide: RiskEngineService, useValue: risk },
+        // 桥接层：连接器未注册时回退直连渠道（经 mocked channelRegistry 走 mockChannel）
+        PaymentChannelBridge,
+        { provide: ConnectorRegistry, useValue: { get: jest.fn().mockReturnValue(undefined) } },
+        { provide: ConnectorRouter, useValue: { route: jest.fn() } },
       ],
     }).compile()
 

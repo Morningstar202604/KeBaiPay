@@ -112,13 +112,22 @@ export class AgentAuditLogService {
       if (logs.length === 0) break
       for (const log of logs) {
         if (log.previousHash !== previousHash) return log.id
+        let detailObj: unknown = null
+        if (log.detail) {
+          try {
+            detailObj = JSON.parse(log.detail)
+          } catch {
+            // 详情字段损坏视为审计链断点
+            return log.id
+          }
+        }
         const { createHash } = await import('crypto')
         const content = JSON.stringify({
           agentId,
           action: log.action,
           scope: log.scope,
           amount: log.amount,
-          detail: log.detail ? JSON.parse(log.detail) : null,
+          detail: detailObj,
           result: log.result,
           previousHash: log.previousHash,
         })

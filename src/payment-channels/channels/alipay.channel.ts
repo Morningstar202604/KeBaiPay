@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { createSign, createVerify } from 'crypto'
+import { AlipaySdk } from 'alipay-sdk'
 import {
   PaymentChannel,
   RechargeRequest,
@@ -31,6 +31,9 @@ import { KBErrorCodes, kbError } from '../../common/error-codes'
  *   notifyUrl   - 异步通知地址
  *   returnUrl   - 同步跳转地址(电脑网站支付)
  *   signType    - 签名类型 (RSA2)
+ *   sandbox     - 是否沙箱环境
+ *
+ * 签名、网关请求与通知验签统一委托给官方 alipay-sdk 实现。
  */
 @Injectable()
 export class AlipayChannel implements PaymentChannel {
@@ -42,58 +45,61 @@ export class AlipayChannel implements PaymentChannel {
   private readonly ALIPAY_GATEWAY_DEV = 'https://openapi-sandbox.dl.alipaydev.com/gateway.do'
 
   /**
-   * 构建公共请求参数
+   * 基于渠道配置构建官方 SDK 实例
    */
-  private buildCommonParams(appId: string, method: string, signType = 'RSA2'): Record<string, string> {
-    return {
-      app_id: appId,
-      method,
-      format: 'JSON',
-      charset: 'utf-8',
-      sign_type: signType,
-      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      version: '1.0',
+  private buildSdk(channelConfig: ChannelConfig): AlipaySdk {
+    const appId = channelConfig.appId as string
+    const privateKey = channelConfig.privateKey as string
+    const alipayPublicKey = channelConfig.alipayPublicKey as string | undefined
+    const sandbox = channelConfig.sandbox === true || channelConfig.sandbox === 'true'
+
+    return new AlipaySdk({
+      appId,
+      privateKey,
+      alipayPublicKey,
+      signType: 'RSA2',
+      keyType: 'PKCS8',
+      camelcase: false,
+      gateway: sandbox ? this.ALIPAY_GATEWAY_DEV : this.ALIPAY_GATEWAY,
+    })
+  }
+
+  /**
+   * 解析表单通知参数
+   */
+  private parseNotifyParams(rawBody: string): Record<string, string> {
+    const params: Record<string, string> = {}
+    const searchParams = new URLSearchParams(rawBody)
+    searchParams.forEach((value, key) => {
+      params[key] = value
+    })
+    return params
+  }
+
+  /**
+   * 验证回调签名（公开方法供 webhook 使用）
+   */
+  verifyWebhookSignature(
+    rawBody: string,
+    headers: Record<string, string>,
+    channelConfig: ChannelConfig,
+  ): boolean {
+    const alipayPublicKey = channelConfig.alipayPublicKey as string
+    if (!alipayPublicKey) {
+      this.logger.error('支付宝公钥未配置，拒绝回调签名验证')
+      return false
     }
-  }
 
-  /**
-   * RSA2 签名
-   */
-  private signRsa2(params: Record<string, string>, privateKey: string): string {
-    const sortedKeys = Object.keys(params)
-      .filter(k => k !== 'sign' && params[k] !== '' && params[k] !== undefined)
-      .sort()
+    let sdk: AlipaySdk
+    try {
+      sdk = this.buildSdk(channelConfig)
+    } catch {
+      this.logger.error('支付宝 SDK 初始化失败，拒绝回调签名验证')
+      return false
+    }
 
-    const signStr = sortedKeys.map(k => `${k}=${params[k]}`).join('&')
-
-    const sign = createSign('RSA-SHA256')
-    sign.update(signStr)
-    return sign.sign(privateKey, 'base64')
-  }
-
-  /**
-   * 验证 RSA2 签名
-   */
-  private verifyRsa2(signContent: string, signature: string, publicKey: string): boolean {
-    const verify = createVerify('RSA-SHA256')
-    verify.update(signContent)
-    return verify.verify(publicKey, signature, 'base64')
-  }
-
-  /**
-   * 支付宝通知验签
-   */
-  private verifyNotify(params: Record<string, string>, alipayPublicKey: string): boolean {
-    const sign = params.sign
-    if (!sign) return false
-
-    const sortedKeys = Object.keys(params)
-      .filter(k => k !== 'sign' && k !== 'sign_type' && params[k] !== '')
-      .sort()
-
-    const signContent = sortedKeys.map(k => `${k}=${params[k]}`).join('&')
-
-    return this.verifyRsa2(signContent, sign, alipayPublicKey)
+    const params = this.parseNotifyParams(rawBody)
+    return sdk.checkNotifySignV2(params)
   }
 
   /**
@@ -116,51 +122,22 @@ export class AlipayChannel implements PaymentChannel {
     const productCode = payMethod === 'page' ? 'FAST_INSTANT_TRADE_PAY' : 'QUICK_WAP_WAY'
     const method = payMethod === 'page' ? 'alipay.trade.page.pay' : 'alipay.trade.wap.pay'
 
-    const bizContent = JSON.stringify({
-      out_trade_no: params.orderNo,
-      total_amount: (params.amount / 100).toFixed(2),
-      subject: params.subject,
-      product_code: productCode,
+    const sdk = this.buildSdk(cfg)
+    const payUrl = sdk.pageExecute(method, 'GET', {
+      bizContent: {
+        out_trade_no: params.orderNo,
+        total_amount: (params.amount / 100).toFixed(2),
+        subject: params.subject,
+        product_code: productCode,
+      },
+      notify_url: notifyUrl,
+      ...(returnUrl ? { return_url: returnUrl } : {}),
     })
-
-    const commonParams = this.buildCommonParams(appId, method)
-    const bizParams: Record<string, string> = { ...commonParams, biz_content: bizContent, notify_url: notifyUrl }
-    if (returnUrl) bizParams.return_url = returnUrl
-
-    const sign = this.signRsa2(bizParams, privateKey)
-    const allParams = { ...bizParams, sign }
-
-    const queryString = Object.entries(allParams)
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-      .join('&')
 
     return {
-      payUrl: `${this.ALIPAY_GATEWAY}?${queryString}`,
+      payUrl,
       channelOrderNo: params.orderNo,
     }
-  }
-
-  /**
-   * 验证回调签名（公开方法供 webhook 使用）
-   */
-  verifyWebhookSignature(
-    rawBody: string,
-    headers: Record<string, string>,
-    channelConfig: ChannelConfig,
-  ): boolean {
-    const alipayPublicKey = channelConfig.alipayPublicKey as string
-    if (!alipayPublicKey) {
-      this.logger.error('支付宝公钥未配置，拒绝回调签名验证')
-      return false
-    }
-
-    const params: Record<string, string> = {}
-    const searchParams = new URLSearchParams(rawBody)
-    searchParams.forEach((value, key) => {
-      params[key] = value
-    })
-
-    return this.verifyNotify(params, alipayPublicKey)
   }
 
   async createRecharge(params: RechargeRequest): Promise<RechargeResponse> {
@@ -190,37 +167,28 @@ export class AlipayChannel implements PaymentChannel {
       throw new Error('支付宝配置不完整')
     }
 
-    const bizContent = JSON.stringify({ out_trade_no: channelOrderNo })
-    const commonParams = this.buildCommonParams(appId, 'alipay.trade.query')
-    const allParams = { ...commonParams, biz_content: bizContent }
-    const sign = this.signRsa2(allParams, privateKey)
+    const sdk = this.buildSdk(cfg)
 
     try {
-      const response = await fetch(this.ALIPAY_GATEWAY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: Object.entries({ ...allParams, sign })
-          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-          .join('&'),
-      })
+      const result = await sdk.exec(
+        'alipay.trade.query',
+        { bizContent: { out_trade_no: channelOrderNo } },
+        { validateSign: false },
+      )
 
-      const result = await response.json() as Record<string, unknown>
-      const responseKey = 'alipay_trade_query_response'
-      const responseData = result[responseKey] as Record<string, unknown> | undefined
-
-      if (responseData?.code !== '10000') {
+      if (result.code !== '10000') {
         return {
           channelOrderNo,
           status: 'FAILED',
           totalAmount: 0,
-          message: (responseData?.sub_msg as string) || (responseData?.msg as string) || '查询失败',
+          message: (result.sub_msg as string) || (result.msg as string) || '查询失败',
         }
       }
 
-      const tradeStatus = responseData.trade_status as string
-      const totalAmountStr = responseData.total_amount as string
+      const tradeStatus = result.trade_status as string
+      const totalAmountStr = result.total_amount as string
       const totalAmount = Math.round(parseFloat(totalAmountStr || '0') * 100)
-      const gmtPayment = responseData.send_pay_date as string
+      const gmtPayment = result.send_pay_date as string
 
       let status: OrderQueryResult['status']
       switch (tradeStatus) {
@@ -268,13 +236,10 @@ export class AlipayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '支付宝公钥未配置，无法验证回调签名'))
     }
 
-    const params: Record<string, string> = {}
-    const searchParams = new URLSearchParams(rawBody)
-    searchParams.forEach((value, key) => {
-      params[key] = value
-    })
+    const sdk = this.buildSdk(cfg)
+    const params = this.parseNotifyParams(rawBody)
 
-    if (!this.verifyNotify(params, alipayPublicKey)) {
+    if (!sdk.checkNotifySignV2(params)) {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '支付宝回调签名验证失败'))
     }
 
@@ -311,39 +276,31 @@ export class AlipayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.RECHARGE_CHANNEL_FAILED, '支付宝配置不完整'))
     }
 
-    const bizContent = JSON.stringify({
-      out_trade_no: params.orderNo,
-      refund_amount: (params.amount / 100).toFixed(2),
-      refund_reason: params.reason || '用户退款',
-      out_request_no: params.refundNo,
-    })
-
-    const commonParams = this.buildCommonParams(appId, 'alipay.trade.refund')
-    const allParams = { ...commonParams, biz_content: bizContent }
-    const sign = this.signRsa2(allParams, privateKey)
+    const sdk = this.buildSdk(cfg)
 
     try {
-      const response = await fetch(this.ALIPAY_GATEWAY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: Object.entries({ ...allParams, sign })
-          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-          .join('&'),
-      })
+      const result = await sdk.exec(
+        'alipay.trade.refund',
+        {
+          bizContent: {
+            out_trade_no: params.orderNo,
+            refund_amount: (params.amount / 100).toFixed(2),
+            refund_reason: params.reason || '用户退款',
+            out_request_no: params.refundNo,
+          },
+        },
+        { validateSign: false },
+      )
 
-      const result = await response.json() as Record<string, unknown>
-      const responseKey = 'alipay_trade_refund_response'
-      const responseData = result[responseKey] as Record<string, unknown> | undefined
-
-      if (responseData?.code !== '10000') {
+      if (result.code !== '10000') {
         this.logger.error(`支付宝退款失败: ${JSON.stringify(result)}`)
-        throw new Error(`支付宝退款失败: ${responseData?.sub_msg || responseData?.msg || '未知错误'}`)
+        throw new Error(`支付宝退款失败: ${result.sub_msg || result.msg || '未知错误'}`)
       }
 
       return {
         // channelRefundNo 编码 trade_no 与 out_request_no，供 queryRefund 调用
         // alipay.trade.fastpay.refund.query 接口（要求 out_request_no + trade_no/out_trade_no）
-        channelRefundNo: `${responseData.trade_no}:${params.refundNo}`,
+        channelRefundNo: `${result.trade_no}:${params.refundNo}`,
         status: 'PENDING',
         message: '退款受理中',
       }
@@ -384,37 +341,25 @@ export class AlipayChannel implements PaymentChannel {
     const outRequestNo = channelRefundNo.slice(sepIdx + 1)
 
     // 支付宝退款查询接口：要求 out_request_no + (out_trade_no 或 trade_no)
-    const bizContent = JSON.stringify({
-      trade_no: tradeNo,
-      out_request_no: outRequestNo,
-    })
-    const commonParams = this.buildCommonParams(appId, 'alipay.trade.fastpay.refund.query')
-    const allParams = { ...commonParams, biz_content: bizContent }
-    const sign = this.signRsa2(allParams, privateKey)
+    const sdk = this.buildSdk(cfg)
 
     try {
-      const response = await fetch(this.ALIPAY_GATEWAY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: Object.entries({ ...allParams, sign })
-          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-          .join('&'),
-      })
+      const result = await sdk.exec(
+        'alipay.trade.fastpay.refund.query',
+        { bizContent: { trade_no: tradeNo, out_request_no: outRequestNo } },
+        { validateSign: false },
+      )
 
-      const result = await response.json() as Record<string, unknown>
-      const responseKey = 'alipay_trade_fastpay_refund_query_response'
-      const responseData = result[responseKey] as Record<string, unknown> | undefined
-
-      if (responseData?.code !== '10000') {
+      if (result.code !== '10000') {
         return {
           channelRefundNo,
           status: 'FAILED',
-          message: (responseData?.sub_msg as string) || '查询失败',
+          message: (result.sub_msg as string) || '查询失败',
         }
       }
 
       // refund_status = 'REFUND_SUCCESS' 表示该笔退款成功
-      if (responseData.refund_status === 'REFUND_SUCCESS') {
+      if (result.refund_status === 'REFUND_SUCCESS') {
         return {
           channelRefundNo,
           status: 'SUCCESS',
@@ -451,13 +396,10 @@ export class AlipayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '支付宝公钥未配置'))
     }
 
-    const params: Record<string, string> = {}
-    const searchParams = new URLSearchParams(rawBody)
-    searchParams.forEach((value, key) => {
-      params[key] = value
-    })
+    const sdk = this.buildSdk(cfg)
+    const params = this.parseNotifyParams(rawBody)
 
-    if (!this.verifyNotify(params, alipayPublicKey)) {
+    if (!sdk.checkNotifySignV2(params)) {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '支付宝退款回调签名验证失败'))
     }
 
@@ -487,38 +429,30 @@ export class AlipayChannel implements PaymentChannel {
       throw new Error('支付宝配置不完整')
     }
 
-    const bizContent = JSON.stringify({
-      out_biz_no: params.orderNo,
-      payee_type: 'ALIPAY_LOGON_ID',
-      payee_account: params.channelAccount,
-      amount: (params.amount / 100).toFixed(2),
-      remark: `提现_${params.userName}`,
-    })
-
-    const commonParams = this.buildCommonParams(appId, 'alipay.fund.trans.uni.transfer')
-    const allParams = { ...commonParams, biz_content: bizContent }
-    const sign = this.signRsa2(allParams, privateKey)
+    const sdk = this.buildSdk(cfg)
 
     try {
-      const response = await fetch(this.ALIPAY_GATEWAY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: Object.entries({ ...allParams, sign })
-          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-          .join('&'),
-      })
+      const result = await sdk.exec(
+        'alipay.fund.trans.uni.transfer',
+        {
+          bizContent: {
+            out_biz_no: params.orderNo,
+            payee_type: 'ALIPAY_LOGON_ID',
+            payee_account: params.channelAccount,
+            amount: (params.amount / 100).toFixed(2),
+            remark: `提现_${params.userName}`,
+          },
+        },
+        { validateSign: false },
+      )
 
-      const result = await response.json() as Record<string, unknown>
-      const responseKey = 'alipay_fund_trans_uni_transfer_response'
-      const responseData = result[responseKey] as Record<string, unknown> | undefined
-
-      if (responseData?.code !== '10000') {
+      if (result.code !== '10000') {
         this.logger.error(`支付宝转账失败: ${JSON.stringify(result)}`)
-        throw new Error(`支付宝转账失败: ${responseData?.sub_msg || responseData?.msg || '未知错误'}`)
+        throw new Error(`支付宝转账失败: ${result.sub_msg || result.msg || '未知错误'}`)
       }
 
       return {
-        channelOrderNo: (responseData.order_id as string) || params.orderNo,
+        channelOrderNo: (result.order_id as string) || params.orderNo,
         status: 'PROCESSING',
         message: '转账受理中',
       }
@@ -540,27 +474,18 @@ export class AlipayChannel implements PaymentChannel {
       throw new Error('支付宝配置不完整')
     }
 
-    const bizContent = JSON.stringify({ out_biz_no: channelOrderNo })
-    const commonParams = this.buildCommonParams(appId, 'alipay.fund.trans.order.query')
-    const allParams = { ...commonParams, biz_content: bizContent }
-    const sign = this.signRsa2(allParams, privateKey)
+    const sdk = this.buildSdk(cfg)
 
     try {
-      const response = await fetch(this.ALIPAY_GATEWAY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: Object.entries({ ...allParams, sign })
-          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-          .join('&'),
-      })
+      const result = await sdk.exec(
+        'alipay.fund.trans.order.query',
+        { bizContent: { out_biz_no: channelOrderNo } },
+        { validateSign: false },
+      )
 
-      const result = await response.json() as Record<string, unknown>
-      const responseKey = 'alipay_fund_trans_order_query_response'
-      const responseData = result[responseKey] as Record<string, unknown> | undefined
-
-      if (responseData?.status === 'SUCCESS') {
+      if (result.status === 'SUCCESS') {
         return { channelOrderNo, status: 'SUCCESS', message: '转账成功' }
-      } else if (responseData?.status === 'FAIL') {
+      } else if (result.status === 'FAIL') {
         return { channelOrderNo, status: 'FAILED', message: '转账失败' }
       }
       return { channelOrderNo, status: 'PROCESSING', message: '转账处理中' }
@@ -584,15 +509,12 @@ export class AlipayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '支付宝公钥未配置'))
     }
 
-    const params: Record<string, string> = {}
-    const searchParams = new URLSearchParams(rawBody)
-    searchParams.forEach((value, key) => {
-      params[key] = value
-    })
+    const sdk = this.buildSdk(channelConfig)
+    const params = this.parseNotifyParams(rawBody)
 
     // 必须验签：否则攻击者可伪造 payout 成功回调，触发提现订单误标 SUCCESS
     // 导致资金已扣但实际未到账的严重资金事故
-    if (!this.verifyNotify(params, alipayPublicKey)) {
+    if (!sdk.checkNotifySignV2(params)) {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '支付宝代付回调签名验证失败'))
     }
 

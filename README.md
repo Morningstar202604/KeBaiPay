@@ -16,11 +16,11 @@
   <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-blue" />
   <img alt="AI SDK" src="https://img.shields.io/badge/AI%20SDK-v7-orange" />
   <img alt="API Endpoints" src="https://img.shields.io/badge/API-214-brightgreen" />
-  <img alt="Tests" src="https://img.shields.io/badge/tests-1023%20%E2%9C%93-brightgreen" />
+  <img alt="Tests" src="https://img.shields.io/badge/tests-1187%20%E2%9C%93-brightgreen" />
   <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" />
 </p>
 
-Version 2.1.0 · 214 API endpoints · 52 Prisma models · 1023 unit tests + 39 E2E
+Version 2.2.0 · 214 API endpoints · 52 Prisma models · 1141 unit tests + 46 E2E
 
 Mirrored on two platforms: [GitHub (international)](https://github.com/weed33834/KeBaiPay) · [gitcode (China)](https://gitcode.com/badhope/KeBaiPay)
 
@@ -54,7 +54,9 @@ Mirrored on two platforms: [GitHub (international)](https://github.com/weed33834
 - **MCP server**: exposes KeBaiPay capabilities to external AI agents (Claude Desktop / Cursor / Trae)
 - **Escrow transactions (S2)**: buyer-seller intermediary escrow, aligned with Alipay / WeChat escrow logic
 - **WeChat red-packet double-mean algorithm (S1)**: group red-packet logic identical to the native WeChat experience
-- **1023 unit tests + 39 E2E tests (Jest) + 1789-line Python E2E script**
+- **Official channel SDKs (v2.2.0)**: Alipay (`alipay-sdk`) and WeChat Pay (`wechatpay-node-v3`) replace the hand-rolled RSA2 / V3 signing, with AEAD-AES-256-GCM callback decryption and offline RSA-SHA256 webhook verification
+- **Connector routing bridge (v2.2.0)**: business outbound calls (recharge / payout / refund / queries) route through `ConnectorRouter` for unified retry and health awareness, while channel instances and DB configs stay in `PaymentChannelRegistry`
+- **1141 unit tests + 46 E2E tests (Jest) + 1789-line Python E2E script**
 
 ### Tech stack
 
@@ -512,7 +514,6 @@ kebaipay/
 │   ├── migrations/            SQL migration files
 │   └── seed.ts                init admin + test data
 ├── test/                      E2E tests
-├── e2e_check.py               Python E2E automation script
 ├── docs/                      full documentation
 ├── docker-compose.yml         production deployment
 ├── docker-compose.dev.yml     dev environment (PG + Redis)
@@ -698,7 +699,7 @@ cat backup_20260721.sql | docker compose exec -T postgres psql -U postgres -d ke
 ## Testing
 
 ```bash
-npm run test           # 1023 unit tests
+npm run test           # 1141 unit tests
 npm run test:e2e       # end-to-end tests
 npm run test:cov       # coverage report
 npm run lint           # TypeScript type check

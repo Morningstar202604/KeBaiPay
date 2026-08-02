@@ -4,6 +4,7 @@ import { AdminService } from './admin.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../audit/audit-log.service'
 import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
+import { ConnectorRegistry } from '../payment-channels/connector.registry'
 import { AdminJwtAuthGuard } from './admin-jwt-auth.guard'
 import { PermissionsGuard } from './permissions.guard'
 
@@ -30,6 +31,14 @@ describe('ChannelConfigController', () => {
   const mockChannelRegistry = {
     getChannel: jest.fn(),
   }
+  const mockConnector = {
+    getConfig: jest.fn(() => ({})),
+    setConfig: jest.fn(),
+  }
+  const mockConnectorRegistry = {
+    get: jest.fn(),
+    syncConfig: jest.fn(),
+  }
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -39,6 +48,7 @@ describe('ChannelConfigController', () => {
         { provide: AdminService, useValue: {} },
         { provide: AuditLogService, useValue: mockAuditLog },
         { provide: PaymentChannelRegistry, useValue: mockChannelRegistry },
+        { provide: ConnectorRegistry, useValue: mockConnectorRegistry },
       ],
     })
       .overrideGuard(AdminJwtAuthGuard)
@@ -206,5 +216,80 @@ describe('ChannelConfigController', () => {
       message: '支付宝 渠道可用',
     })
     expect(mockChannelRegistry.getChannel).toHaveBeenCalledWith('alipay')
+  })
+
+  it('createChannel 事务提交后同步连接器配置', async () => {
+    mockConnectorRegistry.get.mockReturnValue(mockConnector)
+    const created = {
+      code: 'wechat',
+      name: '微信',
+      type: 'RECHARGE',
+      enabled: true,
+      priority: 5,
+      config: JSON.stringify({ appId: 'wxa', secret: 's' }),
+    }
+    mockPrisma.paymentChannelConfig.create.mockResolvedValue(created)
+    mockPrisma.paymentChannelConfig.findUnique.mockResolvedValue(created)
+    await controller.createChannel(
+      { code: 'wechat', name: '微信', type: 'RECHARGE', enabled: true, priority: 5, config: '{}' } as any,
+      { sub: 'a1', role: 'SUPER_ADMIN' } as any,
+      { headers: {}, ip: '127.0.0.1' } as any,
+    )
+    // 渠道编码 wechat → 连接器 wechat_pay，同步优先级与凭据
+    expect(mockConnectorRegistry.syncConfig).toHaveBeenCalledWith('wechat_pay', {
+      priority: 5,
+      credentials: { appId: 'wxa', secret: 's' },
+    })
+  })
+
+  it('updateChannel 事务提交后同步连接器优先级与凭据', async () => {
+    mockConnectorRegistry.get.mockReturnValue(mockConnector)
+    const existing = {
+      code: 'alipay',
+      name: '支付宝',
+      type: 'RECHARGE',
+      enabled: true,
+      priority: 10,
+      config: JSON.stringify({ appId: 'alix', secret: 's' }),
+    }
+    const updated = { ...existing, priority: 3 }
+    mockPrisma.paymentChannelConfig.findUnique.mockResolvedValue(updated)
+    mockPrisma.paymentChannelConfig.update.mockResolvedValue(updated)
+    await controller.updateChannel(
+      'alipay',
+      { priority: 3 } as any,
+      { sub: 'a1', role: 'SUPER_ADMIN' } as any,
+      { headers: {}, ip: '127.0.0.1' } as any,
+    )
+    expect(mockConnectorRegistry.syncConfig).toHaveBeenCalledWith('alipay', {
+      priority: 3,
+      credentials: { appId: 'alix', secret: 's' },
+    })
+  })
+
+  it('deleteChannel 重置连接器配置（避免残留旧凭据）', async () => {
+    mockConnectorRegistry.get.mockReturnValue(mockConnector)
+    mockPrisma.paymentChannelConfig.delete.mockResolvedValue({})
+    mockPrisma.paymentChannelConfig.findUnique.mockResolvedValue(null)
+    await controller.deleteChannel(
+      'alipay',
+      { sub: 'a1', role: 'SUPER_ADMIN' } as any,
+      { headers: {}, ip: '127.0.0.1' } as any,
+    )
+    expect(mockConnectorRegistry.syncConfig).toHaveBeenCalledWith('alipay', {
+      priority: 0,
+      credentials: {},
+    })
+  })
+
+  it('渠道无对应连接器时不调用 syncConfig', async () => {
+    mockConnectorRegistry.get.mockReturnValue(undefined)
+    mockPrisma.paymentChannelConfig.create.mockResolvedValue({ code: 'unknown' })
+    await controller.createChannel(
+      { code: 'unknown', name: 'x', type: 'RECHARGE', enabled: true, priority: 1, config: '{}' } as any,
+      { sub: 'a1', role: 'SUPER_ADMIN' } as any,
+      { headers: {}, ip: '127.0.0.1' } as any,
+    )
+    expect(mockConnectorRegistry.syncConfig).not.toHaveBeenCalled()
   })
 })

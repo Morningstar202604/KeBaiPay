@@ -4,6 +4,7 @@ import { WithdrawalStatus } from '../common/enums'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
+import { PaymentChannelBridge } from '../payment-channels/payment-channel.bridge'
 import { ChannelConfig } from '../payment-channels/payment-channel.interface'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 
@@ -30,6 +31,7 @@ export class WithdrawalsSchedule {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly channelRegistry: PaymentChannelRegistry,
+    private readonly channelBridge: PaymentChannelBridge,
     private readonly scheduleHealth: ScheduleHealthService,
   ) {
     this.scheduleHealth.register('withdrawals:processingTimeout', '0 */5 * * * *', '提现超时兜底扫描')
@@ -103,16 +105,6 @@ export class WithdrawalsSchedule {
       return
     }
 
-    let channel
-    try {
-      channel = this.channelRegistry.getChannel(order.channel)
-    } catch {
-      this.logger.warn(
-        `提现订单 ${order.orderNo} 渠道 ${order.channel} 不存在，无法查询，需人工核实`,
-      )
-      return
-    }
-
     let channelConfig: ChannelConfig = {}
     try {
       const entry = await this.channelRegistry.getEnabledConfig(order.channel)
@@ -123,7 +115,15 @@ export class WithdrawalsSchedule {
       )
     }
 
-    const result = await channel.queryPayout(order.channelOrderNo, channelConfig)
+    let result
+    try {
+      result = await this.channelBridge.queryPayout(order.channel, order.channelOrderNo, channelConfig)
+    } catch (err) {
+      this.logger.warn(
+        `提现订单 ${order.orderNo} 渠道 ${order.channel} 查询失败：${err instanceof Error ? err.message : '未知错误'}，需人工核实`,
+      )
+      return
+    }
     this.logger.log(
       `提现订单 ${order.orderNo} 渠道查询结果：${result.status}${result.message ? `（${result.message}）` : ''}`,
     )

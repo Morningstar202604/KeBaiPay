@@ -512,7 +512,6 @@ kebaipay/
 │   ├── migrations/           SQL マイグレーションファイル
 │   └── seed.ts              管理者 + テストデータ初期化
 ├── test/                    E2E テスト
-├── e2e_check.py             Python E2E 自動化スクリプト
 ├── docs/                    完全なドキュメント
 ├── docker-compose.yml       本番デプロイ
 ├── docker-compose.dev.yml   開発環境（PG + Redis）

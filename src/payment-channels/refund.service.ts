@@ -9,6 +9,7 @@ import { TransactionStatus, PaymentOrderStatus } from '../common/enums'
 import { RedisService } from '../redis/redis.service'
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { PaymentChannelRegistry } from './payment-channel.registry'
+import { PaymentChannelBridge } from './payment-channel.bridge'
 import { RefundRequest, RefundResponse, ChannelConfig } from './payment-channel.interface'
 import { generateOrderNo } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
@@ -31,6 +32,7 @@ export class RefundService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly channelRegistry: PaymentChannelRegistry,
+    private readonly channelBridge: PaymentChannelBridge,
     private readonly riskEngine: RiskEngineService,
   ) {}
 
@@ -94,8 +96,7 @@ export class RefundService {
         }
       }
 
-      // 获取渠道
-      const channel = this.channelRegistry.getChannel(order.channel || 'mock')
+      // 获取渠道配置（渠道实例由桥接层按编码解析）
       const channelConfig = await this.channelRegistry.getEnabledConfig(order.channel || 'mock')
 
       const refundNo = generateOrderNo('RF')
@@ -134,7 +135,7 @@ export class RefundService {
 
       let refundResult: RefundResponse
       try {
-        refundResult = await channel.refund(refundRequest)
+        refundResult = await this.channelBridge.refund(order.channel || 'mock', refundRequest)
       } catch (error) {
         // 渠道退款失败，更新订单状态
         await this.prisma.transactionOrder.update({
@@ -211,10 +212,10 @@ export class RefundService {
       }
     }
 
-    const channel = this.channelRegistry.getChannel(refundOrder.channel || 'mock')
     const channelConfig = await this.channelRegistry.getEnabledConfig(refundOrder.channel || 'mock')
 
-    const queryResult = await channel.queryRefund(
+    const queryResult = await this.channelBridge.queryRefund(
+      refundOrder.channel || 'mock',
       refundOrder.channelOrderNo || refundNo,
       channelConfig.config,
     )
@@ -375,7 +376,7 @@ export class RefundService {
     userId: string,
   ): Promise<void> {
     await this.redis.withLock(`refund:process:${refundNo}`, REDIS_LOCK_TTL_SECONDS, async () => {
-      // 幂等检查：只有 PROCESSING 状态才处理，已成功的跳过
+      // 查找退款订单
       const refundOrder = await this.prisma.transactionOrder.findUnique({
         where: { orderNo: refundNo },
         select: { id: true, status: true, relatedOrderNo: true },
@@ -384,7 +385,12 @@ export class RefundService {
         this.logger.error(`退款成功但退款订单不存在: ${refundNo}`)
         return
       }
-      if (refundOrder.status === TransactionStatus.SUCCESS) {
+
+      // 幂等检查：检查是否已有该退款的账本记录，避免重复扣款
+      const existingLedger = await this.prisma.accountLedger.findFirst({
+        where: { transactionId: refundNo },
+      })
+      if (existingLedger) {
         this.logger.warn(`退款 ${refundNo} 已处理过资金退回，跳过重复扣款`)
         return
       }
@@ -398,14 +404,12 @@ export class RefundService {
       }
 
       await this.prisma.$transaction(async (tx) => {
-        // 乐观锁：仅当 status=PROCESSING 时更新为 SUCCESS，防止并发重复扣款
-        const updated = await tx.transactionOrder.updateMany({
-          where: { id: refundOrder.id, status: TransactionStatus.PROCESSING },
-          data: { status: TransactionStatus.SUCCESS, completedAt: new Date() },
-        })
-        if (updated.count === 0) {
-          // 状态已变更（可能已被其他流程处理），跳过
-          return
+        // 如果状态还是 PROCESSING，更新为 SUCCESS
+        if (refundOrder.status === TransactionStatus.PROCESSING) {
+          await tx.transactionOrder.updateMany({
+            where: { id: refundOrder.id, status: TransactionStatus.PROCESSING },
+            data: { status: TransactionStatus.SUCCESS, completedAt: new Date() },
+          })
         }
 
         const updatedAccount = await tx.account.update({

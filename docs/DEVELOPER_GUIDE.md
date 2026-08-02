@@ -126,6 +126,19 @@ src/
 
 ---
 
+## 支付渠道与 Connector 桥接（v2.2.0）
+
+渠道体系分两层协作：
+
+1. **PaymentChannelRegistry（兼容层）**：持有渠道实例（`MockChannel`/`WechatPayChannel`/`AlipayChannel`），从 `PaymentChannelConfig` 表加载 DB 配置，负责渠道选择（`getChannelByType`）与回调验签/解析（`parseXxxCallback`/`buildXxxCallbackSuccess`/`verifyWebhookSignature`）。
+2. **Connector 体系**：`ConnectorRegistry`（构造时自动注册 5 个 Connector）提供能力/优先级/健康元数据；`ConnectorRouter` 提供统一重试与健康感知路由。
+
+**`PaymentChannelBridge`** 将业务外呼（充值/代付/退款/查询）经 `ConnectorRouter.route(capability, request, fn, retryPolicy, { preferredName })` 路由，但渠道实例与 DB 配置仍由 `PaymentChannelRegistry` 提供——`preferredName` 保证不跨渠道降级（退款/代付订单的渠道不可随意切换）。渠道无对应连接器（未注册）时桥接层回退直连渠道，存量功能不受影响。验签/回调解析等本地能力保持直连渠道，不经路由器。
+
+外呼调用点：`transactions.service`（createRecharge）、`withdrawals.service`（createPayout）、`refund.service`（refund/queryRefund）、`withdrawals.schedule`（queryPayout）。
+
+---
+
 ## v2.0.0 新增模块概览
 
 v2.0.0 在原有用户钱包 + 商户收款能力之上扩展了 12 个业务模块。下表汇总各模块的路由前缀、认证方式、关键能力与涉及的数据库表，便于快速定位代码与数据库结构。
@@ -687,7 +700,7 @@ KeBaiPay v2.0.0 共暴露 **204 个端点，覆盖 35 个模块**。完整端点
 | 控制器测试 | 与源码同目录 | `<module>.controller.spec.ts` | Jest + `@nestjs/testing` |
 | 并发测试 | 与源码同目录 | `concurrency.spec.ts` | Jest（仅资金类模块） |
 | E2E 测试 | `test/` | `<module>.e2e-spec.ts` | Jest + supertest |
-| E2E 模拟脚本 | 项目根 | `e2e_check.py` | Python 3（urllib） |
+| E2E 场景模拟 | `test/` | `user-scenarios.e2e-spec.ts` | Jest（MockPrismaClient） |
 
 ### 单元测试覆盖率要求
 
@@ -705,9 +718,10 @@ E2E 测试位于 `test/` 目录，使用独立 Jest 配置 `test/jest-e2e.config
 | `test/auth.e2e-spec.ts` | 用户注册/登录/JWT 流程 |
 | `test/admin-auth.e2e-spec.ts` | 管理员登录/权限校验流程 |
 | `test/open-api.e2e-spec.ts` | 商户 HMAC 签名认证与开放 API |
+| `test/user-scenarios.e2e-spec.ts` | 6 个核心支付因果链场景（充值/退款/降级/风控/并发/对账） |
 | `test/setup-env.ts` | 测试环境初始化（数据库、Redis mock） |
 
-`e2e_check.py` 是 Python 编写的端到端模拟脚本，覆盖前端 H5 + 管理后台主要路径，启动服务后执行 `python3 e2e_check.py` 即可运行。
+`test/user-scenarios.e2e-spec.ts` 使用内存 MockPrismaClient 模拟数据库，验证充值、退款、渠道降级、风控拦截、并发扣款、对账差异自动修正等完整资金链路。
 
 ### 测试命令
 
@@ -716,7 +730,6 @@ npm test                 # 运行所有单元测试（jest）
 npm run test:watch       # watch 模式
 npm run test:cov         # 生成覆盖率报告（jest --coverage）
 npm run test:e2e         # 运行 E2E 测试（jest --config ./test/jest-e2e.config.js）
-python3 e2e_check.py     # 运行 Python 端到端模拟脚本（需先启动服务）
 ```
 
 ---

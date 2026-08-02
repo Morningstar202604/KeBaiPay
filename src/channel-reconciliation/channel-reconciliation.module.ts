@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { ChannelReconciliationController } from './channel-reconciliation.controller'
 import { ChannelReconciliationService } from './channel-reconciliation.service'
+import { AutoFixService } from './auto-fix.service'
 import { PermissionsGuard } from '../admin/permissions.guard'
 
 /**
@@ -25,8 +26,8 @@ import { PermissionsGuard } from '../admin/permissions.guard'
       inject: [ConfigService],
     }),
   ],
-  providers: [ChannelReconciliationService, PermissionsGuard],
+  providers: [ChannelReconciliationService, AutoFixService, PermissionsGuard],
   controllers: [ChannelReconciliationController],
-  exports: [ChannelReconciliationService],
+  exports: [ChannelReconciliationService, AutoFixService],
 })
 export class ChannelReconciliationModule {}

@@ -144,6 +144,31 @@ async function main() {
     console.log(`  测试用户密码已重置: ${testPhone} / Abc12345`)
   }
 
+  // 5. Mock 支付渠道配置（幂等）：保证新环境开箱即用可发起充值/代付
+  const mockChannel = await prisma.paymentChannelConfig.upsert({
+    where: { code: 'mock' },
+    update: {
+      name: 'MockChannel',
+      type: 'BOTH',
+      enabled: true,
+      priority: 1,
+      config: JSON.stringify({
+        mockSecret: process.env.MOCK_CHANNEL_SECRET || 'mock-channel-secret-dev-only',
+      }),
+    },
+    create: {
+      code: 'mock',
+      name: 'MockChannel',
+      type: 'BOTH',
+      enabled: true,
+      priority: 1,
+      config: JSON.stringify({
+        mockSecret: process.env.MOCK_CHANNEL_SECRET || 'mock-channel-secret-dev-only',
+      }),
+    },
+  })
+  console.log(`  Mock 支付渠道配置已就绪: ${mockChannel.code} (enabled=${mockChannel.enabled})`)
+
   console.log('seed 完成')
 }
 

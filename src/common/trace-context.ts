@@ -44,13 +44,14 @@ export function patchLoggerWithTraceId(): void {
   if (patched) return
   patched = true
 
-  const proto = Logger.prototype as any
+  type LogMethod = (message: unknown, ...args: unknown[]) => void
+  const proto = Logger.prototype as unknown as Record<string, LogMethod>
   const methods = ['log', 'warn', 'error', 'debug', 'verbose'] as const
 
   for (const method of methods) {
     const original = proto[method]
     if (typeof original !== 'function') continue
-    proto[method] = function (message: unknown, ...args: unknown[]) {
+    proto[method] = function (this: Logger, message: unknown, ...args: unknown[]) {
       const traceId = getTraceId()
       if (traceId && typeof message === 'string') {
         message = `[${traceId}] ${message}`

@@ -46,8 +46,8 @@ export class AgentMcpServer implements OnModuleInit {
     }
     try {
       await this.initMcpServer()
-    } catch (err: any) {
-      this.logger.warn(`MCP Server 初始化失败（非致命）：${err.message}`)
+    } catch (err: unknown) {
+      this.logger.warn(`MCP Server 初始化失败（非致命）：${err instanceof Error ? err.message : String(err)}`)
     }
   }
 

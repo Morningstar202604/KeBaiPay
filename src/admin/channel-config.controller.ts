@@ -20,6 +20,8 @@ import { AdminService } from '../admin/admin.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../audit/audit-log.service'
 import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
+import { ConnectorRegistry } from '../payment-channels/connector.registry'
+import { CHANNEL_CONNECTOR_NAME } from '../payment-channels/payment-channel.bridge'
 import { IsString, IsBoolean, IsNumber, IsOptional, Min } from 'class-validator'
 
 class CreateChannelConfigDto {
@@ -49,6 +51,7 @@ export class ChannelConfigController {
     private readonly adminService: AdminService,
     private readonly auditLog: AuditLogService,
     private readonly channelRegistry: PaymentChannelRegistry,
+    private readonly connectorRegistry: ConnectorRegistry,
   ) {}
 
   @Get()
@@ -90,7 +93,7 @@ export class ChannelConfigController {
     @Req() req: Request,
   ) {
     // 业务写与审计日志在同一事务，保证渠道创建可追溯
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const result = await tx.paymentChannelConfig.create({
         data: {
           code: dto.code,
@@ -116,6 +119,11 @@ export class ChannelConfigController {
 
       return result
     })
+
+    // 事务提交后同步连接器运行时配置（优先级 + 凭据）
+    await this.syncConnector(dto.code)
+
+    return result
   }
 
   @Put(':code')
@@ -152,7 +160,7 @@ export class ChannelConfigController {
     }
 
     // 业务写与审计日志在同一事务，保证渠道变更可追溯
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const result = await tx.paymentChannelConfig.update({
         where: { code },
         data: {
@@ -178,6 +186,11 @@ export class ChannelConfigController {
 
       return result
     })
+
+    // 事务提交后同步连接器运行时配置（优先级 + 凭据）
+    await this.syncConnector(code)
+
+    return result
   }
 
   @Delete(':code')
@@ -206,6 +219,9 @@ export class ChannelConfigController {
       )
     })
 
+    // 渠道已删除，重置连接器运行时配置（避免残留旧凭据）
+    await this.syncConnector(code)
+
     return { success: true }
   }
 
@@ -224,5 +240,29 @@ export class ChannelConfigController {
       available: true,
       message: `${channel.name} 渠道可用`,
     }
+  }
+
+  /**
+   * 渠道配置热更新联动：将 DB 中的渠道配置（优先级 + 凭据）同步到
+   * ConnectorRegistry 中对应连接器的运行时配置，保证路由优先级与凭据一致。
+   * 渠道已删除时重置连接器配置；无对应连接器时忽略（连接器体系可选）。
+   */
+  private async syncConnector(code: string): Promise<void> {
+    const connectorName = CHANNEL_CONNECTOR_NAME[code] ?? code
+    if (!this.connectorRegistry.get(connectorName)) {
+      return
+    }
+    const row = await this.prisma.paymentChannelConfig.findUnique({ where: { code } })
+    if (!row) {
+      this.connectorRegistry.syncConfig(connectorName, { priority: 0, credentials: {} })
+      return
+    }
+    let credentials: Record<string, string> = {}
+    try {
+      credentials = JSON.parse(row.config) as Record<string, string>
+    } catch {
+      // 配置非法 JSON 时使用空凭据，不影响渠道实例启动
+    }
+    this.connectorRegistry.syncConfig(connectorName, { priority: row.priority, credentials })
   }
 }

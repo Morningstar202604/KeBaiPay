@@ -24,6 +24,7 @@ import { RiskEngineService } from '../risk/risk-engine.service'
 import { RedisService } from '../redis/redis.service'
 import { generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
+import { randomInt } from 'crypto'
 import { DEFAULT_RED_PACKET_DAILY_LIMIT_CENTS, RED_PACKET_EXPIRY_MS, REDIS_LOCK_TTL_SECONDS } from '../common/constants'
 import { CreateRedPacketDto } from './dto/create-red-packet.dto'
 
@@ -688,8 +689,8 @@ export class RedPacketsService {
           return minAmount
         }
 
-        // 随机生成 [minAmount, maxAmount]
-        const randomAmount = minAmount + Math.floor(Math.random() * (maxAmount - minAmount + 1))
+        // 随机生成 [minAmount, maxAmount]（密码学安全随机数，防止预测红包金额）
+        const randomAmount = minAmount + randomInt(0, maxAmount - minAmount + 1)
         return randomAmount
       }
     }

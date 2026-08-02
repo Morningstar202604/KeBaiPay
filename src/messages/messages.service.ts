@@ -14,6 +14,7 @@ import {
 } from '../common/enums'
 import { NotificationsService } from '../notifications/notifications.service'
 import { generateOrderNo } from '../common/helpers'
+import { maskPhone } from '../common/mask'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import { SendMessageDto, ListMessageDto, BroadcastMessageDto } from './dto/message.dto'
 
@@ -228,7 +229,7 @@ export class MessagesService {
 
     if (needSms && user.phone) {
       // SmsService 仅支持验证码场景，通用消息通过日志模拟
-      this.logger.log(`[SMS 模拟] ${message.messageNo} -> ${user.phone}: ${message.title}`)
+      this.logger.log(`[SMS 模拟] ${message.messageNo} -> ${maskPhone(user.phone)}: ${message.title}`)
     }
 
     if (needEmail && user.email) {

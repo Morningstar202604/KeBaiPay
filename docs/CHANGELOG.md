@@ -4,11 +4,99 @@
 
 ## 目录
 
+- [版本 2.2.0](#版本-220)（2026-08-01）
+- [版本 2.1.1](#版本-211)（2026-07-29）
 - [版本 2.1.0](#版本-210)（2026-07-22）
 - [版本 2.0.0](#版本-200)（2026-07-21）
 - [版本 1.0.0](#版本-100)（2026-07-13）
 - [已实现功能清单](#已实现功能清单)
 - [2026-07 重构记录](#2026-07-重构记录)
+
+---
+
+## 版本 2.2.0
+
+**发布日期：** 2026-08-01
+
+**版本类型：** 功能增强（官方 SDK 接入 + Connector 体系接入业务链路）
+
+### 官方渠道 SDK 替换手写签名
+
+- **支付宝渠道全面改用 `alipay-sdk@4.x`**（`src/payment-channels/channels/alipay.channel.ts`）：
+  - `buildSdk` 支持沙箱/生产网关切换
+  - 充值回调/退款回调/代付回调全部经 `checkNotifySignV2` 验签（失败抛 `AUTHENTICATION_FAILED` 或返回 false）
+  - `createRecharge` 用 `pageExecute(...,'GET')` 返回完整支付 URL
+  - 查询/退款/代付用 `exec(...,{validateSign:false})` 并判定 `code === '10000'`
+  - 退款渠道号编码为 `${trade_no}:${out_request_no}`，供 `alipay.trade.fastpay.refund.query` 查询
+- **微信支付渠道全面改用 `wechatpay-node-v3@2.x`**（`src/payment-channels/channels/wechat-pay.channel.ts`）：
+  - `buildPayClient(cfg, decryptOnly?)`：回调解密仅需 `apiV3Key`，不强制商户证书
+  - 充值按 native/jsapi/h5 分发（jsapi 用 `pay.sha256WithRsa` 重算 paySign）
+  - 三种回调经 `decipher_gcm` 解密校验；**代付回调校验 `success_num >= total_num` 才判 SUCCESS**（`batch_status=FINISHED` 不代表明细成功，防资金事故）
+  - `verifyWebhookSignature` 用平台证书离线 RSA-SHA256 同步验签（`wechatpay-timestamp/nonce/signature`）
+- **新增渠道单测**：`alipay.channel.spec.ts`（验签/篡改/回调解析/URL 构建）+ `wechat-pay.channel.spec.ts`（自建 AEAD 回调加密体/三回调解密/代付 success_num 守卫/RSA 验签）
+
+### Connector 体系接入业务链路（桥接方案）
+
+- **ConnectorRegistry 自动注册**：构造器注入 5 个 Connector 并自动 `register`（与 PaymentChannelRegistry 一致；可选参数保持 `new ConnectorRegistry()` 测试兼容），解决此前生产环境注册表恒为空的问题
+- **ConnectorRouter 新增 `RouteOptions.preferredName`**：渠道选择已由 PaymentChannelRegistry 完成，仅路由到指定连接器，不做跨渠道降级（退款/代付订单不可在渠道间随意切换）
+- **新增 `PaymentChannelBridge`**（`src/payment-channels/payment-channel.bridge.ts`）：
+  - 渠道实例与 DB 配置仍由 `PaymentChannelRegistry` 提供（修复旧 Connector 适配器传空 `{}` 配置的问题）
+  - 外呼（充值/代付/退款/查询）经 `ConnectorRouter` 获得统一重试（默认 2 次指数退避）与健康感知
+  - 渠道无对应连接器（未注册）时回退直连渠道，保证存量功能不受影响
+  - 验签/回调解析/成功响应构建等本地能力保持直连渠道，不经路由器
+- **业务服务改造**：
+  - `transactions.service.ts` `createRecharge` → `bridge.createRecharge(code, request)`
+  - `withdrawals.service.ts` `createPayout` → `bridge.createPayout(code, request)`
+  - `refund.service.ts` `refund` / `queryRefund` → `bridge.refund` / `bridge.queryRefund`
+  - `withdrawals.schedule.ts` 超时兜底 `queryPayout` → `bridge.queryPayout`（查询失败仅告警返回）
+- **测试更新**：transactions/withdrawals/refund/concurrency 四个 spec 注入真实 Bridge（连接器未注册回退直连路径）+ Connector 双 stub；新增 `payment-channel.bridge.spec.ts`（11 用例）与 `connector-router` preferredName 用例（3 个）
+
+### 测试结果
+
+- 单元测试：72/72 套件通过，1141/1141 测试通过
+- E2E 用户场景测试：5/5 套件，46/46 通过（user-scenarios 场景 3 兼容自动注册）
+- TypeScript 编译：零错误
+
+---
+
+## 版本 2.1.1
+
+**发布日期：** 2026-07-29
+
+**版本类型：** Bug 修复 + 项目完整性审计
+
+### 修复内容
+
+#### 生产 Bug 修复
+
+- **refund.service.ts 幂等检查逻辑修复**：`processRefundSuccess` 原使用乐观锁（`status: PROCESSING`）做幂等检查，但 `createRefund` 已将状态设为 `SUCCESS`，导致幂等检查永远失败。改为基于 `accountLedger.findFirst` 的账本记录检查，确保退款资金退回的幂等性。
+
+#### Mock/测试修复
+
+- **mock.channel.ts refund() 返回值修正**：从 `PENDING` 改为 `SUCCESS`，使 Mock 渠道退款可同步完成，与 Alipay/WeChat 行为一致。
+- **refund.service.spec.ts Mock 补全**：添加 `accountLedger.findFirst` mock，修复因生产代码修改导致的测试失败。
+- **user-scenarios.e2e-spec.ts 7 个场景全部修复**：
+  - MockPrismaClient 支持嵌套 `create`（如 `account: { create: {} }`）并自动推断外键
+  - MockPrismaClient 支持 Prisma 原子操作（`increment`/`decrement`/`multiply`/`set`）
+  - 场景 1/2/5 添加平台账户 `upsert` 初始化
+  - 场景 3 ConnectorRegistry 手动注册连接器
+  - 场景 3 修正 `fallbackChain` 断言
+  - 场景 5 修正余额断言（1 元 = 100 分）
+  - 场景 1/2 充值金额修正为实际订单金额
+
+#### 项目完整性
+
+- **ChannelReconciliationModule 导出修复**：添加 `AutoFixService` 到 providers 和 exports
+- **NotificationsModule 依赖修复**：E2E 测试添加 `ScheduleHealthModule` 导入
+- **文档补全**：将 `docs/archive/` 下 13 篇文档移至 `docs/` 主目录
+- **README 更新**：测试计数从 1023 更新为 1176
+- **docker-compose.yml**：移除已废弃的 `version: '3.8'` 字段
+
+### 测试结果
+
+- 单元测试：77/77 套件通过，1176/1176 测试通过
+- E2E 用户场景测试：7/7 场景通过
+- TypeScript 编译：零错误
 
 ---
 

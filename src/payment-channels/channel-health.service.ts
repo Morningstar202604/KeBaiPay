@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { Cron, CronExpression } from '@nestjs/schedule'
 import { PaymentChannelRegistry } from './payment-channel.registry'
 import { PaymentChannel, ChannelConfig } from './payment-channel.interface'
+import { ConnectorRegistry } from './connector.registry'
 
 /**
  * 渠道健康状态
@@ -59,6 +60,7 @@ export class ChannelHealthService {
 
   constructor(
     private readonly channelRegistry: PaymentChannelRegistry,
+    private readonly connectorRegistry: ConnectorRegistry,
   ) {
     // 初始化所有渠道状态
     this.channelAvailability.set('mock', true)
@@ -246,12 +248,20 @@ export class ChannelHealthService {
 
     for (const code of channels) {
       try {
+        // 如果 Connector 已注册该渠道，由 ConnectorHealthService 管理，跳过旧轮询
+        const connector = this.connectorRegistry.get(code)
+        if (connector) {
+          this.logger.debug(`渠道 ${code} 由 ConnectorHealthService 接管，跳过旧轮询`)
+          continue
+        }
+
         const config = await this.channelRegistry.getEnabledConfig(code)
         // 简单的连通性检查（实际中可能需要更复杂的检查）
         this.channelAvailability.set(code, true)
         this.logger.debug(`渠道 ${code} 健康检查通过`)
-      } catch (error) {
-        this.logger.warn(`渠道 ${code} 健康检查失败: ${error}`)
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error)
+        this.logger.warn(`渠道 ${code} 健康检查失败: ${message}`)
       }
     }
   }

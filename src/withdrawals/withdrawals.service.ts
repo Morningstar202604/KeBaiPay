@@ -19,6 +19,7 @@ import {
 import { UsersService } from '../users/users.service'
 import { RedisService } from '../redis/redis.service'
 import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
+import { PaymentChannelBridge } from '../payment-channels/payment-channel.bridge'
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { JournalService } from '../finance/journal.service'
 import { CryptoService } from '../crypto/crypto.service'
@@ -35,6 +36,7 @@ export class WithdrawalsService {
     private readonly usersService: UsersService,
     private readonly redis: RedisService,
     private readonly channelRegistry: PaymentChannelRegistry,
+    private readonly channelBridge: PaymentChannelBridge,
     private readonly riskEngine: RiskEngineService,
     private readonly journalService: JournalService,
     private readonly cryptoService: CryptoService,
@@ -261,7 +263,7 @@ export class WithdrawalsService {
       if (!channelEntry) {
         throw new BadRequestException(kbError(KBErrorCodes.NO_PAYOUT_CHANNEL))
       }
-      const { channel, config, code } = channelEntry
+      const { config, code } = channelEntry
 
       // 获取用户实名信息
       const user = await this.prisma.user.findUnique({
@@ -342,7 +344,7 @@ export class WithdrawalsService {
       }
       let payoutResult
       try {
-        payoutResult = await channel.createPayout({
+        payoutResult = await this.channelBridge.createPayout(code, {
           orderNo: order.orderNo,
           amount: order.actualAmount,
           channelAccount,

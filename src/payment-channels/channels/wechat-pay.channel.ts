@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { createHash, createSign, createVerify, randomBytes } from 'crypto'
+import Pay from 'wechatpay-node-v3'
+import { createPublicKey, createVerify } from 'crypto'
 import {
   PaymentChannel,
   RechargeRequest,
@@ -33,6 +34,9 @@ import { KBErrorCodes, kbError } from '../../common/error-codes'
  *   apiV3Key    - APIv3密钥
  *   notifyUrl   - 回调通知地址
  *   platformCert - 平台证书公钥（用于验签回调）
+ *
+ * 请求签名、下单、查询、退款、转账与回调解密统一委托给
+ * wechatpay-node-v3 实现；回调验签为离线 RSA-SHA256 校验（保持同步契约）。
  */
 @Injectable()
 export class WechatPayChannel implements PaymentChannel {
@@ -40,60 +44,57 @@ export class WechatPayChannel implements PaymentChannel {
   readonly name = '微信支付'
   private readonly logger = new Logger(WechatPayChannel.name)
 
-  private readonly WX_PAY_BASE = 'https://api.mch.weixin.qq.com'
-
   /**
-   * 生成 V3 签名
+   * 基于渠道配置构建 SDK 客户端
+   *
+   * decryptOnly 模式（回调解密）仅需要 apiV3Key，不校验商户密钥。
+   * 此时 SDK 实例仅用于 decipher_gcm，不发起签名请求，商户字段用占位值即可。
    */
-  private signV3(
-    method: string,
-    urlPath: string,
-    timestamp: string,
-    nonceStr: string,
-    body: string,
-    privateKey: string,
-  ): string {
-    const message = `${method}\n${urlPath}\n${timestamp}\n${nonceStr}\n${body}\n`
-    const sign = createSign('RSA-SHA256')
-    sign.update(message)
-    return sign.sign(privateKey, 'base64')
+  private buildPayClient(channelConfig: ChannelConfig, decryptOnly = false): Pay {
+    const appid = (channelConfig.appid as string) || 'default'
+    const mchid = (channelConfig.mchid as string) || 'default'
+    const serialNo = (channelConfig.serialNo as string) || 'default'
+    const privateKey = channelConfig.privateKey as string | undefined
+    const apiV3Key = channelConfig.apiV3Key as string | undefined
+
+    if (!decryptOnly) {
+      if (!channelConfig.appid || !channelConfig.mchid || !privateKey) {
+        throw new Error(kbError(KBErrorCodes.RECHARGE_CHANNEL_FAILED, '微信支付配置不完整：缺少 appid/mchid/privateKey'))
+      }
+      if (!channelConfig.serialNo) {
+        throw new Error(kbError(KBErrorCodes.RECHARGE_CHANNEL_FAILED, '微信支付配置不完整：缺少 serialNo'))
+      }
+    }
+
+    // SDK 需要商户证书公钥；由私钥推导，serialNo 已显式提供，无需加载证书文件
+    const publicKey = privateKey
+      ? createPublicKey(privateKey).export({ type: 'spki', format: 'pem' })
+      : 'placeholder'
+
+    return new Pay({
+      appid,
+      mchid,
+      serial_no: serialNo,
+      publicKey: Buffer.from(publicKey),
+      privateKey: Buffer.from(privateKey || 'placeholder'),
+      key: apiV3Key,
+    })
   }
 
   /**
-   * 验证 V3 回调签名
+   * 验证 V3 回调签名（离线，使用配置的平台证书公钥）
    */
   private verifyV3(
     timestamp: string,
     nonce: string,
     body: string,
     signature: string,
-    serial: string,
     platformCert: string,
   ): boolean {
     const message = `${timestamp}\n${nonce}\n${body}\n`
     const verify = createVerify('RSA-SHA256')
     verify.update(message)
     return verify.verify(platformCert, signature, 'base64')
-  }
-
-  /**
-   * AES-256-GCM 解密回调通知
-   */
-  private decryptGcm(
-    ciphertext: string,
-    nonce: string,
-    associatedData: string,
-    key: string,
-  ): string {
-    const { createDecipheriv } = require('crypto')
-    const enc = Buffer.from(ciphertext, 'base64')
-    const decipher = createDecipheriv('aes-256-gcm', Buffer.from(key, 'utf-8'), Buffer.from(nonce, 'utf-8'))
-    decipher.setAAD(Buffer.from(associatedData, 'utf-8'))
-    const authTag = enc.slice(enc.length - 16)
-    decipher.setAuthTag(authTag)
-    const encrypted = enc.slice(0, enc.length - 16)
-    const dec = Buffer.concat([decipher.update(encrypted), decipher.final()])
-    return dec.toString('utf-8')
   }
 
   /**
@@ -114,7 +115,6 @@ export class WechatPayChannel implements PaymentChannel {
     const timestamp = headers['wechatpay-timestamp'] || ''
     const nonce = headers['wechatpay-nonce'] || ''
     const signature = headers['wechatpay-signature'] || ''
-    const serial = headers['wechatpay-serial'] || ''
     const platformCert = this.getPlatformCert(channelConfig)
 
     if (!platformCert) {
@@ -122,29 +122,18 @@ export class WechatPayChannel implements PaymentChannel {
       return false
     }
 
-    return this.verifyV3(timestamp, nonce, rawBody, signature, serial, platformCert)
+    return this.verifyV3(timestamp, nonce, rawBody, signature, platformCert)
   }
 
-  /**
-   * 构建通用下单请求体
-   */
-  private buildOrderBody(
-    params: RechargeRequest,
-    channelConfig: ChannelConfig,
-    payMethod: string,
-  ): { body: string; urlPath: string } {
-    const cfg = channelConfig
+  async createRecharge(params: RechargeRequest): Promise<RechargeResponse> {
+    const cfg = params.channelConfig
     const appid = cfg.appid as string
-    const mchid = cfg.mchid as string
     const notifyUrl = (cfg.notifyUrl as string) || params.notifyUrl
+    const payMethod = params.payMethod || 'native'
 
-    if (!appid || !mchid) {
-      throw new Error(kbError(KBErrorCodes.RECHARGE_CHANNEL_FAILED, '微信支付配置不完整：缺少 appid/mchid'))
-    }
+    const pay = this.buildPayClient(cfg)
 
-    const orderBody: Record<string, unknown> = {
-      appid,
-      mchid,
+    const baseOrder = {
       description: params.subject,
       out_trade_no: params.orderNo,
       notify_url: notifyUrl,
@@ -154,113 +143,79 @@ export class WechatPayChannel implements PaymentChannel {
       },
     }
 
-    let urlPath: string
-
+    let result: { status: number; data?: Record<string, unknown>; error?: unknown; errRaw?: unknown }
     switch (payMethod) {
       case 'jsapi': {
         if (!params.openid) {
           throw new Error(kbError(KBErrorCodes.RECHARGE_CHANNEL_FAILED, 'JSAPI 支付需要提供 openid'))
         }
-        orderBody.payer = { openid: params.openid }
-        urlPath = '/v3/pay/transactions/jsapi'
+        result = await pay.transactions_jsapi({
+          ...baseOrder,
+          payer: { openid: params.openid },
+        })
         break
       }
       case 'h5': {
-        orderBody.scene_info = {
-          payer_client_ip: '127.0.0.1',
-          h5_info: {
-            type: 'Wap',
-            wap_url: channelConfig.wapUrl as string || 'https://www.example.com',
-            wap_name: channelConfig.wapName as string || 'KeBaiPay',
+        result = await pay.transactions_h5({
+          ...baseOrder,
+          scene_info: {
+            payer_client_ip: '127.0.0.1',
+            h5_info: {
+              type: 'Wap',
+              app_url: (cfg.wapUrl as string) || 'https://www.example.com',
+              app_name: (cfg.wapName as string) || 'KeBaiPay',
+            },
           },
-        }
-        urlPath = '/v3/pay/transactions/h5'
+        })
         break
       }
       case 'native':
       default: {
-        urlPath = '/v3/pay/transactions/native'
+        result = await pay.transactions_native(baseOrder)
         break
       }
     }
 
-    return { body: JSON.stringify(orderBody), urlPath }
-  }
-
-  async createRecharge(params: RechargeRequest): Promise<RechargeResponse> {
-    const cfg = params.channelConfig
-    const serialNo = cfg.serialNo as string
-    const privateKey = cfg.privateKey as string
-    const mchid = cfg.mchid as string
-
-    if (!privateKey) {
-      throw new Error(kbError(KBErrorCodes.RECHARGE_CHANNEL_FAILED, '微信支付配置不完整：缺少 privateKey'))
+    if (result.status !== 200) {
+      this.logger.error(`微信支付下单失败: ${JSON.stringify(result)}`)
+      throw new Error(`微信支付下单失败: ${typeof result.error === 'string' ? result.error : '渠道请求异常'}`)
     }
 
-    const payMethod = params.payMethod || 'native'
-    const { body, urlPath } = this.buildOrderBody(params, cfg, payMethod)
+    const data = (result.data || {}) as Record<string, any>
+    let payUrl: string | undefined
+    const payParams: ChannelConfig = {}
 
-    const timestamp = Math.floor(Date.now() / 1000).toString()
-    const nonceStr = randomBytes(16).toString('hex')
-
-    const signature = this.signV3('POST', urlPath, timestamp, nonceStr, body, privateKey)
-    const authHeader = `WECHATPAY2-SHA256-RSA2048 mchid="${mchid}",nonce_str="${nonceStr}",signature="${signature}",timestamp="${timestamp}",serial_no="${serialNo}"`
-
-    try {
-      const response = await fetch(`${this.WX_PAY_BASE}${urlPath}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': authHeader,
-          'Accept': 'application/json',
-        },
-        body,
-      })
-
-      const result = await response.json() as Record<string, unknown>
-
-      if (result.code && result.code !== 'SUCCESS') {
-        this.logger.error(`微信支付下单失败: ${JSON.stringify(result)}`)
-        throw new Error(`微信支付下单失败: ${result.message || result.code}`)
+    switch (payMethod) {
+      case 'jsapi': {
+        // SDK 已生成 appId/timeStamp/nonceStr/package/paySign，按其值重建业务侧 payParams 结构
+        const prepayId = String(data.package || '').replace(/^prepay_id=/, '')
+        const timestamp = (data.timeStamp as string) || String(Math.floor(Date.now() / 1000))
+        const nonceStr = (data.nonceStr as string) || ''
+        payParams.prepay_id = prepayId
+        payParams.appid = appid
+        payParams.timestamp = timestamp
+        payParams.nonce_str = nonceStr
+        payParams.package = `prepay_id=${prepayId}`
+        payParams.signType = 'RSA2'
+        payParams.paySign = pay.sha256WithRsa(`${appid}\n${timestamp}\n${nonceStr}\nprepay_id=${prepayId}\n`)
+        break
       }
+      case 'h5':
+        payUrl = (data.h5_url as string) || undefined
+        payParams.h5_url = payUrl
+        break
+      case 'native':
+      default:
+        payUrl = (data.code_url as string) || undefined
+        payParams.code_url = payUrl
+        break
+    }
 
-      let payUrl: string | undefined
-      const payParams: ChannelConfig = {}
-
-      switch (payMethod) {
-        case 'jsapi':
-          payParams.prepay_id = (result.prepay_id as string) || ''
-          payParams.appid = cfg.appid as string
-          payParams.timestamp = Math.floor(Date.now() / 1000).toString()
-          payParams.nonce_str = randomBytes(16).toString('hex')
-          payParams.package = `prepay_id=${payParams.prepay_id}`
-          payParams.signType = 'RSA2'
-          // 生成小程序/公众号调起支付的签名
-          const paySignStr = `${payParams.appid}\n${payParams.timestamp}\n${payParams.nonce_str}\n${payParams.package}\n`
-          const paySign = createSign('RSA-SHA256')
-          paySign.update(paySignStr)
-          payParams.paySign = paySign.sign(privateKey, 'base64')
-          break
-        case 'h5':
-          payUrl = (result.h5_url as string) || undefined
-          payParams.h5_url = payUrl
-          break
-        case 'native':
-        default:
-          payUrl = (result.code_url as string) || undefined
-          payParams.code_url = payUrl
-          break
-      }
-
-      return {
-        channelOrderNo: params.orderNo,
-        payUrl,
-        payParams,
-        status: 'PENDING',
-      }
-    } catch (error) {
-      this.logger.error(`微信支付调用异常: ${error}`)
-      throw error
+    return {
+      channelOrderNo: params.orderNo,
+      payUrl,
+      payParams,
+      status: 'PENDING',
     }
   }
 
@@ -271,45 +226,24 @@ export class WechatPayChannel implements PaymentChannel {
     channelOrderNo: string,
     channelConfig: ChannelConfig,
   ): Promise<OrderQueryResult> {
-    const cfg = channelConfig
-    const mchid = cfg.mchid as string
-    const serialNo = cfg.serialNo as string
-    const privateKey = cfg.privateKey as string
-
-    if (!mchid || !privateKey) {
-      throw new Error('微信支付配置不完整')
-    }
-
-    const timestamp = Math.floor(Date.now() / 1000).toString()
-    const nonceStr = randomBytes(16).toString('hex')
-    const urlPath = `/v3/pay/transactions/out-trade-no/${channelOrderNo}?mchid=${mchid}`
-    const signature = this.signV3('GET', urlPath, timestamp, nonceStr, '', privateKey)
-
-    const authHeader = `WECHATPAY2-SHA256-RSA2048 mchid="${mchid}",nonce_str="${nonceStr}",signature="${signature}",timestamp="${timestamp}",serial_no="${serialNo}"`
+    const pay = this.buildPayClient(channelConfig)
 
     try {
-      const response = await fetch(`${this.WX_PAY_BASE}${urlPath}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': authHeader,
-          'Accept': 'application/json',
-        },
-      })
+      const result = await pay.query({ out_trade_no: channelOrderNo })
 
-      const result = await response.json() as Record<string, unknown>
-
-      if (result.code && result.code !== 'SUCCESS') {
+      if (result.status !== 200) {
         return {
           channelOrderNo,
           status: 'FAILED',
           totalAmount: 0,
-          message: (result.message as string) || '查询失败',
+          message: '查询失败',
         }
       }
 
-      const tradeState = result.trade_state as string
-      const totalAmount = (result.amount as Record<string, unknown>)?.total as number || 0
-      const successTime = result.success_time as string
+      const data = (result.data || {}) as Record<string, any>
+      const tradeState = data.trade_state as string
+      const totalAmount = (data.amount as Record<string, unknown>)?.total as number || 0
+      const successTime = data.success_time as string
 
       let status: OrderQueryResult['status']
       switch (tradeState) {
@@ -358,6 +292,8 @@ export class WechatPayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信支付 APIv3 密钥未配置'))
     }
 
+    const pay = this.buildPayClient(cfg, true)
+
     let body: { resource: { ciphertext: string; nonce: string; associated_data: string }; out_trade_no: string }
     try {
       body = JSON.parse(rawBody)
@@ -365,23 +301,20 @@ export class WechatPayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信支付回调 body 非 JSON'))
     }
 
-    let decrypted: string
-    try {
-      decrypted = this.decryptGcm(
-        body.resource.ciphertext,
-        body.resource.nonce,
-        body.resource.associated_data,
-        apiV3Key,
-      )
-    } catch (error) {
-      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信支付回调解密失败'))
-    }
-
     let resource: { out_trade_no: string; transaction_id: string; trade_state: string; amount: { total: number } }
     try {
-      resource = JSON.parse(decrypted)
-    } catch {
-      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信支付回调解密数据格式错误'))
+      const decrypted = pay.decipher_gcm<unknown>(
+        body.resource.ciphertext,
+        body.resource.associated_data,
+        body.resource.nonce,
+        apiV3Key,
+      )
+      if (typeof decrypted !== 'object' || decrypted === null) {
+        throw new Error('decrypt not json')
+      }
+      resource = decrypted as { out_trade_no: string; transaction_id: string; trade_state: string; amount: { total: number } }
+    } catch (error) {
+      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信支付回调解密失败'))
     }
 
     const status = resource.trade_state === 'SUCCESS' ? 'SUCCESS' : 'FAILED'
@@ -406,54 +339,29 @@ export class WechatPayChannel implements PaymentChannel {
    */
   async refund(params: RefundRequest): Promise<RefundResponse> {
     const cfg = params.channelConfig
-    const mchid = cfg.mchid as string
-    const serialNo = cfg.serialNo as string
-    const privateKey = cfg.privateKey as string
     const notifyUrl = (cfg.refundNotifyUrl as string) || (cfg.notifyUrl as string)
-
-    if (!mchid || !privateKey) {
-      throw new Error(kbError(KBErrorCodes.RECHARGE_CHANNEL_FAILED, '微信支付配置不完整'))
-    }
-
-    const timestamp = Math.floor(Date.now() / 1000).toString()
-    const nonceStr = randomBytes(16).toString('hex')
-
-    const body = JSON.stringify({
-      out_trade_no: params.orderNo,
-      out_refund_no: params.refundNo,
-      reason: params.reason || '用户退款',
-      notify_url: notifyUrl,
-      amount: {
-        refund: params.amount,
-        total: params.amount,
-        currency: 'CNY',
-      },
-    })
-
-    const urlPath = '/v3/refund/domestic/refunds'
-    const signature = this.signV3('POST', urlPath, timestamp, nonceStr, body, privateKey)
-
-    const authHeader = `WECHATPAY2-SHA256-RSA2048 mchid="${mchid}",nonce_str="${nonceStr}",signature="${signature}",timestamp="${timestamp}",serial_no="${serialNo}"`
+    const pay = this.buildPayClient(cfg)
 
     try {
-      const response = await fetch(`${this.WX_PAY_BASE}${urlPath}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': authHeader,
-          'Accept': 'application/json',
+      const result = await pay.refunds({
+        out_trade_no: params.orderNo,
+        out_refund_no: params.refundNo,
+        reason: params.reason || '用户退款',
+        notify_url: notifyUrl,
+        amount: {
+          refund: params.amount,
+          total: params.amount,
+          currency: 'CNY',
         },
-        body,
       })
 
-      const result = await response.json() as Record<string, unknown>
-
-      if (result.code && result.code !== 'SUCCESS') {
+      if (result.status !== 200) {
         this.logger.error(`微信退款失败: ${JSON.stringify(result)}`)
-        throw new Error(`微信退款失败: ${result.message || result.code}`)
+        throw new Error(`微信退款失败: ${typeof result.error === 'string' ? result.error : '渠道请求异常'}`)
       }
 
-      const status = result.status as string
+      const data = (result.data || {}) as Record<string, any>
+      const status = data.status as string
       let refundStatus: RefundResponse['status']
       switch (status) {
         case 'SUCCESS':
@@ -467,7 +375,7 @@ export class WechatPayChannel implements PaymentChannel {
       }
 
       return {
-        channelRefundNo: (result.refund_id as string) || params.refundNo,
+        channelRefundNo: (data.refund_id as string) || params.refundNo,
         status: refundStatus,
         message: status,
       }
@@ -484,42 +392,21 @@ export class WechatPayChannel implements PaymentChannel {
     channelRefundNo: string,
     channelConfig: ChannelConfig,
   ): Promise<RefundQueryResult> {
-    const cfg = channelConfig
-    const mchid = cfg.mchid as string
-    const serialNo = cfg.serialNo as string
-    const privateKey = cfg.privateKey as string
-
-    if (!mchid || !privateKey) {
-      throw new Error('微信支付配置不完整')
-    }
-
-    const timestamp = Math.floor(Date.now() / 1000).toString()
-    const nonceStr = randomBytes(16).toString('hex')
-    const urlPath = `/v3/refund/domestic/refunds/${channelRefundNo}`
-    const signature = this.signV3('GET', urlPath, timestamp, nonceStr, '', privateKey)
-
-    const authHeader = `WECHATPAY2-SHA256-RSA2048 mchid="${mchid}",nonce_str="${nonceStr}",signature="${signature}",timestamp="${timestamp}",serial_no="${serialNo}"`
+    const pay = this.buildPayClient(channelConfig)
 
     try {
-      const response = await fetch(`${this.WX_PAY_BASE}${urlPath}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': authHeader,
-          'Accept': 'application/json',
-        },
-      })
+      const result = await pay.find_refunds(channelRefundNo)
 
-      const result = await response.json() as Record<string, unknown>
-
-      if (result.code && result.code !== 'SUCCESS') {
+      if (result.status !== 200) {
         return {
           channelRefundNo,
           status: 'FAILED',
-          message: (result.message as string) || '查询失败',
+          message: '查询失败',
         }
       }
 
-      const status = result.status as string
+      const data = (result.data || {}) as Record<string, any>
+      const status = data.status as string
       let refundStatus: RefundQueryResult['status']
       switch (status) {
         case 'SUCCESS':
@@ -561,6 +448,8 @@ export class WechatPayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信支付 APIv3 密钥未配置'))
     }
 
+    const pay = this.buildPayClient(cfg, true)
+
     let body: {
       resource: { ciphertext: string; nonce: string; associated_data: string }
       out_trade_no: string
@@ -571,18 +460,6 @@ export class WechatPayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信退款回调 body 非 JSON'))
     }
 
-    let decrypted: string
-    try {
-      decrypted = this.decryptGcm(
-        body.resource.ciphertext,
-        body.resource.nonce,
-        body.resource.associated_data,
-        apiV3Key,
-      )
-    } catch {
-      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信退款回调解密失败'))
-    }
-
     let resource: {
       out_trade_no: string
       out_refund_no: string
@@ -591,9 +468,24 @@ export class WechatPayChannel implements PaymentChannel {
       amount: { refund: number }
     }
     try {
-      resource = JSON.parse(decrypted)
+      const decrypted = pay.decipher_gcm<unknown>(
+        body.resource.ciphertext,
+        body.resource.associated_data,
+        body.resource.nonce,
+        apiV3Key,
+      )
+      if (typeof decrypted !== 'object' || decrypted === null) {
+        throw new Error('decrypt not json')
+      }
+      resource = decrypted as {
+        out_trade_no: string
+        out_refund_no: string
+        refund_id: string
+        refund_status: string
+        amount: { refund: number }
+      }
     } catch {
-      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信退款回调解密数据格式错误'))
+      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信退款回调解密失败'))
     }
 
     const status = resource.refund_status === 'SUCCESS' ? 'SUCCESS' : 'FAILED'
@@ -613,60 +505,33 @@ export class WechatPayChannel implements PaymentChannel {
   }
 
   async createPayout(params: PayoutRequest): Promise<PayoutResponse> {
-    const cfg = params.channelConfig
-    const appid = cfg.appid as string
-    const mchid = cfg.mchid as string
-    const serialNo = cfg.serialNo as string
-    const privateKey = cfg.privateKey as string
-
-    if (!appid || !mchid || !privateKey) {
-      throw new Error('微信支付配置不完整')
-    }
-
-    const timestamp = Math.floor(Date.now() / 1000).toString()
-    const nonceStr = randomBytes(16).toString('hex')
-
-    const body = JSON.stringify({
-      appid,
-      mchid,
-      out_batch_no: params.orderNo,
-      batch_name: `提现_${params.orderNo}`,
-      batch_num: 1,
-      batch_detail: [
-        {
-          out_detail_no: params.orderNo,
-          transfer_amount: params.amount,
-          openid: params.channelAccount,
-          transfer_remark: params.userName,
-        },
-      ],
-    })
-
-    const urlPath = '/v3/transfer/batches'
-    const signature = this.signV3('POST', urlPath, timestamp, nonceStr, body, privateKey)
-
-    const authHeader = `WECHATPAY2-SHA256-RSA2048 mchid="${mchid}",nonce_str="${nonceStr}",signature="${signature}",timestamp="${timestamp}",serial_no="${serialNo}"`
+    const pay = this.buildPayClient(params.channelConfig)
 
     try {
-      const response = await fetch(`${this.WX_PAY_BASE}${urlPath}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': authHeader,
-          'Accept': 'application/json',
-        },
-        body,
+      const result = await pay.batches_transfer({
+        out_batch_no: params.orderNo,
+        batch_name: `提现_${params.orderNo}`,
+        batch_remark: `提现_${params.userName}`,
+        total_amount: params.amount,
+        total_num: 1,
+        transfer_detail_list: [
+          {
+            out_detail_no: params.orderNo,
+            transfer_amount: params.amount,
+            transfer_remark: params.userName,
+            openid: params.channelAccount,
+          },
+        ],
       })
 
-      const result = await response.json() as Record<string, unknown>
-
-      if (result.code && result.code !== 'SUCCESS') {
+      if (result.status !== 200) {
         this.logger.error(`微信转账失败: ${JSON.stringify(result)}`)
-        throw new Error(`微信转账失败: ${result.message || result.code}`)
+        throw new Error(`微信转账失败: ${typeof result.error === 'string' ? result.error : '渠道请求异常'}`)
       }
 
+      const data = (result.data || {}) as Record<string, any>
       return {
-        channelOrderNo: (result.batch_id as string) || params.orderNo,
+        channelOrderNo: (data.batch_id as string) || params.orderNo,
         status: 'PROCESSING',
         message: '转账受理中',
       }
@@ -680,33 +545,20 @@ export class WechatPayChannel implements PaymentChannel {
     channelOrderNo: string,
     channelConfig: ChannelConfig,
   ): Promise<PayoutQueryResult> {
-    const cfg = channelConfig
-    const mchid = cfg.mchid as string
-    const serialNo = cfg.serialNo as string
-    const privateKey = cfg.privateKey as string
-
-    if (!mchid || !privateKey) {
-      throw new Error('微信支付配置不完整')
-    }
-
-    const timestamp = Math.floor(Date.now() / 1000).toString()
-    const nonceStr = randomBytes(16).toString('hex')
-    const urlPath = `/v3/transfer/batches/${channelOrderNo}`
-    const signature = this.signV3('GET', urlPath, timestamp, nonceStr, '', privateKey)
-
-    const authHeader = `WECHATPAY2-SHA256-RSA2048 mchid="${mchid}",nonce_str="${nonceStr}",signature="${signature}",timestamp="${timestamp}",serial_no="${serialNo}"`
+    const pay = this.buildPayClient(channelConfig)
 
     try {
-      const response = await fetch(`${this.WX_PAY_BASE}${urlPath}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': authHeader,
-          'Accept': 'application/json',
-        },
+      const result = await pay.query_batches_transfer_list_wx({
+        batch_id: channelOrderNo,
+        need_query_detail: false,
       })
 
-      const result = await response.json() as Record<string, unknown>
-      const batchStatus = result.batch_status as string
+      if (result.status !== 200) {
+        return { channelOrderNo, status: 'PROCESSING', message: '查询失败，请稍后重试' }
+      }
+
+      const data = (result.data || {}) as Record<string, any>
+      const batchStatus = data.batch_status as string
 
       if (batchStatus === 'FINISHED') {
         return { channelOrderNo, status: 'SUCCESS', message: '转账完成' }
@@ -734,6 +586,8 @@ export class WechatPayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信支付 APIv3 密钥未配置'))
     }
 
+    const pay = this.buildPayClient(channelConfig, true)
+
     // 微信代付（商家转账到零钱）回调也是加密的，必须先解密 resource 才能拿到明文状态。
     // 直接 JSON.parse(rawBody) 会拿到 ciphertext，无法获取 batch_status 等业务字段，
     // 也不能直接信任 envelope 中的明文（攻击者可伪造未加密回调触发提现订单误标 SUCCESS）
@@ -746,18 +600,6 @@ export class WechatPayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信代付回调 body 非 JSON'))
     }
 
-    let decrypted: string
-    try {
-      decrypted = this.decryptGcm(
-        body.resource.ciphertext,
-        body.resource.nonce,
-        body.resource.associated_data,
-        apiV3Key,
-      )
-    } catch {
-      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信代付回调解密失败'))
-    }
-
     let resource: {
       batch_id: string
       out_batch_no: string
@@ -766,9 +608,24 @@ export class WechatPayChannel implements PaymentChannel {
       success_num?: number
     }
     try {
-      resource = JSON.parse(decrypted)
+      const decrypted = pay.decipher_gcm<unknown>(
+        body.resource.ciphertext,
+        body.resource.associated_data,
+        body.resource.nonce,
+        apiV3Key,
+      )
+      if (typeof decrypted !== 'object' || decrypted === null) {
+        throw new Error('decrypt not json')
+      }
+      resource = decrypted as {
+        batch_id: string
+        out_batch_no: string
+        batch_status: string
+        total_num?: number
+        success_num?: number
+      }
     } catch {
-      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信代付回调解密数据格式错误'))
+      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '微信代付回调解密失败'))
     }
 
     // batch_status=FINISHED 仅表示批次处理完成，不代表所有明细成功。

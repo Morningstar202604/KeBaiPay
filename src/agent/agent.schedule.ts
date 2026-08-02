@@ -95,11 +95,11 @@ ${degraded.map((s) => `- ${s.name}：${s.lastError ?? '未知'}`).join('\n')}
         `涉及管理员 ${admins.length} 名。报告：${result.content}`,
       )
       this.scheduleHealth.reportComplete(AgentSchedule.TASK_HEALTH_CHECK, true, Date.now() - start)
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.scheduleHealth.reportComplete(
-        AgentSchedule.TASK_HEALTH_CHECK, false, Date.now() - start, err.message,
+        AgentSchedule.TASK_HEALTH_CHECK, false, Date.now() - start, err instanceof Error ? err.message : String(err),
       )
-      this.logger.error(`AI 巡检失败：${err.message}`, err.stack)
+      this.logger.error(`AI 巡检失败：${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined)
     }
   }
 
@@ -137,11 +137,11 @@ ${pendingDiffs.map((d) => `- ID: ${d.id}，类型: ${d.diffType}，金额: ${d.a
 
       this.logger.log(`AI 扫描 ${pendingDiffs.length} 个对账差异，建议：${result.content}`)
       this.scheduleHealth.reportComplete(AgentSchedule.TASK_RECONCILE_SCAN, true, Date.now() - start)
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.scheduleHealth.reportComplete(
-        AgentSchedule.TASK_RECONCILE_SCAN, false, Date.now() - start, err.message,
+        AgentSchedule.TASK_RECONCILE_SCAN, false, Date.now() - start, err instanceof Error ? err.message : String(err),
       )
-      this.logger.error(`AI 对账差异扫描失败：${err.message}`, err.stack)
+      this.logger.error(`AI 对账差异扫描失败：${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined)
     }
   }
 
@@ -179,11 +179,11 @@ ${reviewEvents.map((e) => `- ID: ${e.id}，类型: ${e.type}，用户: ${e.userI
 
       this.logger.log(`AI 扫描 ${reviewEvents.length} 个高风险事件，建议：${result.content}`)
       this.scheduleHealth.reportComplete(AgentSchedule.TASK_RISK_SCAN, true, Date.now() - start)
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.scheduleHealth.reportComplete(
-        AgentSchedule.TASK_RISK_SCAN, false, Date.now() - start, err.message,
+        AgentSchedule.TASK_RISK_SCAN, false, Date.now() - start, err instanceof Error ? err.message : String(err),
       )
-      this.logger.error(`AI 风控扫描失败：${err.message}`, err.stack)
+      this.logger.error(`AI 风控扫描失败：${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined)
     }
   }
 }

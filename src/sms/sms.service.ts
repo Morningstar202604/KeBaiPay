@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { RedisService } from '../redis/redis.service';
-import { maskPhone } from '../common/helpers';
+import { maskPhone } from '../common/mask';
 
 export interface SmsConfig {
   provider: 'aliyun' | 'tencent' | 'huawei' | 'mock';
@@ -67,7 +67,7 @@ export class SmsService implements OnModuleDestroy {
     const provider = this.configService.get<string>('SMS_PROVIDER', 'mock');
 
     this.config = {
-      provider: provider as any,
+      provider: provider as 'aliyun' | 'tencent' | 'huawei' | 'mock',
       accessKeyId: this.configService.get('SMS_ACCESS_KEY_ID', ''),
       accessKeySecret: this.configService.get('SMS_ACCESS_KEY_SECRET', ''),
       signName: this.configService.get('SMS_SIGN_NAME', '科佰支付'),
@@ -360,8 +360,8 @@ export class SmsService implements OnModuleDestroy {
 
       this.logger.log(`[阿里云] 发送验证码到 ${maskPhone(phone)}: ${result.success ? '成功' : '失败 ' + result.message}`);
       return result;
-    } catch (error: any) {
-      return { success: false, code: 'ALIYUN_ERROR', message: error.message || '发送失败', provider: 'aliyun' };
+    } catch (error: unknown) {
+      return { success: false, code: 'ALIYUN_ERROR', message: error instanceof Error ? error.message : String(error), provider: 'aliyun' };
     }
   }
 
@@ -434,12 +434,14 @@ export class SmsService implements OnModuleDestroy {
         message: sendStatus?.Message || '发送失败',
         provider: 'tencent',
       }
-    } catch (error: any) {
-      this.logger.error(`[腾讯云] 短信调用异常: ${error.message}`, error.stack)
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error)
+      const errStack = error instanceof Error ? error.stack : undefined
+      this.logger.error(`[腾讯云] 短信调用异常: ${errMsg}`, errStack)
       return {
         success: false,
         code: 'TENCENT_ERROR',
-        message: error.message || '发送失败',
+        message: errMsg,
         provider: 'tencent',
       }
     }
@@ -550,12 +552,14 @@ export class SmsService implements OnModuleDestroy {
       })
 
       return result
-    } catch (error: any) {
-      this.logger.error(`[华为云] 短信调用异常: ${error.message}`, error.stack)
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error)
+      const errStack = error instanceof Error ? error.stack : undefined
+      this.logger.error(`[华为云] 短信调用异常: ${errMsg}`, errStack)
       return {
         success: false,
         code: 'HUAWEI_ERROR',
-        message: error.message || '发送失败',
+        message: errMsg,
         provider: 'huawei',
       }
     }

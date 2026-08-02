@@ -185,8 +185,8 @@ describe('RedisService', () => {
       expect(callArgs[2]).toBe('EX')
       expect(callArgs[3]).toBe(30)
       expect(callArgs[4]).toBe('NX')
-      // 自动生成的 token 形如 lock:<timestamp>:<random>
-      expect(callArgs[1]).toMatch(/^lock:\d+:[A-Za-z0-9]+$/)
+      // 自动生成的 token 形如 lock:<timestamp>:<uuid>（使用 crypto.randomUUID()）
+      expect(callArgs[1]).toMatch(/^lock:\d+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
     })
   })
 

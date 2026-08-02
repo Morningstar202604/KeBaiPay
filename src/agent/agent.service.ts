@@ -269,7 +269,14 @@ export class AgentService {
     }
 
     // CONFIRM：执行工具
-    const detail = opLog.detail ? JSON.parse(opLog.detail) : {}
+    let detail: Record<string, unknown> = {}
+    if (opLog.detail) {
+      try {
+        detail = JSON.parse(opLog.detail)
+      } catch {
+        throw new BadRequestException('操作记录详情损坏')
+      }
+    }
     const tools = this.toolRegistry.getTools(input.user, opLog.scope.split(':')[0] as any, this.toolDeps)
     const tool = tools.find((t) => t.name === opLog.action)
     if (!tool) {
@@ -287,10 +294,11 @@ export class AgentService {
         },
       })
       return { success: true, result, message: '操作执行成功' }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err)
       await this.prisma.agentOperationLog.update({
         where: { id: input.opLogId },
-        data: { result: 'FAILED', detail: JSON.stringify({ ...detail, error: err.message }) },
+        data: { result: 'FAILED', detail: JSON.stringify({ ...detail, error: errMsg }) },
       })
       throw err
     }

@@ -24,7 +24,7 @@ export class SmsController {
     // 直接用 req.ip：main.ts 已设 trust proxy 1，Express 会自动从 X-Forwarded-For
     // 取信任代理追加的最后一个 IP（即真实客户端 IP）。
     // 不要手动取 X-Forwarded-For 首值，否则攻击者可伪造该头绕过 IP 限流。
-    return this.smsService.sendVerificationCode(phone, scene as any, req.ip);
+    return this.smsService.sendVerificationCode(phone, scene as 'register' | 'login' | 'reset' | 'bind', req.ip);
   }
 
   /**
@@ -40,7 +40,7 @@ export class SmsController {
       return { valid: false, message: '手机号和验证码不能为空' };
     }
 
-    return await this.smsService.verifyCode(phone, code, scene as any);
+    return await this.smsService.verifyCode(phone, code, scene as 'register' | 'login' | 'reset' | 'bind');
   }
 
   /**

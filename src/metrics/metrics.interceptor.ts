@@ -59,7 +59,7 @@ export class MetricsInterceptor implements NestInterceptor {
    * 无 route 匹配时降级为 originalUrl 的第一段，避免 404 路径全部聚合为一条
    */
   private normalizeRoute(req: Request): string {
-    const route = (req as any).route?.path
+    const route = (req.route as { path?: string } | undefined)?.path
     if (route) return route
 
     // 404 或未匹配路由的请求：取第一段路径作为 route

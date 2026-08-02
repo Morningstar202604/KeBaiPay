@@ -53,13 +53,26 @@ export class MockChannel implements PaymentChannel {
     headers: Record<string, string>,
     _channelConfig: ChannelConfig,
   ): boolean {
-    let body: { orderNo: string; channelOrderNo: string; amount: string | number }
+    let body: Record<string, unknown>
     try {
       body = JSON.parse(rawBody)
     } catch {
       return false
     }
-    const expectedSig = this.sign(`${body.orderNo}${body.channelOrderNo}${body.amount}`)
+    // 三类回调的签名原文格式不同（与 parseXxxCallback 保持一致）：
+    // - 充值: orderNo + channelOrderNo + amount
+    // - 退款: orderNo + refundNo + amount
+    // - 代付: orderNo + channelOrderNo + status
+    const orderNo = String(body.orderNo ?? '')
+    let message: string
+    if (body.refundNo !== undefined) {
+      message = `${orderNo}${String(body.refundNo)}${String(body.amount)}`
+    } else if (body.amount !== undefined) {
+      message = `${orderNo}${String(body.channelOrderNo)}${String(body.amount)}`
+    } else {
+      message = `${orderNo}${String(body.channelOrderNo)}${String(body.status)}`
+    }
+    const expectedSig = this.sign(message)
     return this.safeCompare(headers['x-signature'] || '', expectedSig)
   }
 
@@ -117,8 +130,8 @@ export class MockChannel implements PaymentChannel {
     const channelRefundNo = `MOCK_RF_${params.refundNo}`
     return {
       channelRefundNo,
-      status: 'PENDING',
-      message: '模拟退款受理中',
+      status: 'SUCCESS',
+      message: '模拟退款成功',
     }
   }
 

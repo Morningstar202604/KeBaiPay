@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { RiskLevel, RiskEventType, TransactionType } from '../common/enums'
 import { DEFAULT_TRANSFER_DAILY_LIMIT_CENTS } from '../common/constants'
+import { randomUUID } from 'crypto'
 
 /**
  * 风控规则引擎
@@ -518,8 +519,8 @@ export class RiskEngineService {
     // 兜底：如果没有配置任何频率规则，至少用默认 60s
     if (windowSet.size === 0) windowSet.add(60)
 
-    // 唯一 member：避免同一请求不同窗口的 ZADD 相互覆盖
-    const member = `${Date.now()}-${Math.random().toString(36).slice(2)}-${ctx.type}`
+    // 唯一 member：避免同一请求不同窗口的 ZADD 相互覆盖（密码学安全随机数）
+    const member = `${Date.now()}-${randomUUID()}-${ctx.type}`
 
     for (const ws of windowSet) {
       const windowMs = ws * 1000

@@ -9,8 +9,6 @@
 # .env 里不需要再配这两个。
 # ===========================================================================
 
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -73,6 +71,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # 透传 .env 全部变量到容器（SMS/LLM/SMTP/OTEL/SENTRY/Agent/MCP 等）。
+    # 显式 environment 优先级高于 env_file，所以容器间地址仍以下方为准。
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kebaipay}?schema=public
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis}@redis:6379
