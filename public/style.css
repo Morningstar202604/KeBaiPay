@@ -4,13 +4,13 @@
 
 /* CSS Variables - Design Tokens */
 :root {
-  /* Brand Colors - KeBai Blue (deep indigo, trustworthy financial feel) */
-  --kb-primary: #1e40af;
-  --kb-primary-dark: #1e3a8a;
-  --kb-primary-deep: #172554;
-  --kb-primary-light: #eef2ff;
-  --kb-primary-muted: #c7d2fe;
-  --kb-primary-gradient: linear-gradient(135deg, #1e3a8a 0%, #1e40af 40%, #3b82f6 100%);
+  /* Brand Colors - KeBai Emerald (premium fintech, matches all frontends) */
+  --kb-primary: #0fa968;
+  --kb-primary-dark: #0c8a57;
+  --kb-primary-deep: #0a6b44;
+  --kb-primary-light: #e6f7f0;
+  --kb-primary-muted: #a3e0c5;
+  --kb-primary-gradient: linear-gradient(135deg, #0c8a57 0%, #0fa968 45%, #0ea5e9 120%);
   --kb-accent: #f59e0b;
 
   /* Semantic Colors - Muted, not harsh */
@@ -60,10 +60,10 @@
   --kb-font-size-4xl: 38px;
 
   /* Shadows - much softer, more natural, not multi-layered AI style */
-  --kb-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.03);
-  --kb-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06);
-  --kb-shadow-lg: 0 10px 30px rgba(30, 64, 175, 0.12);
-  --kb-shadow-card: 0 2px 8px rgba(15, 23, 42, 0.04);
+  --kb-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.03);
+  --kb-shadow-md: 0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 30px rgba(15, 23, 42, 0.07);
+  --kb-shadow-lg: 0 2px 4px rgba(15, 23, 42, 0.06), 0 16px 44px rgba(15, 169, 104, 0.14);
+  --kb-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 30px rgba(15, 23, 42, 0.07);
 
   /* Transitions - smoother */
   --kb-transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -223,6 +223,7 @@ body {
 
 .card:hover {
   box-shadow: var(--kb-shadow-md);
+  transform: translateY(-2px);
 }
 
 .card:active {

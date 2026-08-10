@@ -1,0 +1,239 @@
+/* ============================================================================
+   KeBaiPay Design System
+   精品金融科技视觉规范：深墨蓝 + 翡翠绿主色 + 分层阴影 + 克制动效
+   通过覆盖 Element Plus CSS 变量 + 全局基础样式统一四端视觉
+   ============================================================================ */
+
+:root {
+  /* ---- 品牌色（Element Plus 主色，派生 light/dark 梯度） ---- */
+  --el-color-primary: #0fa968;
+  --el-color-primary-light-3: #41bd8a;
+  --el-color-primary-light-5: #6fd0a7;
+  --el-color-primary-light-7: #a3e0c5;
+  --el-color-primary-light-8: #c3ebd8;
+  --el-color-primary-light-9: #e6f7f0;
+  --el-color-primary-dark-2: #0c8a57;
+
+  /* ---- 功能色 ---- */
+  --el-color-success: #0fa968;
+  --el-color-warning: #f59e0b;
+  --el-color-danger: #ef4444;
+  --el-color-info: #64748b;
+
+  /* ---- 中性色 ---- */
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #f6f7f9;
+  --el-bg-color-overlay: #ffffff;
+  --el-fill-color-blank: #ffffff;
+  --el-fill-color-light: #f3f4f6;
+  --el-fill-color-lighter: #f9fafb;
+  --el-border-color: #e5e7eb;
+  --el-border-color-light: #eef0f3;
+  --el-border-color-lighter: #f3f4f6;
+  --el-text-color-primary: #1f2937;
+  --el-text-color-regular: #374151;
+  --el-text-color-secondary: #475569;
+  --el-text-color-placeholder: #94a3b8;
+  --el-text-color-disabled: #c0c8d4;
+
+  /* ---- 圆角 ---- */
+  --el-border-radius-base: 10px;
+  --el-border-radius-small: 8px;
+  --el-border-radius-round: 999px;
+
+  /* ---- 阴影 ---- */
+  --el-box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 30px rgba(15, 23, 42, 0.07);
+  --el-box-shadow-light: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --el-box-shadow-lighter: 0 1px 2px rgba(15, 23, 42, 0.03);
+  --el-box-shadow-dark: 0 2px 4px rgba(15, 23, 42, 0.06), 0 16px 44px rgba(15, 23, 42, 0.12);
+
+  /* ---- 动效 ---- */
+  --kb-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --kb-fast: 140ms;
+  --kb-base: 200ms;
+
+  /* ---- 字体 ---- */
+  --kb-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI",
+    Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+/* ================= 全局基础 ================= */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--kb-font);
+  color: var(--el-text-color-primary);
+  background: var(--el-bg-color-page);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 页面标题层级 */
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--el-text-color-primary);
+}
+.page-sub {
+  font-size: 13px;
+  color: var(--el-text-color-placeholder);
+  margin-top: 4px;
+}
+
+/* ================= 卡片层级 ================= */
+.el-card {
+  border-radius: 16px !important;
+  border: 1px solid var(--el-border-color-lighter) !important;
+  box-shadow: var(--el-box-shadow-light) !important;
+  transition: box-shadow var(--kb-base) var(--kb-ease), transform var(--kb-base) var(--kb-ease);
+}
+.el-card.is-hover-shadow:hover,
+.el-card.raise:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--el-box-shadow-dark) !important;
+}
+.el-card > .el-card__header {
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ================= 按钮 ================= */
+.el-button {
+  border-radius: 10px;
+  font-weight: 500;
+  transition: all var(--kb-base) var(--kb-ease);
+}
+.el-button:not(.is-disabled):hover {
+  transform: translateY(-1px);
+}
+.el-button--primary {
+  background: linear-gradient(135deg, var(--el-color-primary), var(--el-color-primary-dark-2));
+  border: none;
+}
+.el-button--primary:hover {
+  background: linear-gradient(135deg, var(--el-color-primary-dark-2), var(--el-color-primary));
+  box-shadow: 0 6px 16px rgba(15, 169, 104, 0.28);
+}
+.el-button--primary.is-link {
+  background: none;
+  box-shadow: none;
+  transform: none;
+}
+
+/* ================= 输入框 / 下拉 ================= */
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  border-radius: 10px !important;
+  transition: box-shadow var(--kb-fast) var(--kb-ease), border-color var(--kb-fast) var(--kb-ease);
+}
+.el-input__wrapper:hover,
+.el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--el-border-color) inset;
+}
+
+/* ================= 表格 ================= */
+.el-table {
+  --el-table-border-color: var(--el-border-color-lighter);
+  --el-table-header-bg-color: #fafbfc;
+  --el-table-header-text-color: var(--el-text-color-secondary);
+  --el-table-row-hover-bg-color: #f5f8f7;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.el-table th.el-table__cell {
+  font-weight: 600;
+  font-size: 13px;
+}
+.el-table .el-table__cell {
+  padding: 13px 0;
+}
+
+/* ================= 标签 ================= */
+.el-tag {
+  border-radius: 8px;
+  border: none;
+  font-weight: 500;
+}
+.el-tag--success { background: #e6f7f0; color: #0c8a57; }
+.el-tag--warning { background: #fef3c7; color: #b45309; }
+.el-tag--danger { background: #fee2e2; color: #b91c1c; }
+.el-tag--info { background: #f1f5f9; color: #475569; }
+
+/* ================= 弹窗 ================= */
+.el-dialog {
+  border-radius: 16px;
+  box-shadow: var(--el-box-shadow-dark);
+}
+.el-dialog__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+.el-message-box {
+  border-radius: 14px;
+}
+
+/* ================= 空状态 ================= */
+.el-empty {
+  padding: 40px 0;
+}
+.el-empty__description p {
+  font-size: 13px;
+  color: var(--el-text-color-placeholder);
+}
+
+/* ================= 分页 ================= */
+.el-pagination.is-background .el-pager li,
+.el-pagination.is-background .btn-prev,
+.el-pagination.is-background .btn-next {
+  border-radius: 8px;
+}
+
+/* ================= 数字金额 ================= */
+.num,
+.mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ================= 微动效工具类 ================= */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: opacity var(--kb-base) var(--kb-ease), transform var(--kb-base) var(--kb-ease);
+}
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* ================= 滚动条 ================= */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d3d9e0;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b8c0c9;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

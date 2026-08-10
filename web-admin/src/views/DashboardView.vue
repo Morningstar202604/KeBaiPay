@@ -1,11 +1,21 @@
 <template>
   <div>
+    <div class="page-head">
+      <div class="page-title">数据概览</div>
+      <div class="page-sub">科佰支付平台关键运营指标</div>
+    </div>
+
     <el-row :gutter="16">
-      <el-col v-for="c in cards" :key="c.label" :span="4" style="min-width: 180px">
-        <el-card shadow="hover">
-          <div class="num">{{ c.value }}</div>
-          <div class="label">{{ c.label }}</div>
-        </el-card>
+      <el-col v-for="c in cards" :key="c.label" :span="4" style="min-width: 200px">
+        <div class="metric">
+          <div class="metric-icon" :style="{ background: c.bg, color: c.color }">
+            <el-icon :size="20"><component :is="c.icon" /></el-icon>
+          </div>
+          <div class="metric-body">
+            <div class="metric-num num">{{ c.value }}</div>
+            <div class="metric-label">{{ c.label }}</div>
+          </div>
+        </div>
       </el-col>
     </el-row>
   </div>
@@ -14,6 +24,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { User, Shop, List, Money, Warning } from '@element-plus/icons-vue'
 import type { DashboardStats } from '@/types'
 import { fetchDashboard } from '@/api/modules'
 import { extractError } from '@/api/http'
@@ -24,11 +35,11 @@ const cards = computed(() => {
   const s = stats.value
   if (!s) return []
   return [
-    { label: '用户总数', value: s.totalUsers },
-    { label: '商户总数', value: s.totalMerchants },
-    { label: '今日订单', value: s.todayOrders },
-    { label: '待处理提现', value: s.pendingWithdrawals },
-    { label: '待审核商户', value: s.pendingMerchants },
+    { label: '用户总数', value: s.totalUsers, icon: User, bg: '#e6f7f0', color: '#0c8a57' },
+    { label: '商户总数', value: s.totalMerchants, icon: Shop, bg: '#e0f2fe', color: '#0369a1' },
+    { label: '今日订单', value: s.todayOrders, icon: List, bg: '#fef3c7', color: '#b45309' },
+    { label: '待处理提现', value: s.pendingWithdrawals, icon: Money, bg: '#ede9fe', color: '#6d28d9' },
+    { label: '待审核商户', value: s.pendingMerchants, icon: Warning, bg: '#fee2e2', color: '#b91c1c' },
   ]
 })
 
@@ -42,6 +53,20 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.num { font-size: 30px; font-weight: 700; color: #1f2937; }
-.label { margin-top: 6px; font-size: 13px; color: #6b7280; }
+.page-head { margin-bottom: 20px; }
+.metric {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--el-box-shadow-light);
+  transition: box-shadow var(--kb-base) var(--kb-ease), transform var(--kb-base) var(--kb-ease);
+}
+.metric:hover { transform: translateY(-2px); box-shadow: var(--el-box-shadow-dark); }
+.metric-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.metric-num { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: var(--el-text-color-primary); }
+.metric-label { font-size: 13px; color: var(--el-text-color-secondary); margin-top: 2px; }
 </style>

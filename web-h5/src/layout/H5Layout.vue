@@ -1,19 +1,24 @@
 <template>
   <div class="h5">
     <header class="h5-header">
-      <span>{{ title }}</span>
+      <div class="h5-brand">
+        <span class="brand-dot" />
+        <span>{{ title }}</span>
+      </div>
       <el-dropdown v-if="auth.isAuthenticated" @command="onCommand">
         <span class="h5-user"><el-icon><User /></el-icon></span>
         <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item command="logout">退出登录</el-dropdown-item>
-          </el-dropdown-menu>
+          <el-dropdown-menu><el-dropdown-item command="logout">退出登录</el-dropdown-item></el-dropdown-menu>
         </template>
       </el-dropdown>
     </header>
 
     <main class="h5-main">
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <transition name="fade-slide" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
     </main>
 
     <nav class="h5-nav">
@@ -35,9 +40,7 @@ import { useAuthStore } from '@/stores/auth'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-
 const title = computed(() => (route.meta.title as string) || '科佰钱包')
-
 const navs = [
   { to: '/home', label: '钱包', icon: Wallet },
   { to: '/bills', label: '账单', icon: List },
@@ -55,48 +58,49 @@ async function onCommand(cmd: string) {
 </script>
 
 <style scoped>
-.h5 {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
+.h5 { height: 100%; display: flex; flex-direction: column; }
 .h5-header {
-  height: 48px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  background: #10b981;
+  background: linear-gradient(135deg, #0b1220, #0f1a2e);
   color: #fff;
-  font-size: 16px;
-  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
-.h5-user {
-  color: #fff;
-  cursor: pointer;
-}
-.h5-main {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-}
+.h5-brand { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; }
+.brand-dot { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg,#0fa968,#0ea5e9); box-shadow: 0 0 10px rgba(15,169,104,.6); }
+.h5-user { color: #fff; cursor: pointer; display: flex; align-items: center; }
+.h5-main { flex: 1; overflow-y: auto; padding: 14px; padding-bottom: 90px; }
 .h5-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
-  border-top: 1px solid #e5e7eb;
-  background: #fff;
-  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 1px solid var(--el-border-color-lighter);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  padding: 6px 0;
+  padding-bottom: calc(6px + env(safe-area-inset-bottom));
+  z-index: 10;
 }
 .nav-item {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 0 6px;
-  font-size: 12px;
-  color: #6b7280;
+  padding: 6px 0 4px;
+  font-size: 11px;
+  color: #64748b;
   text-decoration: none;
+  gap: 2px;
+  transition: color var(--kb-base) var(--kb-ease), transform var(--kb-base) var(--kb-ease);
 }
-.nav-item.router-link-active {
-  color: #10b981;
-}
+.nav-item.router-link-active { color: #0c8a57; }
+.nav-item.router-link-active :deep(.el-icon) { transform: translateY(-1px); }
+.nav-item:active { transform: scale(0.94); }
 </style>

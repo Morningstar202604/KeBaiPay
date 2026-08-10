@@ -1,53 +1,37 @@
 <template>
   <el-container class="portal">
-    <el-aside width="220px" class="portal-aside">
+    <el-aside width="224px" class="portal-aside">
       <div class="brand">
-        <span class="brand-dot" />
-        <span>科佰支付</span>
+        <div class="brand-mark"><span>佰</span></div>
+        <div class="brand-text">
+          <span class="brand-name">科佰支付</span>
+          <span class="brand-sub">KeBaiPay · 商户</span>
+        </div>
       </div>
-      <el-menu
-        :default-active="activePath"
-        router
-        class="portal-menu"
-        background-color="#1f2937"
-        text-color="#cbd5e1"
-        active-text-color="#ffffff"
-      >
-        <el-menu-item index="/dashboard">
-          <el-icon><DataAnalysis /></el-icon>
-          <span>数据看板</span>
-        </el-menu-item>
-        <el-menu-item index="/orders">
-          <el-icon><List /></el-icon>
-          <span>订单管理</span>
-        </el-menu-item>
-        <el-menu-item index="/reconciliation">
-          <el-icon><DocumentChecked /></el-icon>
-          <span>对账查询</span>
-        </el-menu-item>
-        <el-menu-item index="/qrcodes">
-          <el-icon><Grid /></el-icon>
-          <span>收款码</span>
-        </el-menu-item>
-        <el-menu-item index="/apps">
-          <el-icon><Key /></el-icon>
-          <span>应用管理</span>
-        </el-menu-item>
-        <el-menu-item index="/merchant">
-          <el-icon><Shop /></el-icon>
-          <span>商户资料</span>
-        </el-menu-item>
+
+      <el-menu :default-active="activePath" router class="portal-menu" background-color="transparent" text-color="#94a3b8" active-text-color="#fff">
+        <el-menu-item index="/dashboard"><el-icon><DataAnalysis /></el-icon><span>数据看板</span></el-menu-item>
+        <el-menu-item index="/orders"><el-icon><List /></el-icon><span>订单管理</span></el-menu-item>
+        <el-menu-item index="/reconciliation"><el-icon><DocumentChecked /></el-icon><span>对账查询</span></el-menu-item>
+        <el-menu-item index="/qrcodes"><el-icon><Grid /></el-icon><span>收款码</span></el-menu-item>
+        <el-menu-item index="/apps"><el-icon><Key /></el-icon><span>应用管理</span></el-menu-item>
+        <el-menu-item index="/merchant"><el-icon><Shop /></el-icon><span>商户资料</span></el-menu-item>
       </el-menu>
+
+      <div class="aside-foot">科佰支付 · 商户服务中台</div>
     </el-aside>
 
     <el-container>
       <el-header class="portal-header">
-        <div class="header-title">{{ pageTitle }}</div>
+        <div>
+          <div class="header-title">{{ pageTitle }}</div>
+          <div class="header-sub">科佰支付 · 安全资金服务</div>
+        </div>
         <el-dropdown @command="onCommand">
           <span class="user-chip">
-            <el-icon><User /></el-icon>
-            <span>{{ auth.userId ? '商户' : '未登录' }}</span>
-            <el-icon><ArrowDown /></el-icon>
+            <span class="avatar"><el-icon><User /></el-icon></span>
+            <span class="uname">{{ auth.userId ? '商户' : '未登录' }}</span>
+            <el-icon class="caret"><ArrowDown /></el-icon>
           </span>
           <template #dropdown>
             <el-dropdown-menu>
@@ -58,7 +42,11 @@
       </el-header>
 
       <el-main class="portal-main">
-        <router-view />
+        <router-view v-slot="{ Component }">
+          <transition name="fade-slide" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
       </el-main>
     </el-container>
   </el-container>
@@ -67,11 +55,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  DataAnalysis, List, DocumentChecked, Grid, Key, Shop, User, ArrowDown,
-} from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
+import { DataAnalysis, List, DocumentChecked, Grid, Key, Shop, User, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -94,57 +80,104 @@ async function onCommand(cmd: string) {
   height: 100%;
 }
 .portal-aside {
-  background: #1f2937;
+  background: linear-gradient(180deg, #0b1220 0%, #0f1a2e 100%);
   color: #cbd5e1;
+  display: flex;
+  flex-direction: column;
   overflow-x: hidden;
 }
 .brand {
-  height: 56px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 20px;
+  gap: 10px;
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0fa968, #0ea5e9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #fff;
-  font-weight: 600;
-  font-size: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: 0 6px 16px rgba(15, 169, 104, 0.35);
 }
-.brand-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #10b981;
-}
+.brand-text { display: flex; flex-direction: column; line-height: 1.25; }
+.brand-name { color: #fff; font-weight: 600; font-size: 15px; }
+.brand-sub { font-size: 11px; color: #64748b; }
+
 .portal-menu {
   border-right: none;
+  flex: 1;
+  padding: 12px 10px;
 }
 .portal-menu :deep(.el-menu-item) {
-  height: 48px;
-  line-height: 48px;
+  height: 46px;
+  line-height: 46px;
+  border-radius: 10px;
+  margin-bottom: 4px;
+  transition: background var(--kb-base) var(--kb-ease), color var(--kb-base) var(--kb-ease), transform var(--kb-base) var(--kb-ease);
+}
+.portal-menu :deep(.el-menu-item:hover) {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
 }
 .portal-menu :deep(.el-menu-item.is-active) {
-  background: #10b981;
+  background: linear-gradient(135deg, rgba(15, 169, 104, 0.9), rgba(14, 165, 233, 0.8));
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(15, 169, 104, 0.25);
 }
+.aside-foot {
+  padding: 14px 18px;
+  font-size: 11px;
+  color: #475569;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
 .portal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  height: 64px;
+  padding: 0 24px;
 }
-.header-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-}
+.header-title { font-size: 17px; font-weight: 700; color: var(--el-text-color-primary); }
+.header-sub { font-size: 12px; color: var(--el-text-color-placeholder); margin-top: 1px; }
+
 .user-chip {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
-  color: #374151;
+  color: var(--el-text-color-regular);
+  padding: 6px 10px;
+  border-radius: 10px;
+  transition: background var(--kb-fast) var(--kb-ease);
 }
+.user-chip:hover { background: var(--el-fill-color-light); }
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0fa968, #0ea5e9);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+.uname { font-weight: 500; font-size: 14px; }
+.caret { font-size: 12px; color: var(--el-text-color-placeholder); }
+
 .portal-main {
-  padding: 20px;
+  padding: 24px;
+  overflow-y: auto;
 }
 </style>
