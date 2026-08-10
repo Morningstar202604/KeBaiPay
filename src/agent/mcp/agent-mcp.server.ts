@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import { fenToYuan } from '../../common/helpers'
 import { generateOrderNo } from '../../common/helpers'
+import { z } from 'zod'
 
 /**
  * KeBaiPay 自建 MCP Server（@modelcontextprotocol/sdk）
@@ -74,9 +75,7 @@ export class AgentMcpServer implements OnModuleInit {
     ;(server as any).tool(
       'kbpay_query_balance',
       '查询 KeBaiPay 用户钱包余额',
-      {
-        userId: { type: 'string', description: '用户 ID' },
-      },
+      { userId: z.string().describe('用户 ID') },
       async (args: any) => {
         const account = await this.prisma.account.findUnique({
           where: { userId: args.userId },
@@ -101,9 +100,7 @@ export class AgentMcpServer implements OnModuleInit {
     ;(server as any).tool(
       'kbpay_query_order',
       '查询 KeBaiPay 订单详情',
-      {
-        orderNo: { type: 'string', description: '订单号' },
-      },
+      { orderNo: z.string().describe('订单号') },
       async (args: any) => {
         const order = await this.prisma.paymentOrder.findUnique({
           where: { orderNo: args.orderNo },
@@ -132,8 +129,8 @@ export class AgentMcpServer implements OnModuleInit {
       'kbpay_query_bill',
       '查询用户账单列表',
       {
-        userId: { type: 'string', description: '用户 ID' },
-        limit: { type: 'number', description: '返回条数，默认 20，最大 100' },
+        userId: z.string().describe('用户 ID'),
+        limit: z.number().optional().describe('返回条数，默认 20，最大 100'),
       },
       async (args: any) => {
         const limit = Math.min(args.limit ?? 20, 100)
@@ -163,8 +160,8 @@ export class AgentMcpServer implements OnModuleInit {
       'kbpay_list_risk_events',
       '查询 KeBaiPay 风险事件列表（管理端）',
       {
-        level: { type: 'string', description: 'LOW/MEDIUM/HIGH' },
-        limit: { type: 'number', description: '返回条数，默认 50，最大 200' },
+        level: z.string().optional().describe('LOW/MEDIUM/HIGH'),
+        limit: z.number().optional().describe('返回条数，默认 50，最大 200'),
       },
       async (args: any) => {
         const limit = Math.min(args.limit ?? 50, 200)
@@ -189,8 +186,8 @@ export class AgentMcpServer implements OnModuleInit {
       'kbpay_list_recon_diffs',
       '查询 KeBaiPay 对账差异项列表（S5 多平台对账聚合）',
       {
-        status: { type: 'string', description: 'PENDING/INVESTIGATING/RESOLVED/IGNORED' },
-        limit: { type: 'number', description: '返回条数，默认 20，最大 100' },
+        status: z.string().optional().describe('PENDING/INVESTIGATING/RESOLVED/IGNORED'),
+        limit: z.number().optional().describe('返回条数，默认 20，最大 100'),
       },
       async (args: any) => {
         const limit = Math.min(args.limit ?? 20, 100)

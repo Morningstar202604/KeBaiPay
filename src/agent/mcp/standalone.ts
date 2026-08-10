@@ -33,6 +33,7 @@ config({ path: join(__dirname, '..', '..', '..', '.env') })
 
 import { PrismaService } from '../../prisma/prisma.service'
 import { fenToYuan } from '../../common/helpers'
+import { z } from 'zod'
 
 async function main() {
   const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js')
@@ -44,14 +45,14 @@ async function main() {
     version: '2.1.0',
   })
   // 用 as any 规避 MCP SDK 在 TS 下的 Zod schema 严格签名校验，
-  // 运行时 MCP SDK 接受 { type: 'string' } 等 JSON Schema 形式参数。
+  // 运行时 MCP SDK 要求工具参数为 Zod schema（ZodRawShapeCompat），不支持 JSON Schema 对象。
   const s = server as any
 
   // 查询用户余额
   s.tool(
     'kbpay_query_balance',
     '查询 KeBaiPay 用户钱包余额',
-    { userId: { type: 'string', description: '用户 ID' } },
+    { userId: z.string().describe('用户 ID') },
     async (args: any) => {
       const account = await prisma.account.findUnique({
         where: { userId: args.userId },
@@ -75,7 +76,7 @@ async function main() {
   s.tool(
     'kbpay_query_order',
     '查询 KeBaiPay 订单详情',
-    { orderNo: { type: 'string', description: '订单号' } },
+    { orderNo: z.string().describe('订单号') },
     async (args: any) => {
       const order = await prisma.paymentOrder.findUnique({
         where: { orderNo: args.orderNo },
@@ -98,8 +99,8 @@ async function main() {
     'kbpay_query_bill',
     '查询用户账单列表',
     {
-      userId: { type: 'string', description: '用户 ID' },
-      limit: { type: 'number', description: '返回条数，默认 20' },
+      userId: z.string().describe('用户 ID'),
+      limit: z.number().optional().describe('返回条数，默认 20'),
     },
     async (args: any) => {
       const limit = Math.min(args.limit ?? 20, 100)
@@ -129,8 +130,8 @@ async function main() {
     'kbpay_list_risk_events',
     '查询 KeBaiPay 风险事件列表',
     {
-      level: { type: 'string', description: 'LOW/MEDIUM/HIGH' },
-      limit: { type: 'number', description: '返回条数' },
+      level: z.string().optional().describe('LOW/MEDIUM/HIGH'),
+      limit: z.number().optional().describe('返回条数'),
     },
     async (args: any) => {
       const limit = Math.min(args.limit ?? 50, 200)
@@ -155,8 +156,8 @@ async function main() {
     'kbpay_list_recon_diffs',
     '查询 KeBaiPay 对账差异项列表',
     {
-      status: { type: 'string', description: 'PENDING/INVESTIGATING/RESOLVED/IGNORED' },
-      limit: { type: 'number', description: '返回条数' },
+      status: z.string().optional().describe('PENDING/INVESTIGATING/RESOLVED/IGNORED'),
+      limit: z.number().optional().describe('返回条数'),
     },
     async (args: any) => {
       const limit = Math.min(args.limit ?? 20, 100)

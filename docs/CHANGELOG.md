@@ -4,6 +4,7 @@
 
 ## 目录
 
+- [版本 2.2.1（进行中）](#版本-221进行中)
 - [版本 2.2.0](#版本-220)（2026-08-01）
 - [版本 2.1.1](#版本-211)（2026-07-29）
 - [版本 2.1.0](#版本-210)（2026-07-22）
@@ -11,6 +12,26 @@
 - [版本 1.0.0](#版本-100)（2026-07-13）
 - [已实现功能清单](#已实现功能清单)
 - [2026-07 重构记录](#2026-07-重构记录)
+
+---
+
+## 版本 2.2.1（进行中）
+
+**版本类型：** Bug 修复 + MVP 可运行化
+
+### 修复内容
+
+- **Agent MCP Server 初始化告警**：`tool()` 工具参数由 JSON Schema 对象改为 Zod schema（`zod` 已加入依赖），`AgentMcpServer` 与 `standalone.ts` 两处共 10 个工具注册全部生效，不再抛 "expected a Zod schema" 警告。
+- **seed 测试账号无法登录**：原 `139******11` 为脱敏占位符，实际入库后无法登录；改为真实手机号 `13800000001` / 邮箱 `test@kebaipay.com`，密码 `Abc12345`，并补全实名认证与 10000 元余额。
+- **`/portal` 静态路由**：商户后台 Vue 3 SPA 挂载到 `/portal` 时被根静态模块拦截，已调整注册顺序并排除 `/portal`。
+- **后端 `tsconfig`**：排除 `web/` 目录，避免与前端工程串扰。
+
+### MVP 本地运行说明
+
+- 依赖：PostgreSQL 17 + Redis 7（`sudo apt-get install postgresql redis-server`）。
+- 初始化：`npx prisma migrate deploy && npx ts-node prisma/seed.ts`。
+- 启动：`node dist/main.js`（`dist` 由 `npx nest build` 生成）。
+- 测试账号：用户 `13800000001` / `Abc12345`（支付密码 `123456`）；管理员 `admin` / `Admin2026`。
 
 ---
 
