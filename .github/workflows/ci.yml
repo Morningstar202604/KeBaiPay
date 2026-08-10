@@ -88,3 +88,23 @@ jobs:
       - name: Build web-h5 (Vue user H5)
         working-directory: web-h5
         run: npm run build
+
+  web-admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'web-admin/package-lock.json'
+
+      - name: Install web-admin dependencies
+        working-directory: web-admin
+        run: npm ci
+
+      - name: Build web-admin (Vue admin panel)
+        working-directory: web-admin
+        run: npm run build

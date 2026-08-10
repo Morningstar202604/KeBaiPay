@@ -53,6 +53,7 @@ import { validateEnv } from './common/env-validation'
  * 前端 SPA 静态托管：
  * - /portal → web/dist（商户后台 Vue 3）
  * - /h5     → web-h5/dist（用户端 H5）
+ * - /admin  → web-admin/dist（管理后台 Vue 3）
  * 仅当对应 dist 已构建时才注册，避免本地未构建导致启动失败。
  */
 function spaStaticModules() {
@@ -74,6 +75,16 @@ function spaStaticModules() {
         rootPath: h5Dist,
         serveRoot: '/h5',
         exclude: ['/auth/{*splat}', '/accounts/{*splat}', '/transactions/{*splat}', '/transfers/{*splat}', '/withdrawals/{*splat}', '/red-packets/{*splat}', '/bills/{*splat}', '/cashier/{*splat}', '/qr-codes/{*splat}', '/users/{*splat}'],
+      }),
+    )
+  }
+  const adminDist = join(__dirname, '..', 'web-admin', 'dist')
+  if (existsSync(adminDist)) {
+    modules.push(
+      ServeStaticModule.forRoot({
+        rootPath: adminDist,
+        serveRoot: '/admin',
+        exclude: ['/admin/auth/{*splat}', '/admin/dashboard/{*splat}', '/admin/users/{*splat}', '/admin/merchants/{*splat}', '/admin/withdrawals/{*splat}', '/admin/payment-orders/{*splat}', '/admin/risk-events/{*splat}', '/admin/finance/{*splat}', '/admin/login-logs/{*splat}', '/admin/system-configs/{*splat}', '/admin/risk-rules/{*splat}', '/admin/identity/{*splat}', '/admin/accounts/{*splat}', '/admin/audit-logs/{*splat}'],
       }),
     )
   }
@@ -104,8 +115,8 @@ function spaStaticModules() {
     ...spaStaticModules(),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
-      // /portal 与 /h5 由 spaStaticModules 单独托管，根静态模块不拦截
-      exclude: ['/portal/{*splat}', '/h5/{*splat}'],
+      // /portal、/h5、/admin 由 spaStaticModules 单独托管，根静态模块不拦截
+      exclude: ['/portal/{*splat}', '/h5/{*splat}', '/admin/{*splat}'],
     }),
     PrismaModule,
     RedisModule,

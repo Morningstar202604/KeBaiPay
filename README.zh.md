@@ -509,6 +509,7 @@ kebaipay/
 ├── public/                   H5 钱包静态页面（同源托管，/）
 ├── web/                      商户后台 Vue 3 SPA（构建产物挂载 /portal）
 ├── web-h5/                   用户端 H5 Vue 3（构建产物挂载 /h5）
+├── web-admin/                管理后台 Vue 3 SPA（构建产物挂载 /admin）
 ├── prisma/
 │   ├── schema.prisma         52 个数据模型定义
 │   ├── migrations/           SQL 迁移文件
