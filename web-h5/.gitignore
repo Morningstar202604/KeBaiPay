@@ -1,0 +1,9 @@
+node_modules
+dist
+*.local
+.env
+.env.*
+!.env.example
+# vue-tsc -b 构建产物
+vite.config.js
+vite.config.d.ts

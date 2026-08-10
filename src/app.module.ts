@@ -50,22 +50,34 @@ import { ScheduleHealthModule } from './common/schedule-health.module'
 import { validateEnv } from './common/env-validation'
 
 /**
- * 商户后台 Vue 3 SPA（web/dist）挂载到 /portal。
- * 仅当 web/dist 已构建时才注册静态服务，避免本地未构建导致启动失败。
+ * 前端 SPA 静态托管：
+ * - /portal → web/dist（商户后台 Vue 3）
+ * - /h5     → web-h5/dist（用户端 H5）
+ * 仅当对应 dist 已构建时才注册，避免本地未构建导致启动失败。
  */
-function portalStaticModules() {
-  const distDir = join(__dirname, '..', 'web', 'dist')
-  if (existsSync(distDir)) {
-    return [
+function spaStaticModules() {
+  const modules = []
+  const portalDist = join(__dirname, '..', 'web', 'dist')
+  if (existsSync(portalDist)) {
+    modules.push(
       ServeStaticModule.forRoot({
-        rootPath: distDir,
+        rootPath: portalDist,
         serveRoot: '/portal',
-        // Vue 使用 hash 路由，无需 SPA fallback；排除后端 API 路径避免冲突
         exclude: ['/auth/{*splat}', '/merchants/{*splat}', '/cashier/{*splat}', '/users/{*splat}', '/accounts/{*splat}'],
       }),
-    ]
+    )
   }
-  return []
+  const h5Dist = join(__dirname, '..', 'web-h5', 'dist')
+  if (existsSync(h5Dist)) {
+    modules.push(
+      ServeStaticModule.forRoot({
+        rootPath: h5Dist,
+        serveRoot: '/h5',
+        exclude: ['/auth/{*splat}', '/accounts/{*splat}', '/transactions/{*splat}', '/transfers/{*splat}', '/withdrawals/{*splat}', '/red-packets/{*splat}', '/bills/{*splat}', '/cashier/{*splat}', '/qr-codes/{*splat}', '/users/{*splat}'],
+      }),
+    )
+  }
+  return modules
 }
 
 @Module({
@@ -89,11 +101,11 @@ function portalStaticModules() {
         limit: 30,
       },
     ]),
-    ...portalStaticModules(),
+    ...spaStaticModules(),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
-      // /portal 由 portalStaticModules 单独托管，根静态模块不拦截
-      exclude: ['/portal/{*splat}'],
+      // /portal 与 /h5 由 spaStaticModules 单独托管，根静态模块不拦截
+      exclude: ['/portal/{*splat}', '/h5/{*splat}'],
     }),
     PrismaModule,
     RedisModule,
