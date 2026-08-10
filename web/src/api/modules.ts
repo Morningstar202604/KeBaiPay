@@ -66,6 +66,12 @@ export async function fetchOrders(query: OrderQuery): Promise<Paged<PaymentOrder
   return data
 }
 
+// 手动重试订单回调通知
+export async function retryOrderNotify(orderNo: string): Promise<unknown> {
+  const { data } = await http.post(`/cashier/orders/${orderNo}/notify`)
+  return data
+}
+
 // ---------- 对账 ----------
 export async function fetchReconciliation(body: {
   startDate?: string

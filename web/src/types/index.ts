@@ -53,6 +53,7 @@ export interface PaymentOrder {
   createdAt: string
   notifyStatus: 'PENDING' | 'SUCCESS' | 'FAILED'
   notifyCount: number
+  callbackUrl?: string | null
   refundAmount: number
   settledAt: string | null
 }

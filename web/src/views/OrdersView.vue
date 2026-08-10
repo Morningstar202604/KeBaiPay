@@ -40,19 +40,34 @@
           <el-tag :type="statusType(row.status)">{{ statusText(row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="回调状态" width="110">
+      <el-table-column label="回调状态" width="130">
         <template #default="{ row }">
-          <el-tag size="small" :type="row.notifyStatus === 'SUCCESS' ? 'success' : 'warning'">
-            {{ row.notifyStatus }}
-          </el-tag>
+          <el-tooltip
+            :content="`已重试 ${row.notifyCount} 次${row.callbackUrl ? '' : '（未配置回调地址）'}`"
+            placement="top"
+          >
+            <el-tag :type="row.notifyStatus === 'SUCCESS' ? 'success' : row.notifyStatus === 'FAILED' ? 'danger' : 'warning'">
+              {{ row.notifyStatus }}
+            </el-tag>
+          </el-tooltip>
         </template>
       </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" width="180">
         <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="90" fixed="right">
+      <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="onDetail(row)">详情</el-button>
+          <el-popconfirm
+            v-if="row.notifyStatus !== 'SUCCESS' && row.callbackUrl"
+            title="确认重新发送回调通知？"
+            width="220"
+            @confirm="onRetry(row)"
+          >
+            <template #reference>
+              <el-button link type="warning">重试回调</el-button>
+            </template>
+          </el-popconfirm>
         </template>
       </el-table-column>
     </el-table>
@@ -74,7 +89,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { OrderStatus, PaymentOrder } from '@/types'
-import { fetchOrders } from '@/api/modules'
+import { fetchOrders, retryOrderNotify } from '@/api/modules'
 import { extractError } from '@/api/http'
 
 const loading = ref(false)
@@ -151,6 +166,16 @@ function onPage(p: number) {
 }
 function onDetail(row: PaymentOrder) {
   ElMessage.info(`订单号：${row.orderNo}`)
+}
+
+async function onRetry(row: PaymentOrder) {
+  try {
+    await retryOrderNotify(row.orderNo)
+    ElMessage.success('回调已重试发送')
+    load()
+  } catch (e) {
+    ElMessage.error(extractError(e))
+  }
 }
 
 onMounted(load)
