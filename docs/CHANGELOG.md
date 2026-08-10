@@ -79,9 +79,11 @@
 - 资金 Service 账户扣/加 + 账本 + 账单的复制粘贴抽取统一 `LedgerService`（涉及 8 个资金 Service，改动大、资金逻辑敏感，另行排期）。
 - 11 个 `@Global()` 业务模块收敛为显式 `imports`（改动横跨 42 模块，风险高，另行排期）。
 - 前端三工程 monorepo 化共享 `http/auth store/类型`。
-- God Service（`admin.service` 1236 行、`cashier.service` 923 行）拆分。
+ - God Service（`admin.service` 1236 行、`cashier.service` 923 行）拆分。
 
 ---
+
+## 版本 2.2.0
 
 **发布日期：** 2026-08-01
 
