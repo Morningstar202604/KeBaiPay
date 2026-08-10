@@ -6,6 +6,27 @@
 
 ---
 
+## 0.1 外部依赖与额外准备总清单（一页速查）
+
+> 这是"上线前需要外接/额外准备什么"的完整清单。当前系统默认全部走 mock/关闭，**生产环境必须逐项准备并替换配置**，否则对应功能不可用；其中部分（支付、短信）生产环境未配置会直接启动失败（设计如此，防止误上线）。
+
+| # | 外部服务 | 用于什么功能 | 需要额外准备什么（资质/账号/材料） | 关键配置项 | 详细 |
+|---|---------|-------------|-----------------------------------|-----------|------|
+| 1 | **短信 SMS**（手机号验证码） | 注册 / 登录 / 改密 / 绑定手机号 | 阿里云/腾讯云/华为云**实名认证** + 申请并审核**短信签名**（如"科佰支付"）+ 申请并审核**短信模板**（变量名须为 `code`） | `SMS_PROVIDER` `SMS_SIGN_NAME` `SMS_TEMPLATE_CODE` `SMS_ACCESS_KEY_ID/SECRET`（或腾讯/华为对应项） | §3 |
+| 2 | **支付宝** | 充值 / 代付 / 退款 | 企业主体支付宝开放平台**实名 + 创建应用 + 生成密钥 + 签约产品**（当面付/网站支付/单笔转账） | 渠道 `alipay` 的 `appId/privateKey/alipayPublicKey`，`ALIPAY_NOTIFY_URL` | §2.1 |
+| 3 | **微信支付** | 收款 / 代付 / 退款 | 企业微信支付**商户号** + **APIv3 密钥** + **商户私钥** + **证书序列号** + 签约产品 | 渠道 `wechat` 的 `mchId/apiV3Key/privateKey/certSerialNo`，`WECHAT_PAY_NOTIFY_URL` | §2.2 |
+| 4 | **支付牌照 / 合规通道** | 对外收单 / 代收代付 | 持牌支付机构/银行/**四方聚合**服务商签约（自营收单必须持牌，否则非法经营） | 合作通道 SDK/参数接入 `PaymentChannel` | §2.3 |
+| 5 | **SMTP 邮件** | 邮件通知（到账/审核等） | 企业邮箱或第三方邮件服务的 SMTP 账号与授权码 | `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `SMTP_FROM` | §4 |
+| 6 | **LLM API** | AI 客服 / AI 风控审计 / 智能体 | OpenAI 兼容服务的 API Key（DeepSeek/通义/Kimi/Moonshot 等） | `LLM_PROVIDER` `LLM_API_KEY` `LLM_BASE_URL` `LLM_MODEL` | §5 |
+| 7 | **Stripe / PayPal** | 外部支付工具（可选 MCP） | 对应平台 API 密钥 | `MCP_STRIPE_ENABLED` `STRIPE_SECRET_KEY` 等 | §6 |
+| 8 | **OTEL / Sentry** | 链路追踪 / 异常上报（可选） | OTLP Collector（Jaeger/Tempo）/ Sentry 项目 DSN | `OTEL_EXPORTER_OTLP_ENDPOINT` `SENTRY_DSN` | §7 |
+| 9 | **PostgreSQL / Redis** | 数据存储 / 缓存与分布式锁 | 生产数据库实例 + 强密码 + 定时备份；Redis 开 `requirepass` | `DATABASE_URL` `REDIS_URL` | `docs/DEPLOYMENT.md` |
+| 10 | **公网域名 + HTTPS 证书** | 支付回调 / 前端访问 | 备案域名 + TLS 证书（回调和 CORS 都要求 HTTPS） | `RECHARGE_NOTIFY_URL` `CORS_ORIGINS` `WECHAT/ALIPAY_NOTIFY_URL` | §8.2 |
+
+> **一句话**：代码本身完整可跑；要真正对外营业，**手机号验证（短信）、真实资金进出（支付渠道）、（可选）邮件与 AI** 这几类都必须由企业主体提前申请外部账号与资质后替换配置。纯内部演示/联调可直接用 mock。
+
+---
+
 ## 0. 一句话结论
 
 **系统代码本身是完整、可运行的，但当前默认配置下大部分"资金出入 + 对外通知"能力处于 mock（模拟）状态，不能用于真实业务。** 要让系统真正可用，必须由企业主体去申请：**支付牌照/合规通道 → 支付渠道商户号 → 短信签名模板 →（可选）LLM/SMTP 等外部服务**，然后按本文逐一替换配置。生产环境安全校验（`src/security/security-validator.service.ts`）会强制拦截默认/弱密钥与 mock 渠道，配错了根本起不来——这是设计如此，不是 bug。

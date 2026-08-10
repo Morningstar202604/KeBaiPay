@@ -8,7 +8,7 @@
 
 <p>
   <a href="https://github.com/weed33834/KeBaiPay/actions"><img alt="CI" src="https://github.com/weed33834/KeBaiPay/actions/workflows/ci.yml/badge.svg" /></a>
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg" />
+  <img alt="License" src="https://img.shields.io/badge/license-Custom-orange.svg" />
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%E2%89%A520-green" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-blue" />
   <img alt="NestJS" src="https://img.shields.io/badge/NestJS-11-red" />
@@ -753,7 +753,7 @@ Full list in [docs/TROUBLESHOOT.md](docs/TROUBLESHOOT.md).
 
 ## License
 
-MIT License — see [LICENSE](./LICENSE)
+**Restricted License**: Commercial use and personal use of this software are **prohibited**. Any deployment, running, modification, redistribution, or secondary development requires **explicit written authorization** from the copyright holder. Viewing the source code for learning, research, or evaluation purposes only is permitted. See [LICENSE](./LICENSE).
 
 Copyright (c) 2026 KeBaiPay Contributors
 

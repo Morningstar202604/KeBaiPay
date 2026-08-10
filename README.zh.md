@@ -8,7 +8,7 @@
 
 <p>
   <a href="https://github.com/KEBAI-CN/Pay"><img alt="CI" src="https://github.com/weed33834/KeBaiPay/actions/workflows/ci.yml/badge.svg" /></a>
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg" />
+  <img alt="License" src="https://img.shields.io/badge/license-Custom-orange.svg" />
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%E2%89%A520-green" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-blue" />
   <img alt="NestJS" src="https://img.shields.io/badge/NestJS-11-red" />
@@ -754,7 +754,7 @@ npm run lint           # TypeScript 类型检查
 
 ## 十六、License
 
-MIT License — 详见 [LICENSE](./LICENSE)
+**自定义限制性许可**：本软件**禁止商业使用与个人使用**，任何形式的部署、运行、修改、再分发、二次开发等均须获得版权持有者的**书面明确授权**。仅允许出于学习、研究、评估目的查看源代码。详见 [LICENSE](./LICENSE)。
 
 Copyright (c) 2026 KeBaiPay Contributors
 
