@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule'
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'
 import { APP_GUARD } from '@nestjs/core'
 import { join } from 'path'
+import { existsSync } from 'fs'
 import { AuthModule } from './auth/auth.module'
 import { UsersModule } from './users/users.module'
 import { AccountsModule } from './accounts/accounts.module'
@@ -48,6 +49,25 @@ import { RequestLoggingMiddleware } from './common/request-logging.middleware'
 import { ScheduleHealthModule } from './common/schedule-health.module'
 import { validateEnv } from './common/env-validation'
 
+/**
+ * 商户后台 Vue 3 SPA（web/dist）挂载到 /portal。
+ * 仅当 web/dist 已构建时才注册静态服务，避免本地未构建导致启动失败。
+ */
+function portalStaticModules() {
+  const distDir = join(__dirname, '..', 'web', 'dist')
+  if (existsSync(distDir)) {
+    return [
+      ServeStaticModule.forRoot({
+        rootPath: distDir,
+        serveRoot: '/portal',
+        // Vue 使用 hash 路由，无需 SPA fallback；排除后端 API 路径避免冲突
+        exclude: ['/auth/{*splat}', '/merchants/{*splat}', '/cashier/{*splat}', '/users/{*splat}', '/accounts/{*splat}'],
+      }),
+    ]
+  }
+  return []
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
@@ -72,6 +92,7 @@ import { validateEnv } from './common/env-validation'
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
     }),
+    ...portalStaticModules(),
     PrismaModule,
     RedisModule,
     CryptoModule,
