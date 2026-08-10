@@ -36,7 +36,9 @@
       </el-form-item>
     </el-form>
 
-    <el-empty v-else-if="!loading" description="尚未入驻商户，请先完成商户入驻申请" />
+    <el-empty v-else-if="!loading" description="尚未入驻商户">
+      <el-button type="primary" @click="$router.push('/merchant/register')">去入驻申请</el-button>
+    </el-empty>
   </el-card>
 </template>
 

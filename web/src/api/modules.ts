@@ -23,6 +23,18 @@ export async function login(body: {
 }
 
 // ---------- 商户 ----------
+export async function registerMerchant(body: {
+  merchantName: string
+  merchantType?: 'PERSONAL' | 'ENTERPRISE'
+  contactName?: string
+  contactPhone?: string
+  settleAccount?: string
+  businessLicenseNo?: string
+}): Promise<MerchantInfo> {
+  const { data } = await http.post<MerchantInfo>('/merchants/register', body)
+  return data
+}
+
 export async function fetchMerchantInfo(): Promise<MerchantInfo> {
   const { data } = await http.get<MerchantInfo>('/merchants/me')
   return data

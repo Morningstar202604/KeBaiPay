@@ -1,7 +1,18 @@
 <template>
   <div>
     <el-alert
-      v-if="merchant && merchant.status !== 'APPROVED'"
+      v-if="noMerchant"
+      title="您尚未入驻商户，完成入驻后可查看经营数据。"
+      type="warning"
+      :closable="false"
+      style="margin-bottom: 16px"
+    >
+      <template #default>
+        <el-button type="primary" size="small" @click="$router.push('/merchant/register')">去入驻申请</el-button>
+      </template>
+    </el-alert>
+    <el-alert
+      v-else-if="merchant && merchant.status !== 'APPROVED'"
       :title="`商户状态：${statusText(merchant.status)}，商户审核通过后即可查看经营数据。`"
       type="warning"
       :closable="false"
@@ -37,11 +48,10 @@ import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import * as echarts from 'echarts'
 import type { DashboardData, MerchantInfo } from '@/types'
 import { fetchDashboard, fetchMerchantInfo } from '@/api/modules'
-import { extractError } from '@/api/http'
-import { ElMessage } from 'element-plus'
 
 const dashboard = ref<DashboardData | null>(null)
 const merchant = ref<MerchantInfo | null>(null)
+const noMerchant = ref(false)
 const chartEl = ref<HTMLDivElement>()
 let chart: echarts.ECharts | null = null
 
@@ -109,9 +119,11 @@ onMounted(async () => {
     const [d, m] = await Promise.all([fetchDashboard(), fetchMerchantInfo()])
     dashboard.value = d
     merchant.value = m
+    noMerchant.value = false
     renderChart()
   } catch (e) {
-    ElMessage.error(extractError(e))
+    // 未入驻商户时 /merchants/dashboard 或 /merchants/me 会抛错，给出入驻引导
+    noMerchant.value = true
   }
 })
 

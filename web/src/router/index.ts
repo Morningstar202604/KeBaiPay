@@ -19,6 +19,7 @@ const router = createRouter({
         { path: 'qrcodes', name: 'qrcodes', component: () => import('@/views/QrCodesView.vue'), meta: { title: '收款码' } },
         { path: 'apps', name: 'apps', component: () => import('@/views/AppsView.vue'), meta: { title: '应用管理' } },
         { path: 'merchant', name: 'merchant', component: () => import('@/views/MerchantInfoView.vue'), meta: { title: '商户资料' } },
+        { path: 'merchant/register', name: 'merchant-register', component: () => import('@/views/MerchantRegisterView.vue'), meta: { title: '商户入驻' } },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
