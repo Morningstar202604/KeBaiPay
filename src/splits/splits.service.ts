@@ -257,6 +257,25 @@ export class SplitsService {
   }
 
   /**
+   * 崩溃恢复：重放停留在 PROCESSING 且仍存在 PENDING 明细的分账订单。
+   * processSplitItem 内部以 PENDING 为幂等守卫，重复执行不会重复入账。
+   */
+  async resumeProcessing(splitId: string): Promise<boolean> {
+    const split = await this.prisma.splitOrder.findUnique({
+      where: { id: splitId },
+      include: { items: true },
+    })
+    if (!split || split.status !== SplitStatus.PROCESSING) return false
+    const pending = split.items.filter((i) => i.status === SplitItemStatus.PENDING)
+    if (pending.length === 0) return false
+    for (const item of pending) {
+      await this.processSplitItem(item.id, split.senderId, split.splitNo)
+    }
+    await this.finalizeSplit(split.id)
+    return true
+  }
+
+  /**
    * 处理单笔分账明细（独立事务）
    * 不抛异常，通过返回值告知结果
    */

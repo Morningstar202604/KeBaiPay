@@ -378,6 +378,88 @@ export class BatchTransfersService {
   }
 
   /**
+   * 崩溃恢复：重放停留在 PROCESSING 且仍存在 PENDING 明细的批量转账批次。
+   * processItem 以 PENDING 为幂等守卫；收尾退款通过“已存在退款订单”幂等，
+   * 避免崩溃窗口导致的重复退款。
+   */
+  async resumeProcessing(batchId: string): Promise<boolean> {
+    const batch = await this.prisma.batchTransfer.findUnique({
+      where: { id: batchId },
+      include: { items: true },
+    })
+    if (!batch || batch.status !== BatchTransferStatus.PROCESSING) return false
+    const pending = batch.items.filter((i) => i.status === BatchItemStatus.PENDING)
+    if (pending.length === 0) return false
+
+    for (const item of pending) {
+      await this.processItem(batch.id, item.id, batch.senderId)
+    }
+
+    // 重算成败笔数与失败金额
+    const items = await this.prisma.batchTransferItem.findMany({
+      where: { batchId: batch.id },
+    })
+    const successCount = items.filter((i) => i.status === BatchItemStatus.SUCCESS).length
+    const failedItems = items.filter((i) => i.status === BatchItemStatus.FAILED)
+    const failedCount = failedItems.length
+    const failedTotalAmount = failedItems.reduce((s, i) => s + i.amount, 0)
+
+    // 幂等收尾：若该批次退款订单已存在，说明已收尾过，跳过退款
+    const existingRefund = await this.prisma.transactionOrder.findFirst({
+      where: { remark: `批次 ${batch.batchNo} 失败笔数退款` },
+    })
+    if (failedTotalAmount > 0 && !existingRefund) {
+      const senderAccount = await this.prisma.account.findUnique({
+        where: { userId: batch.senderId },
+      })
+      if (senderAccount) {
+        const releaseResult = await this.prisma.account.updateMany({
+          where: { id: senderAccount.id, frozenBalance: { gte: failedTotalAmount } },
+          data: {
+            availableBalance: { increment: failedTotalAmount },
+            frozenBalance: { decrement: failedTotalAmount },
+          },
+        })
+        if (releaseResult.count === 1) {
+          const updatedAccount = await this.prisma.account.findUnique({
+            where: { id: senderAccount.id },
+          })
+          const refundOrder = await this.prisma.transactionOrder.create({
+            data: {
+              orderNo: generateOrderNo('T'),
+              type: TransactionType.REFUND,
+              status: TransactionStatus.SUCCESS,
+              amount: failedTotalAmount,
+              fromUserId: batch.senderId,
+              remark: `批次 ${batch.batchNo} 失败笔数退款`,
+              completedAt: new Date(),
+            },
+          })
+          await this.prisma.accountLedger.create({
+            data: {
+              accountId: senderAccount.id,
+              transactionId: refundOrder.id,
+              type: LedgerType.BATCH_TRANSFER,
+              amount: failedTotalAmount,
+              balanceBefore: updatedAccount!.availableBalance - failedTotalAmount,
+              balanceAfter: updatedAccount!.availableBalance,
+              direction: Direction.DEBIT,
+              remark: `批次 ${batch.batchNo} 失败笔数退款（${failedCount} 笔）`,
+            },
+          })
+        }
+      }
+    }
+
+    // 状态机：PROCESSING → COMPLETED（updateMany 保证仅一次成功）
+    await this.prisma.batchTransfer.updateMany({
+      where: { id: batch.id, status: BatchTransferStatus.PROCESSING },
+      data: { status: BatchTransferStatus.COMPLETED, successCount, failedCount },
+    })
+    return true
+  }
+
+  /**
    * 处理单笔明细（独立事务）
    *
    * 成功：from sender.frozenBalance → to receiver.availableBalance + 写账本/账单/订单 + 标记 SUCCESS

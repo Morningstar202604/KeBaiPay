@@ -64,11 +64,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
           ? resp
           : (resp as { message?: string | string[] }).message
       const messageStr = Array.isArray(message) ? message[0] : message || exception.message
+      const { code, message: finalMessage } = this.extractKbCode(messageStr)
       return {
         status,
         payload: {
-          code: this.httpStatusToCode(status),
-          message: messageStr,
+          code: code ?? this.httpStatusToCode(status),
+          message: finalMessage,
           data: null,
           traceId,
         },
@@ -144,6 +145,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
           message: this.isProduction ? '数据库操作失败' : `Prisma ${err.code}`,
         }
     }
+  }
+
+  /**
+   * 从业务异常消息中提取精确错误码（kbError 格式 "KB501 不能给自己转账"）。
+   * 命中则透传精确 KBxxx 到响应 code 字段，避免被 httpStatusToCode 粗粒度覆盖。
+   */
+  private extractKbCode(message: string): { code?: string; message: string } {
+    const m = /^KB(\d{3,4})\s+(.+)$/.exec(message.trim())
+    if (m) {
+      return { code: `KB${m[1]}`, message: m[2] }
+    }
+    return { code: undefined, message }
   }
 
   private httpStatusToCode(status: number): string {

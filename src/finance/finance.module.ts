@@ -13,12 +13,13 @@ import { JournalService } from './journal.service'
 @Module({
   imports: [
     PrismaModule,
+    // 与其它管理端模块一致：管理端 JWT 校验使用已校验的 JWT_ADMIN_SECRET（原先误用未定义的 JWT_SECRET）
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET')!,
+        secret: config.get<string>('JWT_ADMIN_SECRET')!,
         signOptions: {
-          expiresIn: config.get<string>('JWT_EXPIRES_IN', '1h') as NonNullable<JwtModuleOptions['signOptions']>['expiresIn'],
+          expiresIn: config.get<string>('JWT_ADMIN_EXPIRES_IN', '1h') as NonNullable<JwtModuleOptions['signOptions']>['expiresIn'],
         },
       }),
       inject: [ConfigService],

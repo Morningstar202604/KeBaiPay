@@ -9,6 +9,7 @@ import { AdminAuthController } from './admin-auth.controller'
 import { AdminUserController } from './admin-user.controller'
 import { SystemConfigController } from './system-config.controller'
 import { ChannelConfigController } from './channel-config.controller'
+import { ChannelConfigService } from './channel-config.service'
 import { PermissionsGuard } from './permissions.guard'
 import { FinanceModule } from '../finance/finance.module'
 import { WithdrawalsModule } from '../withdrawals/withdrawals.module'
@@ -31,7 +32,7 @@ import { MerchantsModule } from '../merchants/merchants.module'
     WithdrawalsModule,
     MerchantsModule,
   ],
-  providers: [AdminService, AdminAuthService, PermissionsGuard],
+  providers: [AdminService, AdminAuthService, PermissionsGuard, ChannelConfigService],
   controllers: [
     AdminController,
     AdminAuthController,

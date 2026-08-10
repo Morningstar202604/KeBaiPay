@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing'
 import { ChannelConfigController } from './channel-config.controller'
-import { AdminService } from './admin.service'
+import { ChannelConfigService } from './channel-config.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../audit/audit-log.service'
 import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
@@ -44,8 +44,8 @@ describe('ChannelConfigController', () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [ChannelConfigController],
       providers: [
+        ChannelConfigService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: AdminService, useValue: {} },
         { provide: AuditLogService, useValue: mockAuditLog },
         { provide: PaymentChannelRegistry, useValue: mockChannelRegistry },
         { provide: ConnectorRegistry, useValue: mockConnectorRegistry },
@@ -208,7 +208,7 @@ describe('ChannelConfigController', () => {
 
   it('testChannel 返回渠道可用信息', async () => {
     mockChannelRegistry.getChannel.mockReturnValue({ code: 'alipay', name: '支付宝' })
-    const result = await controller.testChannel('alipay', { sub: 'a1', role: 'SUPER_ADMIN' } as any)
+    const result = await controller.testChannel('alipay')
     expect(result).toEqual({
       code: 'alipay',
       name: '支付宝',

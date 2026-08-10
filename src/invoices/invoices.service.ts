@@ -30,6 +30,15 @@ export class InvoicesService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /** 根据 user_id 解析已审核通过的商户 id（供控制器复用，避免控制器直接持有 PrismaService） */
+  async getApprovedMerchantId(userId: string): Promise<string> {
+    const merchant = await this.prisma.merchant.findUnique({ where: { userId } })
+    if (!merchant || merchant.status !== MerchantStatus.APPROVED) {
+      throw new NotFoundException(kbError(KBErrorCodes.MERCHANT_NOT_FOUND))
+    }
+    return merchant.id
+  }
+
   /** 商户申请发票 */
   async createInvoice(merchantId: string, dto: CreateInvoiceDto) {
     // 校验商户

@@ -11,12 +11,8 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { CurrentUser as CurrentUserType } from '../auth/current-user.interface'
-import { PrismaService } from '../prisma/prisma.service'
 import { InvoicesService } from './invoices.service'
 import { CreateInvoiceDto, ListInvoiceDto } from './dto/invoice.dto'
-import { MerchantStatus } from '../common/enums'
-import { NotFoundException } from '@nestjs/common'
-import { kbError, KBErrorCodes } from '../common/error-codes'
 import { AdminJwtAuthGuard } from '../admin/admin-jwt-auth.guard'
 import { PermissionsGuard } from '../admin/permissions.guard'
 import { RequirePermissions } from '../admin/permissions.decorator'
@@ -25,24 +21,7 @@ import { RequirePermissions } from '../admin/permissions.decorator'
 @ApiBearerAuth('user-auth')
 @Controller()
 export class InvoicesController {
-  constructor(
-    private readonly invoicesService: InvoicesService,
-    private readonly prisma: PrismaService,
-  ) {}
-
-  /** 根据 user_id 查询 merchant_id */
-  private async getMerchantId(userId: string): Promise<string> {
-    const merchant = await this.prisma.merchant.findUnique({
-      where: { userId },
-    })
-    if (!merchant) {
-      throw new NotFoundException(kbError(KBErrorCodes.MERCHANT_NOT_FOUND))
-    }
-    if (merchant.status !== MerchantStatus.APPROVED) {
-      throw new NotFoundException(kbError(KBErrorCodes.MERCHANT_NOT_FOUND))
-    }
-    return merchant.id
-  }
+  constructor(private readonly invoicesService: InvoicesService) {}
 
   // ============== 商户端 ==============
 
@@ -53,7 +32,7 @@ export class InvoicesController {
     @CurrentUser() user: CurrentUserType,
     @Body() dto: CreateInvoiceDto,
   ) {
-    const merchantId = await this.getMerchantId(user.id)
+    const merchantId = await this.invoicesService.getApprovedMerchantId(user.id)
     return this.invoicesService.createInvoice(merchantId, dto)
   }
 
@@ -64,7 +43,7 @@ export class InvoicesController {
     @CurrentUser() user: CurrentUserType,
     @Query() query: ListInvoiceDto,
   ) {
-    const merchantId = await this.getMerchantId(user.id)
+    const merchantId = await this.invoicesService.getApprovedMerchantId(user.id)
     return this.invoicesService.listByMerchant(merchantId, query)
   }
 
@@ -75,7 +54,7 @@ export class InvoicesController {
     @CurrentUser() user: CurrentUserType,
     @Param('invoiceNo') invoiceNo: string,
   ) {
-    const merchantId = await this.getMerchantId(user.id)
+    const merchantId = await this.invoicesService.getApprovedMerchantId(user.id)
     return this.invoicesService.findByInvoiceNo(invoiceNo, merchantId)
   }
 
@@ -86,7 +65,7 @@ export class InvoicesController {
     @CurrentUser() user: CurrentUserType,
     @Param('invoiceNo') invoiceNo: string,
   ) {
-    const merchantId = await this.getMerchantId(user.id)
+    const merchantId = await this.invoicesService.getApprovedMerchantId(user.id)
     return this.invoicesService.cancelByMerchant(merchantId, invoiceNo)
   }
 

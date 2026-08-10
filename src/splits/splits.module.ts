@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common'
 import { SplitsService } from './splits.service'
 import { SplitsController } from './splits.controller'
+import { SplitsSchedule } from './splits.schedule'
 import { UsersModule } from '../users/users.module'
 
 @Module({
   imports: [UsersModule],
-  providers: [SplitsService],
+  providers: [SplitsService, SplitsSchedule],
   controllers: [SplitsController],
   exports: [SplitsService],
 })

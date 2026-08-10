@@ -5,6 +5,7 @@
 ## 目录
 
 - [版本 2.2.1（进行中）](#版本-221进行中)
+- [架构治理与修复](#架构治理与修复)
 - [版本 2.2.0](#版本-220)（2026-08-01）
 - [版本 2.1.1](#版本-211)（2026-07-29）
 - [版本 2.1.0](#版本-210)（2026-07-22）
@@ -43,7 +44,44 @@
 
 ---
 
-## 版本 2.2.0
+## 架构治理与修复
+
+基于一次系统性架构审查（模块依赖/分层/事务/错误码/配置/资金一致性），修复以下问题：
+
+### 错误码机制修复（高）
+
+- 此前 `AllExceptionsFilter` 用 `httpStatusToCode` 按 HTTP 状态粗粒度重写 `code`，把精确业务码（如 `KB502`）丢弃在 message 文本中，导致响应 `code` 与文档约定的 `KBxxx` 语义不符，无法按码监控/对账。
+- 现在过滤器从 `kbError` 消息（格式 `"KB501 不能给自己转账"`）中提取精确 `KBxxx` 透传到响应 `code` 字段，无 `KB` 前缀时回退到 HTTP 状态映射。实测错误响应由 `code=KB400` 修正为 `code=KB502`。
+
+### 分层违规修复（高）
+
+- **控制器直接持有 PrismaService 破坏分层**：
+  - `invoices.controller.ts`：`getMerchantId` 下移到 `InvoicesService.getApprovedMerchantId`，控制器不再注入 PrismaService。
+  - `admin/channel-config.controller.ts`：渠道 CRUD + 配置合并 + 脱敏 + 连接器热同步（约 200 行业务）抽取到新增的 `ChannelConfigService`，控制器瘦身为参数映射。对应 spec 同步更新。
+- 控制器层不再直接执行事务/业务逻辑，分层回归 Controller → Service → Prisma。
+
+### 死配置 / 密钥 bug（中-高）
+
+- `finance.module` 误用**未定义的 `JWT_SECRET`** 注册管理端 JwtModule：与其它管理端模块对齐改为已校验的 `JWT_ADMIN_SECRET`。（该 JwtModule 并非死代码——`AdminJwtAuthGuard` 需要它提供 `JwtService`，原报告"删除"建议有误，实为修密钥。）
+
+### 崩溃恢复缺失（高，资金一致性）
+
+- **分账（Splits）与批量转账（BatchTransfers）** 逐笔在独立事务处理，进程崩溃会导致订单停留在 `PROCESSING`、明细停留在 `PENDING` 且永无恢复。
+- 新增两个定时恢复任务：
+  - `src/splits/splits.schedule.ts`（`splits:recover`）
+  - `src/batch-transfers/batch-transfers.schedule.ts`（`batch-transfers:recover`）
+  - 每 5 分钟扫描超过 5 分钟仍 `PROCESSING` 且存在 `PENDING` 明细的单据，加 Redis 锁重放未处理明细并收尾。
+  - 幂等保证：明细处理以 `PENDING` 为守卫；批量转账退款以"已存在退款订单"守卫，避免崩溃窗口重复退款。
+  - 两个调度注册到 `ScheduleHealthService` 自监控。
+
+### 未纳入本次（技术债，见 PROJECT_PLAN）
+
+- 资金 Service 账户扣/加 + 账本 + 账单的复制粘贴抽取统一 `LedgerService`（涉及 8 个资金 Service，改动大、资金逻辑敏感，另行排期）。
+- 11 个 `@Global()` 业务模块收敛为显式 `imports`（改动横跨 42 模块，风险高，另行排期）。
+- 前端三工程 monorepo 化共享 `http/auth store/类型`。
+- God Service（`admin.service` 1236 行、`cashier.service` 923 行）拆分。
+
+---
 
 **发布日期：** 2026-08-01
 
