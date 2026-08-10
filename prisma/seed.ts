@@ -70,7 +70,7 @@ async function main() {
   }
 
   // 2. 测试用户（upsert 确保密码正确）
-  const testPhone = '139******11'
+  const testPhone = '13800000001'
   const testIdCardPlain = '110101199001011234'
   const existingUser = await prisma.user.findUnique({ where: { phone: testPhone } })
   if (!existingUser) {
@@ -84,6 +84,10 @@ async function main() {
         status: 'ACTIVE',
         realNameStatus: 'VERIFIED',
       },
+    })
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { email: 'test@kebaipay.com' },
     })
 
     // 3. 给测试用户建账户（余额 10000 元 = 1000000 分）

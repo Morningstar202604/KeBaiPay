@@ -89,10 +89,12 @@ function portalStaticModules() {
         limit: 30,
       },
     ]),
+    ...portalStaticModules(),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
+      // /portal 由 portalStaticModules 单独托管，根静态模块不拦截
+      exclude: ['/portal/{*splat}'],
     }),
-    ...portalStaticModules(),
     PrismaModule,
     RedisModule,
     CryptoModule,
