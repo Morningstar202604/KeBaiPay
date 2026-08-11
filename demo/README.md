@@ -8,7 +8,7 @@
 
 | 端 | 视频 | 内容 |
 |----|------|------|
-| **精编合集** | [`videos/kebaipay-showcase.mp4`](videos/kebaipay-showcase.mp4) | 商户后台 + 用户 H5 + 管理后台精华（H.264，统一 1440×900） |
+| **精编合集（推荐）** | [`videos/kebaipay-showcase.mp4`](videos/kebaipay-showcase.mp4) | **标题卡 + 三端精华**（商户后台 → 用户H5 → 管理后台），场景淡入过渡，H.264 统一 1440×900 |
 | 商户后台 | [`videos/portal-demo.webm`](videos/portal-demo.webm) | 登录 → 数据看板 → 订单管理 → 对账 → 收款码 → 应用 → 商户资料 |
 | 用户 H5（钱包） | [`videos/h5-demo.webm`](videos/h5-demo.webm) | 登录 → 首页余额 → AI助手 → 充值 → 红包 → 收银台 → 账单 |
 | 管理后台 | [`videos/admin-demo.webm`](videos/admin-demo.webm) | 登录 → 数据概览 → 用户 → 商户 → 提现审核 → 订单 → 财务 → 风控 → 智能体 |
