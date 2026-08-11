@@ -2,9 +2,12 @@ import { Module } from '@nestjs/common'
 import { JwtModule } from '@nestjs/jwt'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { AgentController } from './agent.controller'
+import { AgentAuthController, AgentAdminController } from './agent-auth.controller'
 import { AgentService } from './agent.service'
 import { AgentAuthService } from './agent-auth.service'
 import { AgentAuthGuard } from './agent-auth.guard'
+import { AgentUserAuthGuard } from './agent-user-auth.guard'
+import { AgentAdminAuthGuard } from './agent-admin-auth.guard'
 import { AgentAuditLogService } from './agent-audit-log.service'
 import { ToolRegistry } from './tools/tool.registry'
 import { LlmModule } from './llm/llm.module'
@@ -48,12 +51,14 @@ import { AgentSchedule } from './agent.schedule'
     AgentService,
     AgentAuthService,
     AgentAuthGuard,
+    AgentUserAuthGuard,
+    AgentAdminAuthGuard,
     AgentAuditLogService,
     ToolRegistry,
     AgentMcpServer,
     AgentSchedule,
   ],
-  controllers: [AgentController],
+  controllers: [AgentController, AgentAuthController, AgentAdminController],
   exports: [AgentService, AgentAuthService, AgentAuditLogService],
 })
 export class AgentModule {}

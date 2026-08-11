@@ -1109,7 +1109,7 @@ model Agent {
 model AgentAuthorization {
   id          String    @id @default(uuid())
   agentId     String    @map("agent_id")
-  subjectType String // user / merchant
+  subjectType String @map("subject_type") // user / merchant
   subjectId   String    @map("subject_id")
   /// scopes JSON 数组：["wallet:read","wallet:write:transfer"]，必须是 Agent.scopes 的子集
   scopes      String

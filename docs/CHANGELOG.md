@@ -5,6 +5,7 @@
 ## 目录
 
 - [版本 2.2.1（进行中）](#版本-221进行中)
+- [Agent 智能体修复与测试](#agent-智能体修复与测试)
 - [视觉升级（UI/UX）](#视觉升级uiux)
 - [架构治理与修复](#架构治理与修复)
 - [版本 2.2.0](#版本-220)（2026-08-01）
@@ -42,6 +43,29 @@
 - 初始化：`npx prisma migrate deploy && npx ts-node prisma/seed.ts`。
 - 启动：`node dist/main.js`（`dist` 由 `npx nest build` 生成）。
 - 测试账号：用户 `13800000001` / `Abc12345`（支付密码 `123456`）；管理员 `admin` / `Admin2026`。
+
+---
+
+## Agent 智能体修复与测试
+
+完整测试报告见 `docs/AGENT_TEST_REPORT.md`。修复了 3 个阻断性缺陷：
+
+1. **Agent 无法通过 HTTP 使用（阻断）**：`login` 无路由且认证管理端点被 `AgentAuthGuard`（需 Agent token）错误保护，形成"无 token 无法换 token"循环。新增：
+   - `AgentAuthController`（用户 JWT）：`login / authorize / revoke / authorizations`；`subjectId` 强制绑定当前登录用户，杜绝越权。
+   - `AgentAdminController`（管理员 JWT）：`POST/GET /agent/admin/agents` 创建/列出 Agent。
+   - `AgentUserAuthGuard` / `AgentAdminAuthGuard` 自包含守卫。
+2. **授权表字段映射错误（阻断）**：`AgentAuthorization.subjectType` 缺 `@map("subject_type")` → `P2022`。已补 `@map` 并应用迁移 `20260811010514_fix_agent_auth_subject_type`（同时对齐既有 schema drift）。
+3. **人工确认流程工具查不到（阻断）**：`confirmOp` 误用 `scope` 解析场景。改为从操作日志 `detail.scenario` 恢复工具集，CONFIRM 可正确执行工具。
+
+### Agent 全链路测试（mock 模式）
+
+管理员建 Agent → 用户授权 → 用户换 token → 会话 → 多轮对话 → 确认/拒绝 → 哈希链校验，全部通过。`agent.e2e-spec.ts` 更新为 32 用例通过。
+
+### 已知限制
+
+- 外部 LLM key（zhiyunapi.cc）经验证无效（Invalid token），真实多模型调用待有效 key（配置见 `docs/EXTERNAL_QUICKSTART.md`）。
+- `kbpay_transfer` 转账工具为 stub（仅校验，未真正划转），上线前需接入 `TransferService`。
+- 工具调用结果未跨轮持久化（技术债）。
 
 ---
 

@@ -5,26 +5,24 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { AgentAuthGuard } from './agent-auth.guard'
 import { AgentService } from './agent.service'
-import { AgentAuthService } from './agent-auth.service'
 import { AgentAuditLogService } from './agent-audit-log.service'
 import { CurrentUser } from '../auth/current-user.decorator'
 import type { AgentCurrentUser } from './agent-current-user.interface'
 import {
-  CreateAgentDto, UpdateAgentDto, AuthorizeAgentDto,
   StartConversationDto, SendMessageDto, ConfirmOpDto,
 } from './dto/agent.dto'
 
 /**
- * Agent 智能体 HTTP 端点
+ * Agent 智能体运行时端点（需 Agent token）
  *
  * 端点分组：
- *  1. /agent/me/agents       - 用户授权管理
- *  2. /agent/authorize       - 用户授权 Agent
- *  3. /agent/login           - 换取 Agent token
- *  4. /agent/conversations   - 会话管理
- *  5. /agent/chat            - 发送消息（核心入口）
- *  6. /agent/confirm         - 确认/拒绝待确认操作
- *  7. /agent/verify-chain    - 校验操作哈希链
+ *  1. /agent/conversations   - 会话管理
+ *  2. /agent/chat            - 发送消息（核心入口）
+ *  3. /agent/confirm         - 确认/拒绝待确认操作
+ *  4. /agent/verify-chain    - 校验操作哈希链
+ *
+ * 认证/授权管理（login / authorize / revoke / authorizations）见
+ * AgentAuthController（用户 JWT）；创建/管理 Agent 见 AgentAdminController（管理员 JWT）。
  */
 @ApiTags('AI 智能体')
 @ApiBearerAuth('agent-auth')
@@ -33,7 +31,6 @@ import {
 export class AgentController {
   constructor(
     private readonly agentService: AgentService,
-    private readonly agentAuthService: AgentAuthService,
     private readonly auditLog: AgentAuditLogService,
   ) {}
 
@@ -108,32 +105,5 @@ export class AgentController {
   @ApiOperation({ summary: '校验 Agent 操作哈希链（防篡改）' })
   async verifyChain(@Param('agentId') agentId: string) {
     return this.agentService.verifyHashChain(agentId)
-  }
-
-  /** ===== 以下端点需要主体授权管理权限（用户自己操作） ===== */
-
-  @Post('authorize')
-  @ApiOperation({ summary: '用户授权 Agent 代为操作' })
-  async authorize(@Body() dto: AuthorizeAgentDto) {
-    return this.agentAuthService.authorize({
-      agentId: dto.agentId,
-      subjectType: dto.subjectType,
-      subjectId: dto.subjectId,
-      scopes: dto.scopes,
-      maxAmount: dto.maxAmount,
-      expiresAt: dto.expiresAt,
-    })
-  }
-
-  @Post('revoke/:authId')
-  @ApiOperation({ summary: '撤销授权' })
-  async revoke(@Param('authId') authId: string) {
-    return this.agentAuthService.revoke(authId)
-  }
-
-  @Get('authorizations')
-  @ApiOperation({ summary: '查询我的授权列表' })
-  async listAuthorizations(@CurrentUser() user: AgentCurrentUser) {
-    return this.agentAuthService.listMyAuthorizations(user.subjectId!)
   }
 }

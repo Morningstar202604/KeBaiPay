@@ -196,7 +196,8 @@ export class AgentService {
             scope: tc.name,
             amount: tc.args?.amountYuan ? Math.round(tc.args.amountYuan * 100) : null,
             result: AGENT_RESULT_PENDING_CONFIRM,
-            detail: { args: tc.args, convId: conv.id },
+            // 记录场景，供 confirmOp 恢复正确的工具集（此前用 scope.split(':') 解析场景是错的）
+            detail: { args: tc.args, convId: conv.id, scenario: conv.scenario },
           })
           pendingOps.push({
             opLogId: opLog.id,
@@ -277,7 +278,9 @@ export class AgentService {
         throw new BadRequestException('操作记录详情损坏')
       }
     }
-    const tools = this.toolRegistry.getTools(input.user, opLog.scope.split(':')[0] as any, this.toolDeps)
+    // 用记录场景恢复正确的工具集（此前误用 scope 解析场景导致工具查不到）
+    const scenario = (detail.scenario as string) || opLog.action.split(':')[0]
+    const tools = this.toolRegistry.getTools(input.user, scenario as any, this.toolDeps)
     const tool = tools.find((t) => t.name === opLog.action)
     if (!tool) {
       throw new BadRequestException(`工具 ${opLog.action} 不存在`)

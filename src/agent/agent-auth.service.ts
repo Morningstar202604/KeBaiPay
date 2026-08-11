@@ -134,6 +134,18 @@ export class AgentAuthService {
     return { token, expiresIn }
   }
 
+  /** 列出所有 Agent（管理端） */
+  async listAgents() {
+    return this.prisma.agent.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: {
+        id: true, agentNo: true, name: true, description: true,
+        status: true, scenario: true, version: true, createdAt: true,
+      },
+    })
+  }
+
   /** 撤销授权 */
   async revoke(authId: string) {
     const auth = await this.prisma.agentAuthorization.findUnique({

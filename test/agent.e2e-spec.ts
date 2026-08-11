@@ -5,10 +5,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config'
 import { JwtModule, JwtService } from '@nestjs/jwt'
 import request from 'supertest'
 import { AgentController } from '../src/agent/agent.controller'
+import { AgentAuthController, AgentAdminController } from '../src/agent/agent-auth.controller'
 import { AgentService } from '../src/agent/agent.service'
 import { AgentAuthService } from '../src/agent/agent-auth.service'
 import { AgentAuditLogService } from '../src/agent/agent-audit-log.service'
 import { AgentAuthGuard } from '../src/agent/agent-auth.guard'
+import { AgentUserAuthGuard } from '../src/agent/agent-user-auth.guard'
+import { AgentAdminAuthGuard } from '../src/agent/agent-admin-auth.guard'
 import { ToolRegistry } from '../src/agent/tools/tool.registry'
 import { LlmModule } from '../src/agent/llm/llm.module'
 import { LlmService } from '../src/agent/llm/llm.service'
@@ -161,12 +164,14 @@ describe('AgentModule (e2e)', () => {
         }),
         LlmModule,
       ],
-      controllers: [AgentController],
+      controllers: [AgentController, AgentAuthController, AgentAdminController],
       providers: [
         AgentService,
         AgentAuthService,
         AgentAuditLogService,
         AgentAuthGuard,
+        AgentUserAuthGuard,
+        AgentAdminAuthGuard,
         ToolRegistry,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: MessagesService, useValue: mockMessagesService },
@@ -179,6 +184,22 @@ describe('AgentModule (e2e)', () => {
         canActivate: (ctx: ExecutionContext) => {
           const req = ctx.switchToHttp().getRequest()
           req.user = mockAgentUser
+          return true
+        },
+      })
+      .overrideGuard(AgentUserAuthGuard)
+      .useValue({
+        canActivate: (ctx: ExecutionContext) => {
+          const req = ctx.switchToHttp().getRequest()
+          req.user = { userId: TEST_USER_ID, sub: TEST_USER_ID }
+          return true
+        },
+      })
+      .overrideGuard(AgentAdminAuthGuard)
+      .useValue({
+        canActivate: (ctx: ExecutionContext) => {
+          const req = ctx.switchToHttp().getRequest()
+          req.user = { sub: 'admin1', role: 'SUPER_ADMIN' }
           return true
         },
       })
@@ -355,14 +376,14 @@ describe('AgentModule (e2e)', () => {
     it('缺少 agentId 返回 400', async () => {
       const res = await request(app.getHttpServer())
         .post('/agent/authorize')
-        .send({ subjectType: 'user', subjectId: 'u1', scopes: ['wallet:read'] })
+        .send({ scopes: ['wallet:read'] })
       expect(res.status).toBe(400)
     })
 
-    it('subjectType 非法返回 400', async () => {
+    it('缺少 scopes 返回 400', async () => {
       const res = await request(app.getHttpServer())
         .post('/agent/authorize')
-        .send({ agentId: 'a1', subjectType: 'invalid', subjectId: 'u1', scopes: ['wallet:read'] })
+        .send({ agentId: 'a1' })
       expect(res.status).toBe(400)
     })
 
@@ -370,11 +391,11 @@ describe('AgentModule (e2e)', () => {
       mockPrisma.agent.findUnique.mockResolvedValue(null)
       const res = await request(app.getHttpServer())
         .post('/agent/authorize')
-        .send({ agentId: 'no-exist', subjectType: 'user', subjectId: 'u1', scopes: ['wallet:read'] })
+        .send({ agentId: 'no-exist', scopes: ['wallet:read'] })
       expect(res.status).toBe(404)
     })
 
-    it('scopes 超出 Agent 范围返回 403', async () => {
+    it('scopes 超出 Agent 范围返回 401', async () => {
       mockPrisma.agent.findUnique.mockResolvedValue({
         id: 'a1',
         status: 'ACTIVE',
@@ -382,11 +403,11 @@ describe('AgentModule (e2e)', () => {
       })
       const res = await request(app.getHttpServer())
         .post('/agent/authorize')
-        .send({ agentId: 'a1', subjectType: 'user', subjectId: 'u1', scopes: ['wallet:read', 'wallet:write:transfer'] })
+        .send({ agentId: 'a1', scopes: ['wallet:read', 'wallet:write:transfer'] })
       expect(res.status).toBe(401)
     })
 
-    it('正常授权返回记录', async () => {
+    it('正常授权返回记录（subjectId 绑定为当前登录用户）', async () => {
       mockPrisma.agent.findUnique.mockResolvedValue({
         id: 'a1',
         status: 'ACTIVE',
@@ -400,9 +421,27 @@ describe('AgentModule (e2e)', () => {
       }))
       const res = await request(app.getHttpServer())
         .post('/agent/authorize')
-        .send({ agentId: 'a1', subjectType: 'user', subjectId: 'u1', scopes: ['wallet:read'] })
+        .send({ agentId: 'a1', scopes: ['wallet:read'] })
       expect(res.status).toBe(201)
       expect(res.body.id).toBe('auth-1')
+      // subjectId 必须绑定为当前登录用户，防止越权指定他人
+      expect(res.body.subjectId).toBe(TEST_USER_ID)
+    })
+  })
+
+  describe('POST /agent/admin/agents', () => {
+    it('管理端创建 Agent', async () => {
+      mockPrisma.agent.create.mockImplementation(async (args: any) => ({
+        id: 'agent-1',
+        ...args.data,
+        createdAt: new Date(),
+      }))
+      const res = await request(app.getHttpServer())
+        .post('/agent/admin/agents')
+        .send({ name: '测试智能体', scenario: 'wallet', scopes: ['wallet:read'] })
+      expect(res.status).toBe(201)
+      expect(res.body.id).toBe('agent-1')
+      expect(res.body.scenario).toBe('wallet')
     })
   })
 

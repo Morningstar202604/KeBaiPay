@@ -12,6 +12,10 @@
 | 商户后台 | [`demo/videos/portal-demo.webm`](videos/portal-demo.webm) | 登录 → 数据看板 → 订单管理 → 对账 → 收款码 → 应用 → 商户资料 |
 | 用户 H5（钱包） | [`demo/videos/h5-demo.webm`](videos/h5-demo.webm) | 登录 → 首页余额 → 充值 → 转账 → 提现 → 红包 → 账单 → 收银台 |
 | 管理后台 | [`demo/videos/admin-demo.webm`](videos/admin-demo.webm) | 登录 → 数据概览 → 用户 → 商户 → 提现审核 → 订单 → 财务 → 风控 |
+| 管理员审核交互 | [`demo/videos/admin-review.webm`](videos/admin-review.webm) | 管理员登录 → 提现审核列表（含通过/拒绝操作入口） |
+
+> 审核录屏截图：
+> ![提现审核列表](screenshots/admin-review-withdrawals.png)
 
 ## 🔑 演示账号
 

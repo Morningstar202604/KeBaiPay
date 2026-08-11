@@ -46,13 +46,6 @@ export class AuthorizeAgentDto {
   @IsNotEmpty()
   agentId!: string
 
-  @IsIn(['user', 'merchant'])
-  subjectType!: 'user' | 'merchant'
-
-  @IsString()
-  @IsNotEmpty()
-  subjectId!: string
-
   @IsArray()
   @IsString({ each: true })
   scopes!: string[]
@@ -64,6 +57,17 @@ export class AuthorizeAgentDto {
 
   @IsOptional()
   expiresAt?: Date
+}
+
+/** 用户换取 Agent 访问令牌 */
+export class LoginAgentDto {
+  @IsString()
+  @IsNotEmpty()
+  agentId!: string
+
+  @IsString()
+  @IsNotEmpty()
+  authId!: string
 }
 
 /** 发起对话 */
