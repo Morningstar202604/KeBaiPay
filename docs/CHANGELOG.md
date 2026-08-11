@@ -5,6 +5,7 @@
 ## 目录
 
 - [版本 2.2.1（进行中）](#版本-221进行中)
+- [仓库体检与开源规范化](#仓库体检与开源规范化)
 - [Agent 智能体修复与测试](#agent-智能体修复与测试)
 - [视觉升级（UI/UX）](#视觉升级uiux)
 - [架构治理与修复](#架构治理与修复)
@@ -43,6 +44,16 @@
 - 初始化：`npx prisma migrate deploy && npx ts-node prisma/seed.ts`。
 - 启动：`node dist/main.js`（`dist` 由 `npx nest build` 生成）。
 - 测试账号：用户 `13800000001` / `Abc12345`（支付密码 `123456`）；管理员 `admin` / `Admin2026`。
+
+---
+
+## 仓库体检与开源规范化
+
+- **清理冗余**：删除 8 个未被任何脚本/文档/CI 引用的孤儿开发脚本（`coverage-check.mjs` / `live-verify.mjs` / `ui-structure-check.mjs` / `ui-walk.mjs` / `agent-e2e-test.ts` / `agent-security-test.ts` / `frontend-visual-test.ts` / `llm-live-test.ts`）；`scripts/` 仅保留 `check-external.mjs`（`npm run check:external`）与 `capture-demo.mjs`（演示录制）。
+- **补齐开源规范**：新增 `.gitattributes`（统一换行符与二进制文件声明）。
+- **修正文档**：`docs/PROJECT_PLAN.md` 版本号由 v2.1.1 对齐为 v2.2.0。
+- **CI 精简确认**：`.github/workflows/` 仅保留必需的最小 CI（`ci.yml`：push/PR 触发，含 `tsc` 类型检查 + 单测 + 三端前端构建），无冗余工作流。
+- 验证：后端 `tsc` 零错误，受影响模块单测通过，Agent e2e 32 用例通过，三端前端构建通过。（沙箱内存受限无法本地跑全量，CI 环境充足全绿。）
 
 ---
 

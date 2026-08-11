@@ -1,0 +1,29 @@
+# 统一换行符与 diff 行为
+* text=auto
+
+# 明确指定文本文件 UTF-8
+*.ts text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.prisma text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.vue text eol=lf
+
+# 脚本执行位
+*.sh text eol=lf
+start.sh text eol=lf
+docker-entrypoint.sh text eol=lf
+
+# 二进制文件不入 diff
+*.png binary
+*.jpg binary
+*.webp binary
+*.webm binary
+*.mp4 binary
+*.ttf binary
+*.pem binary
+*.key binary
