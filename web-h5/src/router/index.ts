@@ -19,6 +19,7 @@ const router = createRouter({
         { path: 'redpacket', name: 'redpacket', component: () => import('@/views/RedPacketView.vue'), meta: { title: '红包' } },
         { path: 'bills', name: 'bills', component: () => import('@/views/BillsView.vue'), meta: { title: '账单' } },
         { path: 'cashier', name: 'cashier', component: () => import('@/views/CashierView.vue'), meta: { title: '收银台' } },
+        { path: 'agent', name: 'agent', component: () => import('@/views/AgentChatView.vue'), meta: { title: 'AI 助手' } },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/home' },

@@ -61,6 +61,12 @@
 
 管理员建 Agent → 用户授权 → 用户换 token → 会话 → 多轮对话 → 确认/拒绝 → 哈希链校验，全部通过。`agent.e2e-spec.ts` 更新为 32 用例通过。
 
+### Agent 真实管理界面
+
+- **管理后台（`web-admin` → `/admin/agents`）**：智能体管理页 —— 创建/编辑/停用 Agent，配置作用域（wallet/merchant/risk/support）。新增后端 `GET/POST /agent/admin/agents`、`PATCH /agent/admin/agents/:id`。
+- **用户 H5（`web-h5` → `/h5/#/agent`）**：AI 智能助手页 —— 选择智能体 → 一键授权 → 多轮对话 → 资金操作二次确认/拒绝。新增后端 `GET /agent/me/agents`（列出可用 Agent 及授权状态）。
+- Agent 由"仅 mock 可用"升级为**用户可通过界面实际管理、连接、对话、确认操作**的真实功能（真实模型调用待有效 LLM Key，配置即用）。
+
 ### 已知限制
 
 - 外部 LLM key（zhiyunapi.cc）经验证无效（Invalid token），真实多模型调用待有效 key（配置见 `docs/EXTERNAL_QUICKSTART.md`）。

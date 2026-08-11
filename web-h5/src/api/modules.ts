@@ -112,4 +112,30 @@ export async function payCashierOrder(orderNo: string, payPassword: string): Pro
   return data
 }
 
+// ---------- AI 智能体（用户侧授权/登录，用用户 token） ----------
+export interface MyAgent {
+  id: string
+  agentNo: string
+  name: string
+  description: string | null
+  scenario: string
+  scopes: string[]
+  authorization: { id: string; scopes: string[] } | null
+}
+
+export async function listMyAgents(): Promise<MyAgent[]> {
+  const { data } = await http.get<MyAgent[]>('/agent/me/agents')
+  return data
+}
+
+export async function authorizeAgent(agentId: string, scopes: string[]): Promise<{ id: string }> {
+  const { data } = await http.post<{ id: string }>('/agent/authorize', { agentId, scopes })
+  return data
+}
+
+export async function agentLogin(agentId: string, authId: string): Promise<{ token: string }> {
+  const { data } = await http.post<{ token: string }>('/agent/login', { agentId, authId })
+  return data
+}
+
 export { extractError }

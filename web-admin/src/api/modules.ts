@@ -84,4 +84,40 @@ export async function fetchFinanceOverview(): Promise<FinanceOverview> {
   return data
 }
 
+// ---------- 智能体管理 ----------
+export interface AgentItem {
+  id: string
+  agentNo: string
+  name: string
+  description: string | null
+  status: 'ACTIVE' | 'DISABLED'
+  scenario: string
+  scopes: string
+  version: string
+  createdAt: string
+}
+
+export async function fetchAgents(): Promise<AgentItem[]> {
+  const { data } = await http.get<AgentItem[]>('/agent/admin/agents')
+  return data
+}
+
+export async function createAgent(body: {
+  name: string
+  scenario: string
+  description?: string
+  scopes: string[]
+}): Promise<AgentItem> {
+  const { data } = await http.post<AgentItem>('/agent/admin/agents', body)
+  return data
+}
+
+export async function updateAgent(
+  id: string,
+  body: { name?: string; description?: string; status?: string; scopes?: string[] },
+): Promise<AgentItem> {
+  const { data } = await http.patch<AgentItem>(`/agent/admin/agents/${id}`, body)
+  return data
+}
+
 export { extractError }

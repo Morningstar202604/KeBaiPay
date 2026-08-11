@@ -16,6 +16,7 @@
         <el-menu-item index="/orders"><el-icon><List /></el-icon><span>支付订单</span></el-menu-item>
         <el-menu-item index="/finance"><el-icon><DataBoard /></el-icon><span>财务总览</span></el-menu-item>
         <el-menu-item index="/risk"><el-icon><Warning /></el-icon><span>风控事件</span></el-menu-item>
+        <el-menu-item index="/agents"><el-icon><MagicStick /></el-icon><span>智能体管理</span></el-menu-item>
       </el-menu>
       <div class="aside-foot">科佰支付 · 管理服务</div>
     </el-aside>
@@ -51,7 +52,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataAnalysis, User, Shop, Money, List, DataBoard, Warning, ArrowDown } from '@element-plus/icons-vue'
+import { DataAnalysis, User, Shop, Money, List, DataBoard, Warning, ArrowDown, MagicStick } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 

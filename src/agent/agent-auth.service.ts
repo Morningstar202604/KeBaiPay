@@ -146,6 +146,57 @@ export class AgentAuthService {
     })
   }
 
+  /** 更新 Agent（管理端：名称/描述/状态/作用域） */
+  async updateAgent(
+    id: string,
+    input: { name?: string; description?: string; status?: string; scopes?: string[] },
+  ) {
+    const existing = await this.prisma.agent.findUnique({ where: { id } })
+    if (!existing) throw new NotFoundException(kbError(KBErrorCodes.AGENT_NOT_FOUND))
+    if (input.scopes !== undefined) {
+      const invalid = input.scopes.filter((s) => typeof s !== 'string' || !/^[a-z]+:[a-z:]+$/.test(s))
+      if (invalid.length > 0) {
+        throw new UnauthorizedException(kbError(KBErrorCodes.AGENT_SCOPE_DENIED, `非法作用域: ${invalid.join(',')}`))
+      }
+    }
+    return this.prisma.agent.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.description !== undefined && { description: input.description }),
+        ...(input.status !== undefined && { status: input.status }),
+        ...(input.scopes !== undefined && { scopes: JSON.stringify(input.scopes) }),
+      },
+    })
+  }
+
+  /** 列出当前用户可用的 Agent 及授权状态（用户端） */
+  async listMyAgents(userId: string) {
+    const [agents, auths] = await Promise.all([
+      this.prisma.agent.findMany({
+        where: { status: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        select: {
+          id: true, agentNo: true, name: true, description: true,
+          scenario: true, version: true, scopes: true,
+        },
+      }),
+      this.prisma.agentAuthorization.findMany({
+        where: { subjectId: userId, subjectType: 'user' },
+        select: { id: true, agentId: true, scopes: true, revokedAt: true, expiresAt: true },
+      }),
+    ])
+    return agents.map((a) => {
+      const auth = auths.find((x) => x.agentId === a.id && !x.revokedAt)
+      return {
+        ...a,
+        scopes: safeJsonParse<string[]>(a.scopes, []),
+        authorization: auth ? { id: auth.id, scopes: safeJsonParse<string[]>(auth.scopes, []) } : null,
+      }
+    })
+  }
+
   /** 撤销授权 */
   async revoke(authId: string) {
     const auth = await this.prisma.agentAuthorization.findUnique({

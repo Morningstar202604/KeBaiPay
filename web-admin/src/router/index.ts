@@ -19,6 +19,7 @@ const router = createRouter({
         { path: 'orders', name: 'orders', component: () => import('@/views/OrdersView.vue'), meta: { title: '支付订单' } },
         { path: 'finance', name: 'finance', component: () => import('@/views/FinanceView.vue'), meta: { title: '财务总览' } },
         { path: 'risk', name: 'risk', component: () => import('@/views/RiskEventsView.vue'), meta: { title: '风控事件' } },
+        { path: 'agents', name: 'agents', component: () => import('@/views/AgentView.vue'), meta: { title: '智能体管理' } },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

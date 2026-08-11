@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   UseGuards,
   Req,
@@ -11,8 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { AgentUserAuthGuard } from './agent-user-auth.guard'
 import { AgentAdminAuthGuard } from './agent-admin-auth.guard'
 import { AgentAuthService } from './agent-auth.service'
-import { AgentService } from './agent.service'
-import { CreateAgentDto, AuthorizeAgentDto, LoginAgentDto } from './dto/agent.dto'
+import { CreateAgentDto, AuthorizeAgentDto, LoginAgentDto, UpdateAgentDto } from './dto/agent.dto'
 
 /**
  * Agent 智能体：认证与管理端点
@@ -29,10 +29,7 @@ import { CreateAgentDto, AuthorizeAgentDto, LoginAgentDto } from './dto/agent.dt
 @ApiBearerAuth('user-auth')
 @Controller('agent')
 export class AgentAuthController {
-  constructor(
-    private readonly agentAuthService: AgentAuthService,
-    private readonly agentService: AgentService,
-  ) {}
+  constructor(private readonly agentAuthService: AgentAuthService) {}
 
   /** 用户用自己的账号换取 Agent 长期 token（subjectId 绑定为当前登录用户） */
   @UseGuards(AgentUserAuthGuard)
@@ -75,6 +72,14 @@ export class AgentAuthController {
   async listAuthorizations(@Req() req: any) {
     return this.agentAuthService.listMyAuthorizations(req.user.userId)
   }
+
+  /** 列出当前用户可用的 Agent 及授权状态（用户端选智能体用） */
+  @UseGuards(AgentUserAuthGuard)
+  @Get('me/agents')
+  @ApiOperation({ summary: '列出当前用户可用的 Agent 及授权状态' })
+  async listMyAgents(@Req() req: any) {
+    return this.agentAuthService.listMyAgents(req.user.userId)
+  }
 }
 
 /** 管理端：Agent 生命周期管理 */
@@ -101,5 +106,17 @@ export class AgentAdminController {
   @ApiOperation({ summary: '列出所有 Agent（管理端）' })
   async listAgents() {
     return this.agentAuthService.listAgents()
+  }
+
+  @UseGuards(AgentAdminAuthGuard)
+  @Patch('agents/:id')
+  @ApiOperation({ summary: '更新 Agent（管理端：名称/描述/状态/作用域）' })
+  async updateAgent(@Param('id') id: string, @Body() dto: UpdateAgentDto) {
+    return this.agentAuthService.updateAgent(id, {
+      name: dto.name,
+      description: dto.description,
+      status: dto.status,
+      scopes: dto.scopes,
+    })
   }
 }

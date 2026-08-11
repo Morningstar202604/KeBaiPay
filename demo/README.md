@@ -17,6 +17,19 @@
 > 审核录屏截图：
 > ![提现审核列表](screenshots/admin-review-withdrawals.png)
 
+## 五、AI 智能体（真实可管理）
+
+| 端 | 页面 | 说明 |
+|----|------|------|
+| 管理后台 `/admin` | 智能体管理 | 创建/编辑/停用智能体，配置其可执行的作用域（wallet/merchant/risk） |
+| 用户 H5 `/h5` | AI 智能助手 | 选择智能体 → 一键授权 → 多轮对话 → 资金操作二次确认/拒绝 |
+
+> 智能体管理截图：![智能体管理](screenshots/admin-agents.png)
+>
+> H5 智能助手（连接后对话）：![连接智能体](screenshots/h5-agent-setup.png) ![对话](screenshots/h5-agent-chat.png) ![回复](screenshots/h5-agent-reply.png)
+
+> 说明：对话走真实 Agent 接口（授权 → 会话 → chat → confirm）。当前 `LLM_PROVIDER=mock` 时返回模板；配置有效 LLM Key（`docs/EXTERNAL_QUICKSTART.md` §2.3）即启用真实模型与工具调用。资金类操作始终需用户二次确认。
+
 ## 🔑 演示账号
 
 | 角色 | 账号 | 密码 | 入口 |
