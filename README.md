@@ -22,11 +22,14 @@
 
 Version 2.2.0 · 214 API endpoints · 52 Prisma models · 1141 unit tests + 46 E2E
 
-Mirrored on two platforms: [GitHub (international)](https://github.com/weed33834/KeBaiPay) · [gitcode (China)](https://gitcode.com/badhope/KeBaiPay)
+Mirrored on three platforms: [GitHub](https://github.com/weed33834/KeBaiPay) · [GitCode](https://gitcode.com/badhope/KeBaiPay) · [Gitee](https://gitee.com/kebai-qy/KeBaiPay)
 
-[Feature matrix](#feature-matrix) · [Quick start](#quick-start) · [Architecture](#architecture) · [API docs](docs/API_REFERENCE.md) · [Deployment](docs/DEPLOYMENT.md)
+[Feature matrix](#feature-matrix) · [Quick start](#quick-start) · [External services (last step)](docs/EXTERNAL_QUICKSTART.md) · [API docs](docs/API_REFERENCE.md) · [Deployment](docs/DEPLOYMENT.md)
 
 </div>
+
+> **🔌 Connect external services in one last step** — run `npm run check:external`. It reports exactly what each external service (SMS / email / LLM / observability / payment channels) is missing and what to fill; add the `✗` items to `.env` and restart.
+> Full external-dependency & qualification checklist: [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) · step-by-step: [docs/EXTERNAL_QUICKSTART.md](docs/EXTERNAL_QUICKSTART.md).
 
 ---
 

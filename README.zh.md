@@ -7,7 +7,7 @@
 <div align="center">
 
 <p>
-  <a href="https://github.com/KEBAI-CN/Pay"><img alt="CI" src="https://github.com/weed33834/KeBaiPay/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/weed33834/KeBaiPay"><img alt="CI" src="https://github.com/weed33834/KeBaiPay/actions/workflows/ci.yml/badge.svg" /></a>
   <img alt="License" src="https://img.shields.io/badge/license-Custom-orange.svg" />
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-%E2%89%A520-green" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-blue" />
@@ -22,11 +22,14 @@
 
 版本 2.1.0 · 214 个 API 端点 · 52 个 Prisma 模型 · 1023 单元测试 + 39 E2E
 
-双平台镜像同步：[GitHub（国际）](https://github.com/KEBAI-CN/Pay) · [gitcode（国内）](https://gitcode.com/KEBAI-PAY/KEBAI-PAY)
+三端同步：[GitHub](https://github.com/weed33834/KeBaiPay) · [GitCode](https://gitcode.com/badhope/KeBaiPay) · [Gitee](https://gitee.com/kebai-qy/KeBaiPay)
 
-[功能矩阵](#二功能矩阵) · [快速开始](#三快速开始) · [架构图](#五系统架构) · [API 文档](docs/API_REFERENCE.md) · [部署指南](docs/DEPLOYMENT.md)
+[功能矩阵](#二功能矩阵) · [快速开始](#三快速开始) · [外部接入（最后一步）](docs/EXTERNAL_QUICKSTART.md) · [API 文档](docs/API_REFERENCE.md) · [部署指南](docs/DEPLOYMENT.md)
 
 </div>
+
+> **🔌 接入外部服务：只需最后一步** — 运行 `npm run check:external`，它会告诉你每个外部服务（短信/邮件/LLM/可观测性/支付渠道）还差什么、该填什么；把 ✗ 项补进 `.env` 重启即可。
+> 完整外部依赖与资质清单见 [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md)「外部依赖总清单」，分步指引见 [docs/EXTERNAL_QUICKSTART.md](docs/EXTERNAL_QUICKSTART.md)。
 
 ---
 
