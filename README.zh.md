@@ -31,8 +31,15 @@
 > **🔌 接入外部服务：只需最后一步** — 运行 `npm run check:external`，它会告诉你每个外部服务（短信/邮件/LLM/可观测性/支付渠道）还差什么、该填什么；把 ✗ 项补进 `.env` 重启即可。
 > 完整外部依赖与资质清单见 [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md)「外部依赖总清单」，分步指引见 [docs/EXTERNAL_QUICKSTART.md](docs/EXTERNAL_QUICKSTART.md)。
 
-> **🎬 在线演示 Demo** — 三端完整功能走查（截图 + 精编视频）见 [demo/README.md](demo/README.md)：商户后台 `/portal`、用户钱包 H5 `/h5`、管理后台 `/admin`。演示账号 `13800000001`/`Abc12345`（商户）、`admin`/`Admin2026`（管理员）。
->
+> **🎬 在线演示 Demo** — 三端完整功能走查见 [demo/README.md](demo/README.md)：商户后台 `/portal`、用户钱包 H5 `/h5`、管理后台 `/admin`。演示账号 `13800000001`/`Abc12345`（商户）、`admin`/`Admin2026`（管理员）。
+
+<p align="center">
+  <video src="demo/videos/kebaipay-showcase.mp4" controls width="720" poster="demo/videos/showcase-preview.gif"></video>
+</p>
+<p align="center">
+  <a href="demo/videos/kebaipay-showcase.mp4"><img src="demo/videos/showcase-preview.gif" alt="点击播放 KeBaiPay 演示视频" width="720"/></a>
+</p>
+
 > **📖 使用与配置总指南** — 怎么用 + 怎么配置所有功能与外部服务，见 [docs/USER_CONFIGURATION_GUIDE.md](docs/USER_CONFIGURATION_GUIDE.md)。
 
 ---

@@ -4,7 +4,16 @@
 > 录制环境：本地 `NODE_ENV=development` + mock 渠道 + 演示数据。
 > 复现：`node scripts/capture-demo.mjs`（需 playwright + chromium）。
 
-## 🎬 演示视频
+## 🎬 精编合集（推荐直接看这个）
+
+<p align="center">
+  <video src="videos/kebaipay-showcase.mp4" controls width="720" poster="videos/showcase-preview.gif"></video>
+</p>
+<p align="center">
+  <a href="videos/kebaipay-showcase.mp4"><img src="videos/showcase-preview.gif" alt="点击播放 KeBaiPay 演示视频" width="720"/></a>
+</p>
+
+## 📼 分端视频
 
 | 端 | 视频 | 内容 |
 |----|------|------|
