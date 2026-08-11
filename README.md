@@ -31,7 +31,9 @@ Mirrored on three platforms: [GitHub](https://github.com/weed33834/KeBaiPay) · 
 > **🔌 Connect external services in one last step** — run `npm run check:external`. It reports exactly what each external service (SMS / email / LLM / observability / payment channels) is missing and what to fill; add the `✗` items to `.env` and restart.
 > Full external-dependency & qualification checklist: [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) · step-by-step: [docs/EXTERNAL_QUICKSTART.md](docs/EXTERNAL_QUICKSTART.md).
 
-> **🎬 Live Demo** — full walkthrough of all three ends (screenshots + recordings) in [demo/README.md](demo/README.md): merchant portal `/portal`, user wallet H5 `/h5`, admin panel `/admin`. Demo accounts: `13800000001`/`Abc12345` (merchant), `admin`/`Admin2026` (admin).
+> **🎬 Live Demo** — full walkthrough of all three ends (screenshots + curated video) in [demo/README.md](demo/README.md): merchant portal `/portal`, user wallet H5 `/h5`, admin panel `/admin`. Demo accounts: `13800000001`/`Abc12345` (merchant), `admin`/`Admin2026` (admin).
+>
+> **📖 Usage & Configuration Guide** — how to use and configure every feature & external service: [docs/USER_CONFIGURATION_GUIDE.md](docs/USER_CONFIGURATION_GUIDE.md).
 
 ---
 
