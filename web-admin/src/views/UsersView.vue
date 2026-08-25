@@ -39,6 +39,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmt } from '@/utils/format'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AdminUser } from '@/types'
@@ -52,7 +53,6 @@ const keyword = ref('')
 const status = ref('')
 const query = reactive({ keyword: '', status: '', page: 1, limit: 15 })
 
-function fmt(v: string) { return v ? v.replace('T', ' ').slice(0, 19) : '-' }
 
 async function load() {
   loading.value = true
@@ -67,7 +67,11 @@ function onSearch() { query.keyword = keyword.value; query.status = status.value
 function onPage(p: number) { query.page = p; load() }
 
 async function toggleStatus(row: AdminUser, st: string) {
-  await ElMessageBox.confirm(`确定${st === 'FROZEN' ? '冻结' : '解冻'}用户 ${row.nickname}？`, '提示', { type: 'warning' })
+  try {
+    await ElMessageBox.confirm(`确定${st === 'FROZEN' ? '冻结' : '解冻'}用户 ${row.nickname}？`, '提示', { type: 'warning' })
+  } catch {
+    return
+  }
   try {
     await setUserStatus(row.id, { status: st })
     ElMessage.success('操作成功')

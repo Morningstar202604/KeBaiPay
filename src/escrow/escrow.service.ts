@@ -22,7 +22,7 @@ import {
 import { UsersService } from '../users/users.service'
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { RedisService } from '../redis/redis.service'
-import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
+import { createFrozenLegLedgerEntry, fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
   DEFAULT_ESCROW_DAILY_LIMIT_CENTS,
@@ -259,6 +259,18 @@ export class EscrowService {
               direction: Direction.CREDIT,
               remark: `担保交易付款给 ${order.seller.nickname}`,
             },
+          })
+
+          // 复式记账：冻结的对手方分录（frozenBalance 增加 = DEBIT），
+          // 内部冻结动作账本净额为 0，放款/退款时再与真实资金流配平
+          await createFrozenLegLedgerEntry(tx, {
+            accountId: buyerAccount.id,
+            transactionId: order.id,
+            type: LedgerType.ESCROW,
+            amount: order.amount,
+            frozenBefore: updatedBuyerAccount!.frozenBalance - order.amount,
+            frozenAfter: updatedBuyerAccount!.frozenBalance,
+            remark: '担保交易付款（冻结余额对应分录）',
           })
 
           // 账单
@@ -550,6 +562,17 @@ export class EscrowService {
                 direction: Direction.DEBIT,
                 remark: `卖家 ${order.seller.nickname} 同意退款`,
               },
+            })
+
+            // 复式记账：退回的对手方分录（frozenBalance 减少 = CREDIT）
+            await createFrozenLegLedgerEntry(tx, {
+              accountId: buyerAccount.id,
+              transactionId: order.id,
+              type: LedgerType.ESCROW_REFUND,
+              amount: order.amount,
+              frozenBefore: updatedBuyer!.frozenBalance + order.amount,
+              frozenAfter: updatedBuyer!.frozenBalance,
+              remark: '担保交易退款（冻结余额对应分录）',
             })
 
             await tx.bill.create({

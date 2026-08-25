@@ -15,10 +15,12 @@ export class SecurityValidatorService {
   private readonly DEFAULT_SECRETS = [
     'change-user-secret-in-production',
     'change-admin-secret-in-production',
+    'change-agent-secret-in-production',
     'change-this-in-production',
     'change-encryption-key-in-production',
     'kb-user-secret-dev-2024-not-for-prod',
     'kb-admin-secret-dev-2024-not-for-prod',
+    'kb-agent-secret-dev-2024-not-for-prod',
     'kb-encryption-key-dev-2024',
   ]
 
@@ -37,6 +39,7 @@ export class SecurityValidatorService {
     const checks = [
       { name: 'JWT_USER_SECRET', value: this.configService.get<string>('JWT_USER_SECRET') },
       { name: 'JWT_ADMIN_SECRET', value: this.configService.get<string>('JWT_ADMIN_SECRET') },
+      { name: 'JWT_AGENT_SECRET', value: this.configService.get<string>('JWT_AGENT_SECRET') },
       { name: 'ADMIN_DEFAULT_PASSWORD', value: this.configService.get<string>('ADMIN_DEFAULT_PASSWORD') },
       { name: 'ENCRYPTION_KEY', value: this.configService.get<string>('ENCRYPTION_KEY') },
     ]

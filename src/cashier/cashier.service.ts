@@ -27,7 +27,7 @@ import { UsersService } from '../users/users.service'
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { JournalService } from '../finance/journal.service'
 import { RedisService } from '../redis/redis.service'
-import { fenToYuan, generateOrderNo, generatePaymentNo, isCallbackUrlSafe, yuanToFen } from '../common/helpers'
+import { fenToYuan, generateOrderNo, generatePaymentNo, isCallbackUrlSafe, postJsonPinned, yuanToFen } from '../common/helpers'
 import { escapeCsvField } from '../common/csv'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
@@ -548,19 +548,17 @@ export class CashierService {
         let success = false
         for (let i = 0; i < maxRetries; i++) {
           attempts += 1
-          const controller = new AbortController()
-          const timeout = setTimeout(() => controller.abort(), CALLBACK_TIMEOUT_MS)
           try {
-            const resp = await fetch(callbackUrl, {
-              method: 'POST',
-              headers: {
+            // SSRF 加固：固定解析 IP 直连（消除 DNS rebinding TOCTOU 窗口），不跟随重定向
+            const resp = await postJsonPinned(
+              callbackUrl,
+              body,
+              {
                 'Content-Type': 'application/json',
                 'X-KB-Signature': signature,
               },
-              body,
-              signal: controller.signal,
-              redirect: 'manual',
-            })
+              CALLBACK_TIMEOUT_MS,
+            )
             if (resp.ok) {
               success = true
               break
@@ -573,8 +571,6 @@ export class CashierService {
             this.logger.warn(
               `订单 ${order.orderNo} 回调第 ${attempts} 次异常: ${message}`,
             )
-          } finally {
-            clearTimeout(timeout)
           }
           // 指数退避：1s, 2s, 4s, 8s, 16s
           if (i < maxRetries - 1) {

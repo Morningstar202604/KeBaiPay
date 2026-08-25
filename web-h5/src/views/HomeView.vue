@@ -39,8 +39,9 @@
           <div>{{ typeText(l.type) }}</div>
           <div class="ledger-time">{{ fmt(l.createdAt) }}</div>
         </div>
-        <div :class="['ledger-amt num', l.direction === 'INCOME' ? 'in' : 'out']">
-          {{ l.direction === 'INCOME' ? '+' : '-' }}¥{{ l.amountYuan }}
+        <!-- 账本方向约定：DEBIT=资金增加(收入)，CREDIT=资金减少(支出) -->
+        <div :class="['ledger-amt num', l.direction === 'DEBIT' ? 'in' : 'out']">
+          {{ l.direction === 'DEBIT' ? '+' : '-' }}¥{{ l.amountYuan }}
         </div>
       </div>
     </el-card>

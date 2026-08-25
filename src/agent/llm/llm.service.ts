@@ -16,6 +16,12 @@ export interface LlmTool {
   description: string
   inputSchema: Record<string, any>  // JSON Schema
   execute: (args: any, ctx?: any) => Promise<any>
+  /**
+   * 确认后的真实执行（仅 requireConfirm 工具需要）。
+   * requireConfirm 工具传给 LLM 时会剥离 execute（防止 AI SDK 自动内联执行绕过人工确认），
+   * 用户在 /agent/confirm 显式确认后由 AgentService 调用本方法执行真实逻辑。
+   */
+  executeConfirmed?: (args: any, ctx?: any) => Promise<any>
   /** 是否需要人工确认（资金类操作必须 true） */
   requireConfirm?: boolean
 }
@@ -128,12 +134,14 @@ export class LlmService {
     const model = openaiClient.chat(this.config.model)
 
     // 把 LlmTool 转换为 Vercel AI SDK 的 tool() 格式
+    // 安全关键：requireConfirm 工具不传 execute —— AI SDK 会在生成过程中
+    // 自动内联执行带 execute 的工具，若不剥离，人工确认流程会被结构性绕过。
     const toolsObj: Record<string, any> = {}
     for (const t of input.tools ?? []) {
       toolsObj[t.name] = tool({
         description: t.description,
         parameters: t.inputSchema,
-        execute: t.execute,
+        ...(t.requireConfirm ? {} : { execute: t.execute }),
       })
     }
 

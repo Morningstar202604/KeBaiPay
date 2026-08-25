@@ -221,7 +221,9 @@ export class WebhooksService {
 
   /**
    * 验证渠道签名
-   * 签名验证失败或异常一律拒绝处理，防止伪造回调
+   * 签名验证失败或异常一律拒绝处理，防止伪造回调。
+   * 验签为强制项：渠道必须实现 verifyWebhookSignature，否则直接拒绝该渠道回调
+   *（防止未来新增渠道漏写验签即上线的"裸奔"缺口）。
    */
   private async verifySignature(
     channelCode: string,
@@ -232,43 +234,59 @@ export class WebhooksService {
     const channelConfig = await this.channelRegistry.getEnabledConfig(channelCode)
     const channel = this.channelRegistry.getChannel(channelCode)
 
-    // 调用渠道的签名验证方法（如果实现了）
-    if ('verifyWebhookSignature' in channel) {
-      const verifyFn = (channel as { verifyWebhookSignature?: (raw: string, hdr: Record<string, string>, cfg: ChannelConfig) => boolean }).verifyWebhookSignature
-      if (typeof verifyFn === 'function') {
-        let isValid = false
-        try {
-          isValid = verifyFn.call(channel, rawBody, headers, channelConfig.config)
-        } catch (err) {
-          // 验签过程本身抛错视为验签失败，拒绝处理
-          this.logger.error(`${channelCode} ${callbackType} 验签异常: ${err}`)
-          await this.logCallback(
-            channelCode,
-            callbackType,
-            rawBody,
-            'SIGNATURE_ERROR',
-            err instanceof Error ? err.message : String(err),
-            0,
-          )
-          throw new BadRequestException(
-            kbError(KBErrorCodes.AUTHENTICATION_FAILED, `${channelCode} 回调验签异常`),
-          )
-        }
-        if (!isValid) {
-          this.logger.error(`${channelCode} ${callbackType} 回调签名验证失败`)
-          await this.logCallback(
-            channelCode,
-            callbackType,
-            rawBody,
-            'SIGNATURE_FAILED',
-            'signature verification failed',
-            0,
-          )
-          throw new BadRequestException(
-            kbError(KBErrorCodes.AUTHENTICATION_FAILED, `${channelCode} 回调签名验证失败`),
-          )
-        }
+    const verifyFn = (
+      channel as {
+        verifyWebhookSignature?: (raw: string, hdr: Record<string, string>, cfg: ChannelConfig) => boolean
       }
+    ).verifyWebhookSignature
+
+    if (typeof verifyFn !== 'function') {
+      // 强制验签：未实现验签方法的渠道不允许接入回调
+      this.logger.error(`${channelCode} 未实现 verifyWebhookSignature，拒绝处理 ${callbackType} 回调`)
+      await this.logCallback(
+        channelCode,
+        callbackType,
+        rawBody,
+        'SIGNATURE_ERROR',
+        'channel does not implement signature verification',
+        0,
+      )
+      throw new BadRequestException(
+        kbError(KBErrorCodes.AUTHENTICATION_FAILED, `${channelCode} 回调验签不可用`),
+      )
+    }
+
+    let isValid = false
+    try {
+      isValid = verifyFn.call(channel, rawBody, headers, channelConfig.config)
+    } catch (err) {
+      // 验签过程本身抛错视为验签失败，拒绝处理
+      this.logger.error(`${channelCode} ${callbackType} 验签异常: ${err}`)
+      await this.logCallback(
+        channelCode,
+        callbackType,
+        rawBody,
+        'SIGNATURE_ERROR',
+        err instanceof Error ? err.message : String(err),
+        0,
+      )
+      throw new BadRequestException(
+        kbError(KBErrorCodes.AUTHENTICATION_FAILED, `${channelCode} 回调验签异常`),
+      )
+    }
+    if (!isValid) {
+      this.logger.error(`${channelCode} ${callbackType} 回调签名验证失败`)
+      await this.logCallback(
+        channelCode,
+        callbackType,
+        rawBody,
+        'SIGNATURE_FAILED',
+        'signature verification failed',
+        0,
+      )
+      throw new BadRequestException(
+        kbError(KBErrorCodes.AUTHENTICATION_FAILED, `${channelCode} 回调签名验证失败`),
+      )
     }
   }
 

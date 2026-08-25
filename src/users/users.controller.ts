@@ -7,6 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger'
+import { IsOptional, IsString, MaxLength } from 'class-validator'
 import { User } from '@prisma/client'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
@@ -16,6 +17,23 @@ import { ResetPayPasswordDto } from './dto/reset-pay-password.dto'
 import { ChangePasswordDto } from './dto/change-password.dto'
 import { BindPhoneDto } from './dto/bind-phone.dto'
 import { BindEmailDto } from './dto/bind-email.dto'
+
+/**
+ * 更新资料 DTO：必须是 class（带装饰器）才能被全局 ValidationPipe
+ * whitelist 过滤 —— 此前用内联类型导致 body 里的 email 等字段原样透传，
+ * 可绕过 bind-email 验证码流程直接改绑邮箱。
+ */
+export class UpdateProfileDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  nickname?: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  avatar?: string
+}
 
 @ApiTags('用户')
 @ApiBearerAuth('user-auth')
@@ -35,7 +53,7 @@ export class UsersController {
   @Patch('me')
   @ApiOperation({ summary: '更新当前用户资料', description: '更新昵称、头像等基础信息' })
   @ApiResponse({ status: 200, description: '更新成功' })
-  async updateMe(@CurrentUser() user: Pick<User, 'id'>, @Body() dto: { nickname?: string; avatar?: string }) {
+  async updateMe(@CurrentUser() user: Pick<User, 'id'>, @Body() dto: UpdateProfileDto) {
     return this.usersService.updateProfile(user.id, dto)
   }
 

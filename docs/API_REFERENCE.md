@@ -127,8 +127,17 @@ X-Signature: <hmac_sha256_hex>
 
 ```text
 sign_string = HTTP_METHOD\nPATH\nRAW_BODY\nTIMESTAMP\nNONCE\nAPP_ID
-signature   = HMAC-SHA256(app_secret, sign_string)  # 输出小写 hex
+hmac_key    = SHA256_HEX(app_secret)              # 先对明文 appSecret 取 SHA-256（小写 hex）
+signature   = HMAC-SHA256(hmac_key, sign_string)  # 输出小写 hex
 ```
+
+> ⚠️ 重要约定：HMAC 密钥不是 appSecret 明文，而是其 SHA-256 十六进制串
+> （服务端数据库只存哈希，验签直接用库中哈希作密钥）。
+> 客户端务必先对 appSecret 做 `sha256` 再签名。
+
+appSecret 明文仅在「创建应用」与「重新生成密钥」两个接口的响应中返回一次，
+之后无法再次获取，请妥善保存。商户侧回调通知签名使用同一约定：
+回调头 `X-KB-Signature = HMAC-SHA256(sha256(appSecret), body)`。
 
 **安全机制：**
 

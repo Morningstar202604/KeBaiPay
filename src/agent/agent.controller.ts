@@ -57,19 +57,21 @@ export class AgentController {
   @Get('conversations/:id/messages')
   @ApiOperation({ summary: '查询会话历史消息' })
   async listMessages(
+    @CurrentUser() user: AgentCurrentUser,
     @Param('id') id: string,
     @Query('limit') limit?: number,
   ) {
-    return this.agentService.listMessages(id, limit)
+    return this.agentService.listMessages(id, user, limit)
   }
 
   @Post('conversations/:id/close')
   @ApiOperation({ summary: '关闭会话' })
   async closeConversation(
+    @CurrentUser() user: AgentCurrentUser,
     @Param('id') id: string,
     @Body('summary') summary?: string,
   ) {
-    return this.agentService.closeConversation(id, summary)
+    return this.agentService.closeConversation(id, user, summary)
   }
 
   @Post('chat')

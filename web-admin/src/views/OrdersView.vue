@@ -32,6 +32,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmt } from '@/utils/format'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { PaymentOrder } from '@/types'
@@ -44,7 +45,6 @@ const loading = ref(true)
 const status = ref('')
 const query = reactive({ status: '', page: 1, limit: 15 })
 
-function fmt(v: string) { return v ? v.replace('T', ' ').slice(0, 19) : '-' }
 
 async function load() {
   loading.value = true

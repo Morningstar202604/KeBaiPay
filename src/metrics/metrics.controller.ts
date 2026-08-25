@@ -1,4 +1,6 @@
-import { Controller, Get, Header, HttpCode, HttpStatus } from '@nestjs/common'
+import { Controller, Get, Header, HttpCode, HttpStatus, Req, UnauthorizedException } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import { Request } from 'express'
 import { SkipThrottle } from '@nestjs/throttler'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { MetricsService } from './metrics.service'
@@ -10,20 +12,31 @@ import { MetricsService } from './metrics.service'
  * @SkipThrottle 避免抓取被限流；不经过 ResponseTransformInterceptor 包装，
  * 直接返回纯文本，否则会破坏 Prometheus 解析。
  *
- * 生产环境建议通过反向代理或网络策略限制 /metrics 仅内网可访问，
- * 避免暴露内部运行时指标给公网。
+ * 访问控制：配置 METRICS_TOKEN 后，抓取方必须携带
+ * `Authorization: Bearer <METRICS_TOKEN>`（Prometheus 原生支持 bearer_token）。
+ * 未配置时保持开放（内网部署场景），生产环境建议同时启用 token 与反代限制。
  */
 @ApiTags('可观测性')
 @Controller('metrics')
 @SkipThrottle()
 export class MetricsController {
-  constructor(private readonly metricsService: MetricsService) {}
+  constructor(
+    private readonly metricsService: MetricsService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Prometheus 指标（供 Prometheus server 抓取）' })
   @HttpCode(HttpStatus.OK)
   @Header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
-  async metrics(): Promise<string> {
+  async metrics(@Req() req: Request): Promise<string> {
+    const expected = this.configService.get<string>('METRICS_TOKEN')
+    if (expected) {
+      const auth = req.headers.authorization || ''
+      if (auth !== `Bearer ${expected}`) {
+        throw new UnauthorizedException('metrics token invalid')
+      }
+    }
     return this.metricsService.metrics()
   }
 }

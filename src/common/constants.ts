@@ -147,6 +147,7 @@ export const AGENT_RESULT_SUCCESS = 'SUCCESS'
 export const AGENT_RESULT_FAILED = 'FAILED'
 export const AGENT_RESULT_PENDING_CONFIRM = 'PENDING_CONFIRM'
 export const AGENT_RESULT_REJECTED = 'REJECTED'
+export const AGENT_RESULT_EXPIRED = 'EXPIRED'
 
 /**
  * Agent 对话消息角色（OpenAI 风格）

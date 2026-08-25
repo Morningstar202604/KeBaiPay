@@ -89,7 +89,9 @@ export class AgentAuthGuard implements CanActivate {
       )
     }
 
-    // 若携带了主体授权信息，实时校验授权未撤销/未过期
+    // 若携带了主体授权信息，实时校验授权未撤销/未过期，
+    // 并用 DB 中的最新 scopes 覆盖 token 声明（防止缩权后旧 token 权限残留最长 7 天）
+    let effectiveAuthScopes = payload.authScopes
     if (payload.authId && payload.subjectId) {
       const auth = await this.prisma.agentAuthorization.findUnique({
         where: { id: payload.authId },
@@ -104,17 +106,45 @@ export class AgentAuthGuard implements CanActivate {
           kbError(KBErrorCodes.AGENT_AUTHORIZATION_EXPIRED),
         )
       }
+      // 授权记录被管理员缩权后，以 DB 最新 scopes 为准
+      if (auth.scopes) {
+        try {
+          const dbScopes = JSON.parse(auth.scopes as string)
+          if (Array.isArray(dbScopes)) effectiveAuthScopes = dbScopes
+        } catch {
+          /* scopes 存储损坏时保守沿用 token 声明 */
+        }
+      }
+
+      // 用户主体：实时校验用户状态（冻结/限制收付的用户不得继续通过 Agent 操作）
+      if (payload.subjectType === 'user') {
+        const subjectUser = await this.prisma.user.findUnique({
+          where: { id: payload.subjectId },
+          select: { status: true },
+        })
+        if (!subjectUser || subjectUser.status === 'FROZEN' || subjectUser.status === 'EXPENSE_RESTRICTED') {
+          throw new UnauthorizedException(
+            kbError(KBErrorCodes.FORBIDDEN, '用户账户状态异常，智能体操作被暂停'),
+          )
+        }
+      }
+    } else {
+      // 未绑定主体的 token 只能视为匿名能力，禁止进入业务接口
+      throw new UnauthorizedException(
+        kbError(KBErrorCodes.AGENT_AUTHORIZATION_REVOKED, '智能体令牌缺少主体绑定'),
+      )
     }
 
     const user: AgentCurrentUser = {
       sub: payload.sub,
       typ: 'agent',
       scenario: payload.scenario!,
-      scopes: payload.scopes ?? [],
+      // scenario 变更/降级时以 DB 中的 agent.scenario 为准
+      scopes: agent.scenario === payload.scenario ? (payload.scopes ?? []) : [],
       subjectType: payload.subjectType,
       subjectId: payload.subjectId,
       authId: payload.authId,
-      authScopes: payload.authScopes,
+      authScopes: effectiveAuthScopes,
     }
     request.user = user
     return true

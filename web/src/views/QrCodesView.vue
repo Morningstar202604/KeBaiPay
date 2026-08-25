@@ -56,6 +56,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmt } from '@/utils/format'
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { MerchantQrCode } from '@/types'
@@ -69,9 +70,6 @@ const dialogVisible = ref(false)
 const amount = ref<number | undefined>(undefined)
 const remark = ref('')
 
-function fmt(v: string) {
-  return v ? v.replace('T', ' ').slice(0, 19) : '-'
-}
 
 async function load() {
   loading.value = true
@@ -88,7 +86,9 @@ async function onCreate() {
   saving.value = true
   try {
     await createQrCode({
-      amount: amount.value != null ? Math.round(amount.value * 100) : undefined,
+      // 契约：金额一律传"元"，由后端 yuanToFen 统一换算（此前前端先×100、后端再换算，
+      // 导致收款码金额放大 100 倍）
+      amount: amount.value != null ? amount.value : undefined,
       remark: remark.value.trim() || undefined,
     })
     ElMessage.success('创建成功')

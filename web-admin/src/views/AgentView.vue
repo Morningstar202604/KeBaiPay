@@ -73,6 +73,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmt } from '@/utils/format'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { AgentItem } from '@/api/modules'
@@ -94,10 +95,13 @@ function scenarioText(s: string) {
   const m: Record<string, string> = { wallet: '钱包管家', merchant: '店长助理', risk: '风控审计官', support: '客服坐席' }
   return m[s] || s
 }
-function parseScopes(s: string) {
-  try { return JSON.parse(s) } catch { return [] }
+function parseScopes(s: unknown): string[] {
+  if (typeof s !== 'string') return []
+  try {
+    const arr = JSON.parse(s)
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string') : []
+  } catch { return [] }
 }
-function fmt(v: string) { return v ? v.replace('T', ' ').slice(0, 19) : '-' }
 
 async function load() {
   loading.value = true

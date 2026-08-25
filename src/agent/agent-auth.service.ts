@@ -142,6 +142,8 @@ export class AgentAuthService {
       select: {
         id: true, agentNo: true, name: true, description: true,
         status: true, scenario: true, version: true, createdAt: true,
+        // 管理端编辑作用域必须能读到当前值（否则前端保存时会把 scopes 清空）
+        scopes: true,
       },
     })
   }
@@ -167,6 +169,8 @@ export class AgentAuthService {
         ...(input.status !== undefined && { status: input.status }),
         ...(input.scopes !== undefined && { scopes: JSON.stringify(input.scopes) }),
       },
+      // 回显白名单：防止把 appSecret 等敏感字段原样带回响应
+      select: { id: true, name: true, description: true, scenario: true, status: true, scopes: true },
     })
   }
 
@@ -197,12 +201,19 @@ export class AgentAuthService {
     })
   }
 
-  /** 撤销授权 */
-  async revoke(authId: string) {
+  /** 撤销授权（属主校验：仅授权主体本人可撤销，防止水平越权吊销他人授权） */
+  async revoke(authId: string, subjectId?: string) {
     const auth = await this.prisma.agentAuthorization.findUnique({
       where: { id: authId },
     })
     if (!auth) throw new NotFoundException(kbError(KBErrorCodes.AGENT_AUTHORIZATION_NOT_FOUND))
+    if (subjectId != null) {
+      const isOwner =
+        auth.subjectType === 'user' ? auth.subjectId === subjectId : false
+      if (!isOwner) {
+        throw new NotFoundException(kbError(KBErrorCodes.AGENT_AUTHORIZATION_NOT_FOUND))
+      }
+    }
     if (auth.revokedAt) return auth
     return this.prisma.agentAuthorization.update({
       where: { id: authId },

@@ -55,9 +55,10 @@ export async function withdraw(body: {
   return data
 }
 
-export async function fetchWithdrawals(): Promise<Paged<unknown>> {
-  const { data } = await http.get<Paged<unknown>>('/withdrawals')
-  return data
+/** 提现记录：后端 GET /withdrawals 返回订单数组（非分页结构） */
+export async function fetchWithdrawals(): Promise<unknown[]> {
+  const { data } = await http.get<unknown[]>('/withdrawals')
+  return Array.isArray(data) ? data : []
 }
 
 // ---------- 账单 ----------

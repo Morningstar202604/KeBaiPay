@@ -48,8 +48,6 @@
         <el-button @click="$router.push('/merchant')">返回</el-button>
       </el-form-item>
     </el-form>
-
-    <el-empty v-if="!loading && !merchant && !showForm" description="加载中..." />
   </el-card>
 </template>
 
@@ -63,7 +61,6 @@ import { extractError } from '@/api/http'
 const loading = ref(false)
 const saving = ref(false)
 const merchant = ref<MerchantInfo | null>(null)
-const showForm = ref(true)
 const formRef = ref<FormInstance>()
 
 const form = reactive({

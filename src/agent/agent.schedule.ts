@@ -4,12 +4,14 @@ import { PrismaService } from '../prisma/prisma.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 import { LlmService } from './llm/llm.service'
 import { MessagesService } from '../messages/messages.service'
+import { AGENT_RESULT_PENDING_CONFIRM, AGENT_RESULT_EXPIRED } from '../common/constants'
 
 /**
  * Agent 调度任务：
  *  1. 每 10 分钟巡检 ScheduleHealthService，发现连续失败 ≥3 次的任务时 AI 生成告警并推送管理员
  *  2. 每小时扫描 ReconciliationDifferenceItem PENDING 项，AI 生成处置建议
  *  3. 每 30 分钟扫描 RiskEvent REVIEW 状态，AI 生成处置建议
+ *  4. 每 5 分钟将超时的 PENDING_CONFIRM 操作日志置为 EXPIRED（confirmOp 内亦有双保险校验）
  *
  * 巡检任务本身也注册到 ScheduleHealthService，被自身监控（防止巡检自身失败无人发现）
  */
@@ -19,6 +21,7 @@ export class AgentSchedule {
   private static readonly TASK_HEALTH_CHECK = 'agent:health-check'
   private static readonly TASK_RECONCILE_SCAN = 'agent:reconcile-scan'
   private static readonly TASK_RISK_SCAN = 'agent:risk-scan'
+  private static readonly TASK_CONFIRM_EXPIRE_SCAN = 'agent:confirm-expire-scan'
 
   constructor(
     private readonly prisma: PrismaService,
@@ -42,6 +45,72 @@ export class AgentSchedule {
       '0 */30 * * * *',
       'AI 巡检：风控事件扫描',
     )
+    this.scheduleHealth.register(
+      AgentSchedule.TASK_CONFIRM_EXPIRE_SCAN,
+      CronExpression.EVERY_5_MINUTES,
+      'AI 待确认操作超时过期扫描',
+    )
+  }
+
+  /**
+   * 每 5 分钟将超时的 PENDING_CONFIRM 操作日志置为 EXPIRED。
+   * detail JSON 中存有 expiresAt（由 sendMessage 写入）；
+   * 无 expiresAt 的历史遗留记录按 updatedAt + 1 小时兜底过期。
+   */
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async expirePendingConfirms() {
+    const start = Date.now()
+    this.scheduleHealth.reportStart(AgentSchedule.TASK_CONFIRM_EXPIRE_SCAN)
+    try {
+      const pending = await this.prisma.agentOperationLog.findMany({
+        where: { result: AGENT_RESULT_PENDING_CONFIRM },
+        select: { id: true, detail: true, createdAt: true },
+        take: 500,
+      })
+      const now = Date.now()
+      const expiredIds: string[] = []
+      for (const log of pending) {
+        let expiresAtMs: number | null = null
+        if (log.detail) {
+          try {
+            const parsed = JSON.parse(log.detail) as { expiresAt?: string }
+            if (parsed.expiresAt) {
+              const t = new Date(parsed.expiresAt).getTime()
+              if (!Number.isNaN(t)) expiresAtMs = t
+            }
+          } catch {
+            /* detail 损坏时走 updatedAt 兜底 */
+          }
+        }
+        // 兜底：无 expiresAt 的旧数据，createdAt 超过 1 小时即视为过期
+        const effectiveExpiry = expiresAtMs ?? log.createdAt.getTime() + 60 * 60 * 1000
+        if (effectiveExpiry < now) expiredIds.push(log.id)
+      }
+      let expiredCount = 0
+      for (const id of expiredIds) {
+        const res = await this.prisma.agentOperationLog.updateMany({
+          where: { id, result: AGENT_RESULT_PENDING_CONFIRM },
+          data: { result: AGENT_RESULT_EXPIRED },
+        })
+        expiredCount += res.count
+      }
+      this.scheduleHealth.reportComplete(
+        AgentSchedule.TASK_CONFIRM_EXPIRE_SCAN,
+        true,
+        Date.now() - start,
+      )
+      if (expiredCount > 0) {
+        this.logger.log(`已将 ${expiredCount} 条超时的待确认操作置为 EXPIRED`)
+      }
+    } catch (err: unknown) {
+      this.scheduleHealth.reportComplete(
+        AgentSchedule.TASK_CONFIRM_EXPIRE_SCAN,
+        false,
+        Date.now() - start,
+        err instanceof Error ? err.message : String(err),
+      )
+      this.logger.error(`待确认操作过期扫描失败：${err instanceof Error ? err.message : String(err)}`)
+    }
   }
 
   /** 每 10 分钟巡检调度健康 */

@@ -1,29 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { MailerService } from '@nestjs-modules/mailer'
 import { ConfigService } from '@nestjs/config'
+import { escapeHtml } from '../common/helpers'
 
 export interface NotifyEmailOpts {
   to: string
   subject: string
   html: string
-}
-
-/**
- * HTML 实体转义：邮件 HTML 中插入用户可控变量前必须转义，
- * 防止订单号、商品名、商户名等字段被注入 <script> 或属性逃逸 HTML 结构。
- * 仅转义 OWASP 推荐的 5 个字符即可覆盖所有 HTML 注入向量。
- */
-const HTML_ESCAPE_MAP: Record<string, string> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#x27;',
-}
-const HTML_ESCAPE_REGEX = /[&<>"']/g
-
-function escapeHtml(value: unknown): string {
-  return String(value).replace(HTML_ESCAPE_REGEX, (ch) => HTML_ESCAPE_MAP[ch])
 }
 
 @Injectable()

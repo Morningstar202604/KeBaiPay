@@ -37,7 +37,7 @@
       <div v-for="p in sent" :key="p.id" class="row">
         <div>
           <div>{{ p.remark || '红包' }} · {{ p.packetNo }}</div>
-          <div class="sub">{{ fmt(p.createdAt) }} · {{ p.receivedCount }}/{{ p.totalCount }}</div>
+          <div class="sub">{{ fmt(p.createdAt) }} · 已领 {{ p.totalCount - p.remainingCount }}/{{ p.totalCount }}</div>
         </div>
         <div class="amt">¥{{ p.amountYuan || (p.amount / 100).toFixed(2) }}</div>
       </div>

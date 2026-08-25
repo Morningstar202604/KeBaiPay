@@ -4,13 +4,17 @@
 # 策略：
 #   builder 阶段装全部依赖（含 dev），编译 native 模块（bcrypt 等），
 #   跑 prisma generate，编译 TS。
-#   runner 阶段不重新 npm ci，直接拷贝 builder 的 node_modules（已含编译产物），
-#   避免在 alpine runner 里装 python/make/g++ 工具链。
+#   prod-deps 阶段只装生产依赖（--omit=dev）并重新生成 Prisma Client，
+#   runner 不再继承 jest/playwright/typescript 等开发依赖（减体积/攻击面）。
 #
 # 运行时：
 #   - 以 root 启动 entrypoint，跑 prisma migrate deploy，
 #     然后 su-exec 切到 nestjs 非 root 用户启动 node。
 #   - tini 做 PID 1，正确转发信号（SIGTERM 等）。
+#
+# 注意：镜像内无 ts-node（dev 依赖），如需 seed 请在宿主机执行
+#   `docker compose exec app npx prisma db seed` 的替代方案——
+#   在宿主机 `npm run db:seed`，或临时挂载 node_modules 运行。
 # ===========================================================================
 
 # ---------- 构建阶段 ----------
@@ -40,6 +44,22 @@ RUN npx prisma generate
 COPY . .
 RUN npm run build
 
+# ---------- 生产依赖阶段（瘦身：不含 devDependencies） ----------
+# prisma CLI 在 dependencies 中，--omit=dev 仍可用；
+# bcrypt 6 tarball 自带 linux-x64/musl prebuilds，无需工具链即可加载
+FROM node:20-alpine AS prod-deps
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --omit=dev --ignore-scripts
+
+COPY prisma ./prisma
+COPY prisma.config.js ./
+# runner 里重新生成 Prisma Client（不依赖 builder 的完整 node_modules）
+ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public"
+RUN npx prisma generate
+
 # ---------- 生产阶段 ----------
 FROM node:20-alpine AS runner
 
@@ -56,9 +76,9 @@ ENV TZ=Asia/Shanghai
 RUN apk add --no-cache ca-certificates tini su-exec wget \
   && update-ca-certificates
 
-# 直接拷贝 builder 的 node_modules（含已编译的 native 模块 + prisma CLI + WASM engine）
+# 只拷贝生产依赖（不含 jest/playwright/typescript 等开发依赖，减小体积与攻击面）
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.js ./prisma.config.js

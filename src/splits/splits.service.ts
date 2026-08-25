@@ -286,14 +286,22 @@ export class SplitsService {
   ): Promise<{ success: boolean; reason?: string }> {
     try {
       return await this.prisma.$transaction(async (tx) => {
+        // 抢占式认领：仅当明细仍为 PENDING 时置为 PROCESSING。
+        // 与恢复调度（split:recover）或原请求并发重放时，
+        // 只有一个执行流能抢到，杜绝同一明细双倍入账。
+        const claim = await tx.splitItem.updateMany({
+          where: { id: itemId, status: SplitItemStatus.PENDING },
+          data: { status: SplitItemStatus.PROCESSING },
+        })
+        if (claim.count === 0) {
+          return { success: false, reason: '分账明细已被处理或跳过' }
+        }
+
         const item = await tx.splitItem.findUnique({
           where: { id: itemId },
         })
         if (!item) {
           return { success: false, reason: '分账明细不存在' }
-        }
-        if (item.status !== SplitItemStatus.PENDING) {
-          return { success: true }
         }
 
         // 校验收款人
@@ -301,33 +309,15 @@ export class SplitsService {
           where: { id: item.receiverId },
         })
         if (!receiver) {
-          await tx.splitItem.update({
-            where: { id: item.id },
-            data: {
-              status: SplitItemStatus.FAILED,
-              failureReason: '收款方不存在',
-            },
-          })
+          await this.markSplitItemFailed(tx, item.id, '收款方不存在')
           return { success: false, reason: '收款方不存在' }
         }
         if (receiver.realNameStatus !== RealNameStatus.VERIFIED) {
-          await tx.splitItem.update({
-            where: { id: item.id },
-            data: {
-              status: SplitItemStatus.FAILED,
-              failureReason: '收款方未实名',
-            },
-          })
+          await this.markSplitItemFailed(tx, item.id, '收款方未实名')
           return { success: false, reason: '收款方未实名' }
         }
         if (receiver.status === UserStatus.FROZEN || receiver.status === UserStatus.INCOME_RESTRICTED) {
-          await tx.splitItem.update({
-            where: { id: item.id },
-            data: {
-              status: SplitItemStatus.FAILED,
-              failureReason: '收款方账户禁止收款',
-            },
-          })
+          await this.markSplitItemFailed(tx, item.id, '收款方账户禁止收款')
           return { success: false, reason: '收款方账户禁止收款' }
         }
 
@@ -336,26 +326,14 @@ export class SplitsService {
           where: { userId: senderId },
         })
         if (!senderAccount || senderAccount.status !== AccountStatus.ACTIVE) {
-          await tx.splitItem.update({
-            where: { id: item.id },
-            data: {
-              status: SplitItemStatus.FAILED,
-              failureReason: '付款方账户状态异常',
-            },
-          })
+          await this.markSplitItemFailed(tx, item.id, '付款方账户状态异常')
           return { success: false, reason: '付款方账户状态异常' }
         }
         const receiverAccount = await tx.account.findUnique({
           where: { userId: item.receiverId },
         })
         if (!receiverAccount || receiverAccount.status !== AccountStatus.ACTIVE) {
-          await tx.splitItem.update({
-            where: { id: item.id },
-            data: {
-              status: SplitItemStatus.FAILED,
-              failureReason: '收款方账户状态异常',
-            },
-          })
+          await this.markSplitItemFailed(tx, item.id, '收款方账户状态异常')
           return { success: false, reason: '收款方账户状态异常' }
         }
 
@@ -371,13 +349,7 @@ export class SplitsService {
           },
         })
         if (deductResult.count === 0) {
-          await tx.splitItem.update({
-            where: { id: item.id },
-            data: {
-              status: SplitItemStatus.FAILED,
-              failureReason: '余额不足',
-            },
-          })
+          await this.markSplitItemFailed(tx, item.id, '余额不足')
           return { success: false, reason: '余额不足' }
         }
 
@@ -478,26 +450,30 @@ export class SplitsService {
           })
         }
 
-        // 标记成功
-        await tx.splitItem.update({
-          where: { id: item.id },
+        // 标记成功（条件更新：仅当仍持有 PROCESSING；丢失则回滚整个事务防双花）
+        const finalize = await tx.splitItem.updateMany({
+          where: { id: item.id, status: SplitItemStatus.PROCESSING },
           data: {
             status: SplitItemStatus.SUCCESS,
             transactionId: order.id,
             completedAt: new Date(),
           },
         })
+        if (finalize.count === 0) {
+          throw new Error('分账明细状态并发变更，事务回滚')
+        }
 
         return { success: true }
       })
     } catch (err) {
       this.logger.error(`分账明细 ${itemId} 处理异常: ${err}`)
       try {
-        await this.prisma.splitItem.update({
-          where: { id: itemId },
+        // 事务已回滚，明细回到 PENDING；仅从 PENDING 标记 FAILED
+        await this.prisma.splitItem.updateMany({
+          where: { id: itemId, status: SplitItemStatus.PENDING },
           data: {
             status: SplitItemStatus.FAILED,
-            failureReason: err instanceof Error ? err.message : String(err),
+            failureReason: (err instanceof Error ? err.message : String(err)).slice(0, 200),
           },
         })
       } catch (updateErr) {
@@ -505,6 +481,21 @@ export class SplitsService {
       }
       return { success: false, reason: '处理异常' }
     }
+  }
+
+  /** 事务内标记分账明细失败（认领后为 PROCESSING） */
+  private async markSplitItemFailed(
+    tx: Prisma.TransactionClient,
+    itemId: string,
+    reason: string,
+  ): Promise<void> {
+    await tx.splitItem.updateMany({
+      where: { id: itemId, status: SplitItemStatus.PROCESSING },
+      data: {
+        status: SplitItemStatus.FAILED,
+        failureReason: reason.slice(0, 200),
+      },
+    })
   }
 
   /** 分账收尾：统计成功/失败笔数，标记 COMPLETED */

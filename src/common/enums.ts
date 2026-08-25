@@ -225,8 +225,10 @@ export enum BatchTransferStatus {
   CANCELLED = 'CANCELLED',               // 已取消（未处理的项不再执行）
 }
 
+// 批量转账明细状态
 export enum BatchItemStatus {
   PENDING = 'PENDING',
+  PROCESSING = 'PROCESSING', // 事务内抢占标记（防取消/恢复调度并发双花）
   SUCCESS = 'SUCCESS',
   FAILED = 'FAILED',
 }
@@ -272,6 +274,7 @@ export enum SplitStatus {
 // 分账明细状态
 export enum SplitItemStatus {
   PENDING = 'PENDING',
+  PROCESSING = 'PROCESSING', // 事务内抢占标记（防恢复调度/原请求并发双花）
   SUCCESS = 'SUCCESS',
   FAILED = 'FAILED',
 }

@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import { fenToYuan } from '../common/helpers'
 import { escapeCsvField } from '../common/csv'
+import { getDateRange } from '../common/date-helpers'
 import { SettlementService } from '../notifications/settlement.service'
 
 @Injectable()
@@ -480,9 +481,8 @@ export class FinanceService {
   }
 
   private getDateRange(date: string) {
-    const start = new Date(`${date}T00:00:00.000Z`)
-    const end = new Date(`${date}T23:59:59.999Z`)
-    return { start, end }
+    // 统一走 common/date-helpers（dayjs UTC 实现），避免手写 Date 拼接的边界差异
+    return getDateRange(date, date)
   }
 
   private formatDate(date: Date) {

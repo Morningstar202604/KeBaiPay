@@ -38,6 +38,12 @@ call npx prisma generate
 echo.
 
 echo [4/5] 执行数据库迁移...
+REM 加载 .env（脚本环境变量通常没有 DATABASE_URL，配置实际写在 .env 里）
+if exist .env (
+    for /f "usebackq eol=# tokens=1,* delims==" %%a in (".env") do (
+        set "%%a=%%b"
+    )
+)
 if defined DATABASE_URL (
     call npx prisma migrate deploy
     if !errorlevel! neq 0 (

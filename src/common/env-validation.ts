@@ -45,7 +45,9 @@ export function validateEnv(config: EnvConfig): EnvConfig {
   }
 
   // 密钥类：存在性校验（强度由 SecurityValidatorService 负责）
-  for (const key of ['JWT_USER_SECRET', 'JWT_ADMIN_SECRET', 'ENCRYPTION_KEY']) {
+  // JWT_AGENT_SECRET：agent 模块签发/验签依赖，缺失时启动期不报错、
+  // 运行期才崩溃，必须纳入强校验（与 USER/ADMIN 同级）
+  for (const key of ['JWT_USER_SECRET', 'JWT_ADMIN_SECRET', 'JWT_AGENT_SECRET', 'ENCRYPTION_KEY']) {
     if (!config[key]) {
       errors.push(`${key} 未配置`)
     }

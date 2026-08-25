@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
 import { LlmService, type LlmMessage } from './llm/llm.service'
@@ -6,6 +6,7 @@ import { ToolRegistry, type ToolDeps } from './tools/tool.registry'
 import { AgentAuditLogService } from './agent-audit-log.service'
 import { MessagesService } from '../messages/messages.service'
 import { CouponsService } from '../coupons/coupons.service'
+import { TransfersService } from '../transfers/transfers.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 import { generateOrderNo } from '../common/helpers'
 import {
@@ -15,6 +16,7 @@ import {
   AGENT_RESULT_PENDING_CONFIRM,
   AGENT_RESULT_SUCCESS,
   AGENT_RESULT_REJECTED,
+  AGENT_RESULT_EXPIRED,
   AGENT_GENESIS_HASH,
 } from '../common/constants'
 import type { AgentCurrentUser } from './agent-current-user.interface'
@@ -30,7 +32,7 @@ const MAX_TURNS = 20  // 单次对话最大轮数，防止无限循环
  * 设计原则：
  *  1. 所有 LLM 调用失败时降级为 mock 模板
  *  2. requireConfirm=true 的工具不会立即执行，而是写入待确认日志
- *  3. confirm/reject 接口由用户主动调用，超时自动回滚
+ *  3. confirm/reject 接口由用户主动调用，超时后操作过期不可再确认
  */
 @Injectable()
 export class AgentService {
@@ -45,12 +47,25 @@ export class AgentService {
     private readonly messagesService: MessagesService,
     private readonly couponsService: CouponsService,
     private readonly scheduleHealthService: ScheduleHealthService,
+    private readonly transfersService: TransfersService,
     private readonly configService: ConfigService,
   ) {
     this.toolDeps = {
       messagesService,
       couponsService,
       scheduleHealthService,
+      transfersService,
+    }
+  }
+
+  /** 校验会话归属：防止水平越权读/写他人会话（IDOR） */
+  private assertConversationOwner(
+    conv: { userId: string },
+    user: AgentCurrentUser,
+  ) {
+    // 会话以 subjectId 归属创建；merchant 主体同样按 subjectId 隔离
+    if (!user.subjectId || conv.userId !== user.subjectId) {
+      throw new ForbiddenException('无权访问该会话')
     }
   }
 
@@ -85,11 +100,12 @@ export class AgentService {
   }
 
   /** 关闭会话 */
-  async closeConversation(convId: string, summary?: string) {
+  async closeConversation(convId: string, user: AgentCurrentUser, summary?: string) {
     const conv = await this.prisma.agentConversation.findUnique({
       where: { id: convId },
     })
     if (!conv) throw new NotFoundException('会话不存在')
+    this.assertConversationOwner(conv, user)
     if (conv.status !== 'ACTIVE') {
       throw new BadRequestException('会话已关闭')
     }
@@ -116,7 +132,13 @@ export class AgentService {
   }
 
   /** 查询会话历史消息 */
-  async listMessages(convId: string, limit = 50) {
+  async listMessages(convId: string, user: AgentCurrentUser, limit = 50) {
+    const conv = await this.prisma.agentConversation.findUnique({
+      where: { id: convId },
+      select: { userId: true },
+    })
+    if (!conv) throw new NotFoundException('会话不存在')
+    this.assertConversationOwner(conv, user)
     return this.prisma.agentMessage.findMany({
       where: { convId },
       orderBy: { createdAt: 'asc' },
@@ -143,6 +165,7 @@ export class AgentService {
       where: { id: input.convId },
     })
     if (!conv) throw new NotFoundException('会话不存在')
+    this.assertConversationOwner(conv, input.user)
     if (conv.status !== 'ACTIVE') {
       throw new BadRequestException('会话已关闭')
     }
@@ -183,11 +206,12 @@ export class AgentService {
 
     // 处理需要确认的工具调用
     const pendingOps: any[] = []
+    const confirmTimeoutSec = Number(this.configService.get('AGENT_CONFIRM_TIMEOUT_SEC')) || 60
     if (llmResult.toolCalls) {
       for (const tc of llmResult.toolCalls) {
         const tool = tools.find((t) => t.name === tc.name)
         if (tool?.requireConfirm) {
-          // 写入待确认日志
+          // 写入待确认日志（含过期时间，超时后不可再确认）
           const opLog = await this.auditLog.log({
             agentId: input.user.sub,
             subjectType: input.user.subjectType ?? 'user',
@@ -196,8 +220,13 @@ export class AgentService {
             scope: tc.name,
             amount: tc.args?.amountYuan ? Math.round(tc.args.amountYuan * 100) : null,
             result: AGENT_RESULT_PENDING_CONFIRM,
-            // 记录场景，供 confirmOp 恢复正确的工具集（此前用 scope.split(':') 解析场景是错的）
-            detail: { args: tc.args, convId: conv.id, scenario: conv.scenario },
+            // 记录场景与过期时间，供 confirmOp 校验并恢复正确的工具集
+            detail: {
+              args: tc.args,
+              convId: conv.id,
+              scenario: conv.scenario,
+              expiresAt: new Date(Date.now() + confirmTimeoutSec * 1000).toISOString(),
+            },
           })
           pendingOps.push({
             opLogId: opLog.id,
@@ -210,7 +239,7 @@ export class AgentService {
             userId: conv.userId,
             category: 'SYSTEM',
             title: '智能体操作待确认',
-            content: `智能体请求执行 ${tc.name}，操作详情：${JSON.stringify(tc.args)}。请在 ${this.configService.get('AGENT_CONFIRM_TIMEOUT_SEC', 60)} 秒内确认。`,
+            content: `智能体请求执行 ${tc.name}，操作详情：${JSON.stringify(tc.args)}。请在 ${confirmTimeoutSec} 秒内确认。`,
             channels: 'IN_APP',
             priority: 'HIGH',
           })
@@ -245,8 +274,12 @@ export class AgentService {
 
   /**
    * 确认或拒绝待确认的操作
-   * - CONFIRM：执行工具，更新日志为 SUCCESS
+   * - CONFIRM：执行工具（真实资金逻辑走 executeConfirmed），更新日志为 SUCCESS
    * - REJECT：更新日志为 REJECTED
+   *
+   * 安全约束：
+   *  1. 只有操作属主（subjectId/subjectType 匹配）才能确认/拒绝 —— 防止越权替他人确认资金操作
+   *  2. 超过 AGENT_CONFIRM_TIMEOUT_SEC 的待确认操作自动过期，不可再确认
    */
   async confirmOp(input: {
     opLogId: string
@@ -261,6 +294,37 @@ export class AgentService {
       throw new BadRequestException('操作已处理')
     }
 
+    // 属主校验：仅操作主体本人可确认/拒绝
+    const isOwner =
+      input.user.subjectId != null &&
+      opLog.subjectId === input.user.subjectId &&
+      (opLog.subjectType ?? 'user') === (input.user.subjectType ?? 'user')
+    if (!isOwner) {
+      throw new ForbiddenException('无权处理该操作')
+    }
+
+    let detail: Record<string, unknown> = {}
+    if (opLog.detail) {
+      try {
+        detail = JSON.parse(opLog.detail)
+      } catch {
+        throw new BadRequestException('操作记录详情损坏')
+      }
+    }
+
+    // 过期校验：超过确认时限的操作自动置为 EXPIRED（与定时巡检双保险）
+    const expiresAtRaw = detail.expiresAt as string | undefined
+    if (expiresAtRaw) {
+      const expiresAt = new Date(expiresAtRaw)
+      if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+        await this.prisma.agentOperationLog.update({
+          where: { id: input.opLogId },
+          data: { result: AGENT_RESULT_EXPIRED },
+        })
+        throw new BadRequestException('确认已超时，操作自动过期')
+      }
+    }
+
     if (input.decision === 'REJECT') {
       await this.prisma.agentOperationLog.update({
         where: { id: input.opLogId },
@@ -270,14 +334,6 @@ export class AgentService {
     }
 
     // CONFIRM：执行工具
-    let detail: Record<string, unknown> = {}
-    if (opLog.detail) {
-      try {
-        detail = JSON.parse(opLog.detail)
-      } catch {
-        throw new BadRequestException('操作记录详情损坏')
-      }
-    }
     // 用记录场景恢复正确的工具集（此前误用 scope 解析场景导致工具查不到）
     const scenario = (detail.scenario as string) || opLog.action.split(':')[0]
     const tools = this.toolRegistry.getTools(input.user, scenario as any, this.toolDeps)
@@ -285,9 +341,17 @@ export class AgentService {
     if (!tool) {
       throw new BadRequestException(`工具 ${opLog.action} 不存在`)
     }
+    if (tool.requireConfirm && typeof tool.executeConfirmed !== 'function') {
+      throw new BadRequestException(`工具 ${opLog.action} 未实现确认后执行逻辑`)
+    }
 
     try {
-      const result = await tool.execute(detail.args ?? {})
+      // requireConfirm 工具的 execute 只是提案占位，真实逻辑在 executeConfirmed；
+      // 注入 __opLogId 作为幂等键，防止同一确认被重放执行两次
+      const args = { ...(detail.args as Record<string, unknown> ?? {}), __opLogId: opLog.id }
+      const result = tool.requireConfirm && tool.executeConfirmed
+        ? await tool.executeConfirmed(args)
+        : await tool.execute(args)
       // 更新日志为 SUCCESS（保持原 hash 不变，追加结果记录）
       await this.prisma.agentOperationLog.update({
         where: { id: input.opLogId },

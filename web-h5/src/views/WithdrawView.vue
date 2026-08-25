@@ -13,19 +13,58 @@
       <el-button type="primary" size="large" class="btn" :loading="loading" @click="submit">提交提现</el-button>
     </el-form>
     <div class="tip">提现需审核通过后到账，请确认银行卡号正确。</div>
+
+    <el-divider />
+    <div class="section-title">提现记录</div>
+    <el-table :data="records" v-loading="recordsLoading" size="small" stripe>
+      <el-table-column prop="createdAt" label="时间" width="110">
+        <template #default="{ row }">{{ fmt(row.createdAt) }}</template>
+      </el-table-column>
+      <el-table-column label="金额" width="100">
+        <template #default="{ row }">¥{{ (row.amount / 100).toFixed(2) }}</template>
+      </el-table-column>
+      <el-table-column prop="status" label="状态" width="90">
+        <template #default="{ row }">
+          <el-tag size="small" :type="row.status === 'SUCCESS' ? 'success' : row.status === 'FAILED' || row.status === 'REJECTED' ? 'danger' : 'warning'">{{ statusText(row.status) }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
+    </el-table>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { withdraw } from '@/api/modules'
+import { withdraw, fetchWithdrawals } from '@/api/modules'
 import { extractError } from '@/api/http'
+
+interface WithdrawalRecord {
+  id: string
+  amount: number
+  status: string
+  remark?: string | null
+  createdAt: string
+}
 
 const amount = ref(100)
 const channelAccount = ref('')
 const payPassword = ref('')
 const loading = ref(false)
+const records = ref<WithdrawalRecord[]>([])
+const recordsLoading = ref(false)
+
+function fmt(v: string) { return v ? v.replace('T', ' ').slice(0, 16).replace(/-/g, '/') : '-' }
+function statusText(s: string) {
+  const map: Record<string, string> = {
+    PENDING: '待审核',
+    PROCESSING: '打款中',
+    SUCCESS: '成功',
+    FAILED: '失败',
+    REJECTED: '已拒绝',
+  }
+  return map[s] || s
+}
 
 async function submit() {
   if (!amount.value || amount.value <= 0) return ElMessage.warning('请输入提现金额')
@@ -40,16 +79,33 @@ async function submit() {
       idempotencyKey: `withdraw-${Date.now()}`,
     })
     ElMessage.success('提现申请已提交')
+    loadRecords()
   } catch (e) {
     ElMessage.error(extractError(e))
   } finally {
     loading.value = false
   }
 }
+
+async function loadRecords() {
+  recordsLoading.value = true
+  try {
+    const res = await fetchWithdrawals()
+    // 接口返回完整订单数组（含账户等字段），此处仅取列表展示所需字段
+    records.value = (Array.isArray(res) ? res : []) as WithdrawalRecord[]
+  } catch {
+    // 记录加载失败不阻塞主流程
+  } finally {
+    recordsLoading.value = false
+  }
+}
+
+onMounted(loadRecords)
 </script>
 
 <style scoped>
 .card { background: #fff; border-radius: 12px; padding: 20px; }
 .btn { width: 100%; margin-top: 8px; }
 .tip { margin-top: 12px; font-size: 12px; color: #9ca3af; }
+.section-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #374151; }
 </style>

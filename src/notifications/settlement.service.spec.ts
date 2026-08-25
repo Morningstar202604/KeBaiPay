@@ -11,10 +11,6 @@ type PrismaMock = {
   }
   user: { findUnique: jest.Mock }
   merchant: { findUnique: jest.Mock; findMany: jest.Mock }
-  account: { findUnique: jest.Mock; update: jest.Mock }
-  accountLedger: { create: jest.Mock }
-  platformAccount: { findUnique: jest.Mock; update: jest.Mock }
-  $transaction: jest.Mock
 }
 type NotificationsMock = { notifySettlementComplete: jest.Mock }
 
@@ -32,10 +28,6 @@ describe('SettlementService', () => {
       },
       user: { findUnique: jest.fn() },
       merchant: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-      account: { findUnique: jest.fn(), update: jest.fn() },
-      accountLedger: { create: jest.fn() },
-      platformAccount: { findUnique: jest.fn(), update: jest.fn() },
-      $transaction: jest.fn(async (fn: (tx: typeof prisma) => Promise<unknown>) => fn(prisma)),
     }
     notifications = { notifySettlementComplete: jest.fn().mockResolvedValue(true) }
 
@@ -58,7 +50,7 @@ describe('SettlementService', () => {
       expect(prisma.paymentOrder.updateMany).not.toHaveBeenCalled()
     })
 
-    it('单商户多订单时计算总额、更新结算标记、记录账本、发送通知', async () => {
+    it('单商户多订单时计算总额、幂等更新结算标记、发送通知（不再动余额/账本）', async () => {
       const orders = [
         {
           id: 'o1',
@@ -76,10 +68,8 @@ describe('SettlementService', () => {
         },
       ]
       prisma.paymentOrder.findMany.mockResolvedValue(orders)
+      prisma.paymentOrder.updateMany.mockResolvedValue({ count: 2 })
       prisma.user.findUnique.mockResolvedValue({ id: 'u1', email: 'a@example.com' })
-      prisma.merchant.findUnique.mockResolvedValue({ id: 'm1', userId: 'u1' })
-      prisma.account.findUnique.mockResolvedValue({ id: 'a1', availableBalance: 0 })
-      prisma.account.update.mockResolvedValue({ id: 'a1', availableBalance: 14850 })
 
       const res = await service.runDailySettlement()
 
@@ -93,23 +83,39 @@ describe('SettlementService', () => {
         settleAmount: 14850,
         status: 'SUCCESS',
       })
-      // 更新订单 settledAt
+      // 条件幂等更新 settledAt（只抢 settledAt=null 的订单）
       expect(prisma.paymentOrder.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: { in: ['o1', 'o2'] } } }),
-      )
-      // 记录账本
-      expect(prisma.accountLedger.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ accountId: 'a1', type: 'SETTLEMENT', amount: 14850 }),
+          where: { id: { in: ['o1', 'o2'] }, settledAt: null },
         }),
       )
-      // 发送结算通知
+      // 结算绝不修改余额/写账本（支付时已实时入账）
       expect(notifications.notifySettlementComplete).toHaveBeenCalledWith(
         'a@example.com',
         '商户A',
         '148.50',
         expect.any(String),
       )
+    })
+
+    it('结算标记被并发抢占（count=0）时跳过该商户，不重复出账单', async () => {
+      const orders = [
+        {
+          id: 'o1',
+          merchantId: 'm1',
+          amount: 10000,
+          fee: 100,
+          merchant: { id: 'm1', merchantName: '商户A', userId: 'u1' },
+        },
+      ]
+      prisma.paymentOrder.findMany.mockResolvedValue(orders)
+      prisma.paymentOrder.updateMany.mockResolvedValue({ count: 0 })
+
+      const res = await service.runDailySettlement()
+
+      expect(res).toHaveLength(1)
+      expect(res[0]).toMatchObject({ merchantId: 'm1', status: 'SKIPPED' })
+      expect(notifications.notifySettlementComplete).not.toHaveBeenCalled()
     })
 
     it('商户处理抛错时返回 ERROR 状态，不影响其他商户', async () => {
@@ -135,9 +141,6 @@ describe('SettlementService', () => {
         .mockRejectedValueOnce(new Error('db-down'))
         .mockResolvedValueOnce({ count: 1 })
       prisma.user.findUnique.mockResolvedValue({ id: 'u2', email: 'b@example.com' })
-      prisma.merchant.findUnique.mockResolvedValue({ id: 'm2', userId: 'u2' })
-      prisma.account.findUnique.mockResolvedValue({ id: 'a2', availableBalance: 0 })
-      prisma.account.update.mockResolvedValue({ id: 'a2', availableBalance: 1980 })
 
       const res = await service.runDailySettlement()
 

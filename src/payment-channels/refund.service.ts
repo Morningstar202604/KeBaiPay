@@ -5,13 +5,13 @@ import {
   Logger,
 } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
-import { TransactionStatus, PaymentOrderStatus } from '../common/enums'
+import { TransactionStatus, PaymentOrderStatus, LedgerType, Direction, RiskEventType, RiskLevel } from '../common/enums'
 import { RedisService } from '../redis/redis.service'
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { PaymentChannelRegistry } from './payment-channel.registry'
 import { PaymentChannelBridge } from './payment-channel.bridge'
 import { RefundRequest, RefundResponse, ChannelConfig } from './payment-channel.interface'
-import { generateOrderNo } from '../common/helpers'
+import { generateOrderNo, fenToYuan } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import { REDIS_LOCK_TTL_SECONDS } from '../common/constants'
 
@@ -76,6 +76,20 @@ export class RefundService {
       // 检查退款金额
       const refundableAmount = order.amount - (order.fee || 0)
       if (amount > refundableAmount) {
+        throw new BadRequestException(kbError(KBErrorCodes.REFUND_AMOUNT_EXCEEDED))
+      }
+
+      // 聚合历史退款校验：单次上限校验无法防止换幂等键反复部分退款，
+      // 必须累加原订单所有 PROCESSING/SUCCESS 退款后与可退总额比较
+      const priorRefunds = await this.prisma.transactionOrder.aggregate({
+        where: {
+          relatedOrderNo: orderNo,
+          status: { in: [TransactionStatus.PROCESSING, TransactionStatus.SUCCESS] },
+        },
+        _sum: { amount: true },
+      })
+      const refundedTotal = priorRefunds._sum.amount || 0
+      if (refundedTotal + amount > refundableAmount) {
         throw new BadRequestException(kbError(KBErrorCodes.REFUND_AMOUNT_EXCEEDED))
       }
 
@@ -308,32 +322,56 @@ export class RefundService {
             where: { orderNo: refundOrder.relatedOrderNo },
           })
           if (originalOrder && originalOrder.toUserId) {
-            // 更新账户余额
+            // 更新账户余额（条件更新防负余额；幂等键与 processRefundSuccess 统一为退款单 id，
+            // 两条路径通过同一账本键互见，防止并发双倍扣款）
             const account = await tx.account.findUnique({
               where: { userId: originalOrder.toUserId },
             })
             if (account) {
-              const updatedAccount = await tx.account.update({
-                where: { id: account.id },
-                data: {
-                  availableBalance: { decrement: refundOrder.amount },
-                  totalBalance: { decrement: refundOrder.amount },
-                },
+              const existingLedger = await tx.accountLedger.findFirst({
+                where: { transactionId: refundOrder.id, direction: Direction.CREDIT },
               })
-
-              // 记录账本
-              await tx.accountLedger.create({
-                data: {
-                  accountId: account.id,
-                  transactionId: refundOrder.id,
-                  type: 'REFUND' as any,
-                  amount: refundOrder.amount,
-                  balanceBefore: updatedAccount.availableBalance + refundOrder.amount,
-                  balanceAfter: updatedAccount.availableBalance,
-                  direction: 'CREDIT' as any,
-                  remark: `退款 ${result.refundNo}`,
-                },
-              })
+              if (existingLedger) {
+                this.logger.warn(`退款 ${result.refundNo} 已由其他路径入账，跳过重复扣款`)
+              } else {
+                const deductResult = await tx.account.updateMany({
+                  where: { id: account.id, availableBalance: { gte: refundOrder.amount } },
+                  data: {
+                    availableBalance: { decrement: refundOrder.amount },
+                    totalBalance: { decrement: refundOrder.amount },
+                  },
+                })
+                if (deductResult.count === 0) {
+                  // 商户可用余额不足以扣回退款：保留渠道成功状态（渠道事实不可改），
+                  // 记录 HIGH 风险事件交人工处理，绝不允许余额变负
+                  await tx.riskEvent.create({
+                    data: {
+                      userId: originalOrder.toUserId,
+                      type: RiskEventType.LARGE_PAYMENT,
+                      level: RiskLevel.HIGH,
+                      description: `退款 ${result.refundNo} 扣回失败：商户可用余额不足 ${fenToYuan(refundOrder.amount)} 元，需人工调账`,
+                    },
+                  })
+                  this.logger.error(
+                    `退款 ${result.refundNo} 扣回失败：账户 ${account.id} 可用余额不足`,
+                  )
+                } else {
+                  // 记录账本
+                  const refreshed = await tx.account.findUnique({ where: { id: account.id } })
+                  await tx.accountLedger.create({
+                    data: {
+                      accountId: account.id,
+                      transactionId: refundOrder.id,
+                      type: LedgerType.REFUND,
+                      amount: refundOrder.amount,
+                      balanceBefore: refreshed!.availableBalance + refundOrder.amount,
+                      balanceAfter: refreshed!.availableBalance,
+                      direction: Direction.CREDIT,
+                      remark: `退款 ${result.refundNo}`,
+                    },
+                  })
+                }
+              }
             }
 
             // 同步更新对应的 paymentOrder.refundAmount，保证 OpenAPI 查订单能看到退款金额
@@ -386,9 +424,9 @@ export class RefundService {
         return
       }
 
-      // 幂等检查：检查是否已有该退款的账本记录，避免重复扣款
+      // 幂等检查：以退款单 id 为账本键（与回调路径统一），避免重复扣款
       const existingLedger = await this.prisma.accountLedger.findFirst({
-        where: { transactionId: refundNo },
+        where: { transactionId: refundOrder.id, direction: Direction.CREDIT },
       })
       if (existingLedger) {
         this.logger.warn(`退款 ${refundNo} 已处理过资金退回，跳过重复扣款`)
@@ -412,23 +450,38 @@ export class RefundService {
           })
         }
 
-        const updatedAccount = await tx.account.update({
-          where: { id: account.id },
+        // 条件更新防负余额：可用余额不足时记录 HIGH 风险事件，交人工处理
+        const deductResult = await tx.account.updateMany({
+          where: { id: account.id, availableBalance: { gte: amount } },
           data: {
             availableBalance: { decrement: amount },
             totalBalance: { decrement: amount },
           },
         })
 
+        if (deductResult.count === 0) {
+          await tx.riskEvent.create({
+            data: {
+              userId,
+              type: RiskEventType.LARGE_PAYMENT,
+              level: RiskLevel.HIGH,
+              description: `退款 ${refundNo} 扣回失败：可用余额不足 ${fenToYuan(amount)} 元，需人工调账`,
+            },
+          })
+          this.logger.error(`退款 ${refundNo} 扣回失败：账户 ${account.id} 可用余额不足`)
+          return
+        }
+
+        const refreshed = await tx.account.findUnique({ where: { id: account.id } })
         await tx.accountLedger.create({
           data: {
             accountId: account.id,
-            transactionId: refundNo,
-            type: 'REFUND' as any,
+            transactionId: refundOrder.id,
+            type: LedgerType.REFUND,
             amount,
-            balanceBefore: updatedAccount.availableBalance + amount,
-            balanceAfter: updatedAccount.availableBalance,
-            direction: 'CREDIT' as any,
+            balanceBefore: refreshed!.availableBalance + amount,
+            balanceAfter: refreshed!.availableBalance,
+            direction: Direction.CREDIT,
             remark: `退款 ${refundNo}（原订单 ${originalOrderNo}）`,
           },
         })

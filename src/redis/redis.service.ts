@@ -260,9 +260,30 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     if (!acquired) {
       throw new Error(`获取锁失败: ${lockKey}`)
     }
+    // 看门狗：临界区执行时间可能超过 TTL（如 bcrypt 验密 + 多表事务），
+    // 锁过期会导致第二个请求进入临界区。以 TTL/3 周期自动续期，
+    // 仅当仍持有锁（token 匹配）时续期；fn 结束后停止。
+    let watchdog: NodeJS.Timeout | null = null
     try {
+      const renewIntervalMs = Math.max(1000, Math.floor((ttlSeconds * 1000) / 3))
+      watchdog = setInterval(() => {
+        this.client
+          ?.eval(
+            // 仅当 value 与 token 一致才续期（防误续他人锁）
+            `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("pexpire", KEYS[1], ARGV[2]) else return 0 end`,
+            1,
+            lockKey,
+            token,
+            String(ttlSeconds * 1000),
+          )
+          .catch(() => {
+            /* 续期失败不中断业务；锁到期后由 DB 级守卫兜底 */
+          })
+      }, renewIntervalMs)
+      watchdog.unref?.()
       return await fn()
     } finally {
+      if (watchdog) clearInterval(watchdog)
       await this.releaseLock(lockKey, token)
     }
   }

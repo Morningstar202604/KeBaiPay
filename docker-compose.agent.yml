@@ -26,6 +26,31 @@
 version: '3.8'
 
 services:
+  # 一次性初始化任务：在主项目的 postgres 中创建 n8n / botpress 专用库。
+  # postgres 镜像只会自动创建 POSTGRES_DB（主栈为 kebaipay），不创建这两个库，
+  # 不初始化的话 n8n/botpress 会因"数据库不存在"崩溃重启循环。
+  agent-db-init:
+    image: postgres:16-alpine
+    container_name: kebaipay-agent-db-init
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        echo "等待主库就绪..."
+        until psql -c 'select 1' >/dev/null 2>&1; do sleep 2; done
+        psql -tc "SELECT 1 FROM pg_database WHERE datname='${N8N_DB_NAME:-n8n}'" | grep -q 1 || psql -c "CREATE DATABASE ${N8N_DB_NAME:-n8n}"
+        psql -tc "SELECT 1 FROM pg_database WHERE datname='${BOTPRESS_DB_NAME:-botpress}'" | grep -q 1 || psql -c "CREATE DATABASE ${BOTPRESS_DB_NAME:-botpress}"
+        echo "Agent 库初始化完成"
+    networks:
+      - db-internal
+
   n8n:
     image: n8nio/n8n:latest
     container_name: kebaipay-n8n
@@ -58,9 +83,11 @@ services:
     networks:
       - db-internal
       - agent-frontend
+    # postgres 属于主 docker-compose.yml，不能在本文件 depends_on 引用；
+    # 启动顺序通过 agent-db-init 完成保证（其内部会等待主库就绪）
     depends_on:
-      postgres:
-        condition: service_healthy
+      agent-db-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- --timeout=3 http://localhost:5678/healthz | grep -q ok']
       interval: 30s
@@ -92,8 +119,8 @@ services:
       - db-internal
       - agent-frontend
     depends_on:
-      postgres:
-        condition: service_healthy
+      agent-db-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- --timeout=3 http://localhost:3010/health > /dev/null || exit 1']
       interval: 30s

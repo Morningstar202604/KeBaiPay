@@ -19,7 +19,8 @@ export const useAuthStore = defineStore('auth', {
     },
     async login(body: { username: string; password: string }) {
       const res = await api.adminLogin(body)
-      this.setSession(res.token, res.admin?.username || body.username)
+      // 后端返回 { adminId, token }，用户名以输入为准
+      this.setSession(res.token, body.username)
       return res
     },
     logout() {

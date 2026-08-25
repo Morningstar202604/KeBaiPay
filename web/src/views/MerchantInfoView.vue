@@ -43,6 +43,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmt } from '@/utils/format'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { MerchantInfo } from '@/types'
@@ -74,9 +75,6 @@ function statusType(s: string) {
 }
 function rateText(r: number) {
   return r != null ? `${(r / 100).toFixed(2)}%` : '-'
-}
-function fmt(v: string) {
-  return v ? v.replace('T', ' ').slice(0, 19) : '-'
 }
 
 async function load() {

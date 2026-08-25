@@ -82,10 +82,31 @@
         @current-change="onPage"
       />
     </div>
+
+    <el-dialog v-model="detailVisible" title="订单详情" width="480px">
+      <el-descriptions v-if="detailRow" :column="1" border>
+        <el-descriptions-item label="订单号">{{ detailRow.orderNo }}</el-descriptions-item>
+        <el-descriptions-item label="商户订单号">{{ detailRow.merchantOrderNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="商品名称">{{ detailRow.subject || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="金额">¥ {{ detailRow.amountYuan }}</el-descriptions-item>
+        <el-descriptions-item label="手续费">¥ {{ detailRow.feeYuan }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="statusType(detailRow.status)">{{ statusText(detailRow.status) }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="回调状态">{{ detailRow.notifyStatus }}</el-descriptions-item>
+        <el-descriptions-item label="回调地址">{{ detailRow.callbackUrl || '未配置' }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ formatTime(detailRow.createdAt) }}</el-descriptions-item>
+        <el-descriptions-item v-if="detailRow.paidAt" label="支付时间">{{ formatTime(detailRow.paidAt) }}</el-descriptions-item>
+      </el-descriptions>
+      <template #footer>
+        <el-button @click="detailVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
+import { fmt as formatTime } from '@/utils/format'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { OrderStatus, PaymentOrder } from '@/types'
@@ -129,9 +150,6 @@ function statusType(s: string) {
   }
   return map[s] || 'info'
 }
-function formatTime(v: string) {
-  return v ? v.replace('T', ' ').slice(0, 19) : '-'
-}
 
 async function load() {
   loading.value = true
@@ -164,8 +182,12 @@ function onPage(p: number) {
   query.page = p
   load()
 }
+const detailVisible = ref(false)
+const detailRow = ref<PaymentOrder | null>(null)
 function onDetail(row: PaymentOrder) {
-  ElMessage.info(`订单号：${row.orderNo}`)
+  // 展示列表已有的真实字段（后端无单独详情端点）
+  detailRow.value = row
+  detailVisible.value = true
 }
 
 async function onRetry(row: PaymentOrder) {

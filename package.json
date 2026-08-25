@@ -29,7 +29,7 @@
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.config.js",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "clean": "rm -rf dist node_modules/.cache",
+    "clean": "node -e \"const fs=require('fs');for(const p of ['dist','node_modules/.cache'])fs.rmSync(p,{recursive:true,force:true})\"",
     "check:external": "node scripts/check-external.mjs"
   },
   "dependencies": {
@@ -124,12 +124,12 @@
     "risk-control",
     "self-hosted"
   ],
-  "homepage": "https://github.com/weed33834/KeBaiPay",
+  "homepage": "https://gitcode.com/badhope/KeBaiPay",
   "repository": {
     "type": "git",
-    "url": "https://github.com/weed33834/KeBaiPay.git"
+    "url": "https://gitcode.com/badhope/KeBaiPay.git"
   },
   "bugs": {
-    "url": "https://github.com/weed33834/KeBaiPay/issues"
+    "url": "https://gitcode.com/badhope/KeBaiPay/issues"
   }
 }

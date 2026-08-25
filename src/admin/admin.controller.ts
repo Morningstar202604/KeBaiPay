@@ -32,6 +32,7 @@ import { ListLoginLogsQueryDto } from './dto/list-login-logs-query.dto'
 import { SetSystemConfigDto } from './dto/set-system-config.dto'
 import { UpdateRiskRuleDto } from './dto/update-risk-rule.dto'
 import { AuditMerchantDto } from './dto/audit-merchant.dto'
+import { HandleRiskEventDto } from './dto/handle-risk-event.dto'
 import { UpdateMerchantConfigDto } from './dto/update-merchant-config.dto'
 import { AdjustAccountDto } from './dto/adjust-account.dto'
 import { RejectIdentityDto } from './dto/reject-identity.dto'
@@ -252,6 +253,7 @@ export class AdminController {
   @ApiResponse({ status: 200, description: '事件已处理' })
   handleRiskEvent(
     @Param('id') id: string,
+    @Body() dto: HandleRiskEventDto,
     @AdminCurrentUser() admin: AdminCurrentUserType,
     @Req() req: Request,
   ) {
@@ -259,6 +261,7 @@ export class AdminController {
       id,
       admin.sub,
       this.extractAuditMeta(req),
+      dto.note,
     )
   }
 

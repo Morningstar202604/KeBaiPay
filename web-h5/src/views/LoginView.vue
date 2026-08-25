@@ -15,7 +15,7 @@
         </el-form-item>
         <el-button type="primary" size="large" class="btn" :loading="loading" @click="submit">登 录</el-button>
       </el-form>
-      <div class="tip">测试账号：13800000001 / Abc12345</div>
+      <div v-if="isDev" class="tip">测试账号：13800000001 / Abc12345（仅开发环境显示，生产环境请修改种子口令）</div>
     </div>
   </div>
 </template>
@@ -23,6 +23,8 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+
+const isDev = import.meta.env.DEV
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { extractError } from '@/api/http'

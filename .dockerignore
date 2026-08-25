@@ -1,6 +1,19 @@
 node_modules
 dist
 coverage
+# 递归排除所有层级的 node_modules（含 web*/ 子项目，防止构建上下文膨胀）
+**/node_modules
+
+# 前端子项目（镜像只托管其 dist；由 CI 单独构建后放置，不在后端镜像内构建）
+web
+web-admin
+web-h5
+
+# 演示素材（视频/截图体积大且运行时不需要）
+demo
+
+# 运行时数据目录
+data
 
 # 环境变量与密钥
 .env

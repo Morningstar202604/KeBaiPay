@@ -52,6 +52,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmt } from '@/utils/format'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { MerchantApp } from '@/types'
@@ -69,9 +70,6 @@ const secret = ref('')
 const editTarget = ref<MerchantApp | null>(null)
 const form = reactive({ name: '', callbackUrl: '' })
 
-function fmt(v: string) {
-  return v ? v.replace('T', ' ').slice(0, 19) : '-'
-}
 
 async function load() {
   loading.value = true

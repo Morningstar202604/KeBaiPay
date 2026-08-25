@@ -22,7 +22,7 @@ import {
 import { UsersService } from '../users/users.service'
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { RedisService } from '../redis/redis.service'
-import { generateOrderNo, yuanToFen } from '../common/helpers'
+import { createFrozenLegLedgerEntry, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import { randomInt } from 'crypto'
 import { DEFAULT_RED_PACKET_DAILY_LIMIT_CENTS, RED_PACKET_EXPIRY_MS, REDIS_LOCK_TTL_SECONDS } from '../common/constants'
@@ -217,6 +217,18 @@ export class RedPacketsService {
           direction: Direction.CREDIT,
           remark: `发出${this.typeLabel(type)}红包`,
         },
+      })
+
+      // 复式记账：冻结的对手方分录（frozenBalance 增加 = DEBIT），
+      // 领取/过期退回时再与真实资金流配平
+      await createFrozenLegLedgerEntry(tx, {
+        accountId: account.id,
+        transactionId: packet.id,
+        type: LedgerType.RED_PACKET,
+        amount: amountFen,
+        frozenBefore: updatedAccount!.frozenBalance - amountFen,
+        frozenAfter: updatedAccount!.frozenBalance,
+        remark: `发出${this.typeLabel(type)}红包（冻结余额对应分录）`,
       })
 
       return packet
@@ -544,6 +556,17 @@ export class RedPacketsService {
         direction: Direction.DEBIT,
         remark: `${this.typeLabel(packet.type as RedPacketType)}红包过期退回`,
       },
+    })
+
+    // 复式记账：过期退回的对手方分录（frozenBalance 减少 = CREDIT）
+    await createFrozenLegLedgerEntry(tx, {
+      accountId: account.id,
+      transactionId: packet.id,
+      type: LedgerType.RED_PACKET,
+      amount: refundAmount,
+      frozenBefore: updatedAccount!.frozenBalance + refundAmount,
+      frozenAfter: updatedAccount!.frozenBalance,
+      remark: `${this.typeLabel(packet.type as RedPacketType)}红包过期退回（冻结余额对应分录）`,
     })
 
     await tx.bill.create({

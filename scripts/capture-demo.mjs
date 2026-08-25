@@ -50,7 +50,7 @@ const browser = await chromium.launch({ headless: true })
 {
   const ctx = await browser.newContext({ viewport:{width:1440,height:900}, recordVideo:{dir:VID,size:{width:1440,height:900}} })
   const p = await ctx.newPage()
-  await p.goto(`${BASE}/admin/#/login`,{waitUntil:'networkidle'}); await shot(p,'admin-login'); await login(p,['admin','Admin2026'])
+  await p.goto(`${BASE}/admin/#/login`,{waitUntil:'networkidle'}); await shot(p,'admin-login'); await login(p,['admin',process.env.ADMIN_DEFAULT_PASSWORD || 'Admin@2026'])
   for (const [r,n] of [['dashboard','admin-dashboard'],['users','admin-users'],['merchants','admin-merchants'],['withdrawals','admin-withdrawals'],['orders','admin-orders'],['finance','admin-finance'],['risk','admin-risk'],['agents','admin-agents']]){ await p.goto(`${BASE}/admin/#/${r}`,{waitUntil:'networkidle'}); await sleep(1600); await shot(p,n) }
   await p.close(); await ctx.close()
 }

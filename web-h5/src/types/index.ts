@@ -18,7 +18,8 @@ export interface AccountInfo {
 export interface LedgerItem {
   id: string
   type: string
-  direction: 'INCOME' | 'EXPENSE'
+  /** 账本方向（AccountLedger 原始枚举）：DEBIT=资金增加，CREDIT=资金减少 */
+  direction: 'DEBIT' | 'CREDIT'
   amountYuan: string
   balanceAfterYuan: string
   counterparty?: string
@@ -57,7 +58,9 @@ export interface RedPacket {
   amount: number
   amountYuan?: string
   totalCount: number
-  receivedCount: number
+  /** 剩余可领个数（后端 RedPacket 原始字段；已领取数 = totalCount - remainingCount） */
+  remainingCount: number
+  receivedAmount: number
   status: string
   remark: string | null
   createdAt: string

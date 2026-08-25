@@ -11,7 +11,9 @@
     <el-table :data="list" v-loading="loading" stripe>
       <el-table-column prop="merchantNo" label="商户号" width="190" show-overflow-tooltip />
       <el-table-column prop="merchantName" label="商户名称" min-width="140" />
-      <el-table-column prop="user?.nickname" label="申请人" width="110" />
+      <el-table-column label="申请人" width="110">
+        <template #default="{ row }">{{ row.user?.nickname || '-' }}</template>
+      </el-table-column>
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
           <el-tag :type="tagType(row.status)">{{ statusText(row.status) }}</el-tag>
@@ -39,6 +41,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmt } from '@/utils/format'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AdminMerchant } from '@/types'
@@ -59,7 +62,6 @@ function tagType(s: string) {
   const map: Record<string, 'info' | 'success' | 'danger' | 'warning'> = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', SUSPENDED: 'info' }
   return map[s] || 'info'
 }
-function fmt(v: string) { return v ? v.replace('T', ' ').slice(0, 19) : '-' }
 
 async function load() {
   loading.value = true
@@ -75,11 +77,16 @@ function onPage(p: number) { query.page = p; load() }
 
 async function audit(row: AdminMerchant, action: 'APPROVE' | 'REJECT') {
   let reason: string | undefined
-  if (action === 'REJECT') {
-    const r = await ElMessageBox.prompt('请输入驳回原因', '驳回商户', { inputPattern: /\S+/, inputErrorMessage: '请填写驳回原因' })
-    reason = r.value
-  } else {
-    await ElMessageBox.confirm(`确定通过商户「${row.merchantName}」？`, '提示', { type: 'warning' })
+  try {
+    if (action === 'REJECT') {
+      const r = await ElMessageBox.prompt('请输入驳回原因', '驳回商户', { inputPattern: /\S+/, inputErrorMessage: '请填写驳回原因' })
+      reason = r.value
+    } else {
+      await ElMessageBox.confirm(`确定通过商户「${row.merchantName}」？`, '提示', { type: 'warning' })
+    }
+  } catch {
+    // 用户取消弹窗：直接返回，避免未处理的 rejection
+    return
   }
   try {
     await auditMerchant(row.id, { action, reason })

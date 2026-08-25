@@ -10,7 +10,9 @@
     </div>
     <el-table :data="list" v-loading="loading" stripe>
       <el-table-column prop="orderNo" label="提现单号" min-width="190" show-overflow-tooltip />
-      <el-table-column prop="user?.nickname" label="用户" width="120" />
+      <el-table-column label="用户" width="120">
+        <template #default="{ row }">{{ row.user?.nickname || '-' }}</template>
+      </el-table-column>
       <el-table-column label="金额" width="120">
         <template #default="{ row }">¥{{ row.amountYuan || (row.amount / 100).toFixed(2) }}</template>
       </el-table-column>
@@ -38,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmt } from '@/utils/format'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AdminWithdrawal } from '@/types'
@@ -58,7 +61,6 @@ function tagType(s: string) {
   const map: Record<string, 'info' | 'success' | 'danger' | 'warning'> = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger' }
   return map[s] || 'info'
 }
-function fmt(v: string) { return v ? v.replace('T', ' ').slice(0, 19) : '-' }
 
 async function load() {
   loading.value = true
@@ -73,7 +75,11 @@ function onSearch() { query.status = status.value; query.page = 1; load() }
 function onPage(p: number) { query.page = p; load() }
 
 async function approve(row: AdminWithdrawal) {
-  await ElMessageBox.confirm('确定通过该提现并打款？', '提示', { type: 'warning' })
+  try {
+    await ElMessageBox.confirm('确定通过该提现并打款？', '提示', { type: 'warning' })
+  } catch {
+    return
+  }
   try {
     await approveWithdrawal(row.id)
     ElMessage.success('已通过')
@@ -82,9 +88,15 @@ async function approve(row: AdminWithdrawal) {
 }
 
 async function reject(row: AdminWithdrawal) {
-  const r = await ElMessageBox.prompt('请输入拒绝原因', '拒绝提现', { inputPattern: /\S+/, inputErrorMessage: '请填写原因' })
+  let reason = ''
   try {
-    await rejectWithdrawal(row.id, r.value)
+    const r = await ElMessageBox.prompt('请输入拒绝原因', '拒绝提现', { inputPattern: /\S+/, inputErrorMessage: '请填写原因' })
+    reason = r.value
+  } catch {
+    return
+  }
+  try {
+    await rejectWithdrawal(row.id, reason)
     ElMessage.success('已拒绝')
     load()
   } catch (e) { ElMessage.error(extractError(e)) }

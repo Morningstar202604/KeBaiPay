@@ -68,12 +68,12 @@ export async function fetchOrders(params: { status?: string; page?: number; limi
 }
 
 // ---------- 风控事件 ----------
-export async function fetchRiskEvents(params: { level?: string; status?: string; page?: number; limit?: number }): Promise<Paged<RiskEvent>> {
+export async function fetchRiskEvents(params: { level?: string; handled?: string; page?: number; limit?: number }): Promise<Paged<RiskEvent>> {
   const { data } = await http.get<Paged<RiskEvent>>('/admin/risk-events', { params })
   return data
 }
 
-export async function handleRiskEvent(id: string, body: { action: string; note?: string }): Promise<unknown> {
+export async function handleRiskEvent(id: string, body: { note?: string }): Promise<unknown> {
   const { data } = await http.post(`/admin/risk-events/${id}/handle`, body)
   return data
 }

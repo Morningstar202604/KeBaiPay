@@ -11,6 +11,7 @@ import {
 } from '../common/enums'
 import { PrismaService } from '../prisma/prisma.service'
 import { FinanceService } from './finance.service'
+import { getDateRange as buildUtcRange, getPreviousDate as utcPreviousDate } from '../common/date-helpers'
 import { fenToYuan } from '../common/helpers'
 import { escapeCsvField } from '../common/csv'
 
@@ -393,16 +394,13 @@ export class ReconciliationService {
   }
 
   private getDateRange(date: string) {
-    const start = new Date(`${date}T00:00:00.000Z`)
-    const end = new Date(`${date}T23:59:59.999Z`)
-    return { start, end }
+    return buildUtcRange(date, date)
   }
 
   private getPreviousDate(date: string): string | null {
-    const d = new Date(`${date}T00:00:00.000Z`)
-    if (Number.isNaN(d.getTime())) return null
-    d.setUTCDate(d.getUTCDate() - 1)
-    return d.toISOString().slice(0, 10)
+    // 无效日期输入时返回 null（与历史行为一致：跳过前日快照对比）
+    const prev = utcPreviousDate(date)
+    return /^\d{4}-\d{2}-\d{2}$/.test(prev) ? prev : null
   }
 
 }

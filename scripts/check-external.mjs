@@ -87,8 +87,6 @@ if (llmProvider === 'mock') {
 // ---- ④ 可观测性（可选）----
 if (E.OTEL_EXPORTER_OTLP_ENDPOINT) add(OK, 'OTEL 链路追踪', E.OTEL_EXPORTER_OTLP_ENDPOINT)
 else add(WARN, 'OTEL 链路追踪', '未配置（no-op，不影响可用性）')
-if (E.SENTRY_DSN) add(OK, 'Sentry 异常上报', '已配置 DSN')
-else add(WARN, 'Sentry 异常上报', '未配置（可选）')
 
 // ---- ⑤ 运行环境/密钥强度 ----
 const secrets = {

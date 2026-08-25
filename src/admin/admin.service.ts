@@ -432,6 +432,7 @@ export class AdminService {
     id: string,
     handledBy: string,
     auditMeta?: AuditMeta,
+    note?: string,
   ) {
     const event = await this.prisma.riskEvent.findUnique({ where: { id } })
     if (!event) throw new NotFoundException(kbError(KBErrorCodes.RISK_EVENT_NOT_FOUND))
@@ -440,7 +441,12 @@ export class AdminService {
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.riskEvent.update({
         where: { id },
-        data: { handled: true, handledBy, handledAt: new Date() },
+        data: {
+          handled: true,
+          handledBy,
+          handledAt: new Date(),
+          ...(note ? { description: `${event.description}\n[处置说明] ${note}` } : {}),
+        },
       })
 
       // 风险事件处理属于敏感操作，写入防篡改审计日志
@@ -453,6 +459,7 @@ export class AdminService {
             userId: event.userId,
             type: event.type,
             level: event.level,
+            ...(note ? { note } : {}),
           },
           ip: auditMeta?.ip,
           userAgent: auditMeta?.userAgent,

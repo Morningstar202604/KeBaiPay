@@ -25,7 +25,7 @@ import {
 import { UsersService } from '../users/users.service'
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { RedisService } from '../redis/redis.service'
-import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
+import { createFrozenLegLedgerEntry, fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
   DEFAULT_BATCH_TRANSFER_DAILY_LIMIT_CENTS,
@@ -249,6 +249,18 @@ export class BatchTransfersService {
           },
         })
 
+        // 复式记账：冻结的对手方分录（frozenBalance 增加 = DEBIT），
+        // 冻结为内部动作，账本净额必须为 0；逐笔成功/取消退款时再与真实资金流配平
+        await createFrozenLegLedgerEntry(tx, {
+          accountId: senderAccount.id,
+          transactionId: freezeOrder.id,
+          type: LedgerType.BATCH_TRANSFER,
+          amount: totalAmount,
+          frozenBefore: updatedAccount!.frozenBalance - totalAmount,
+          frozenAfter: updatedAccount!.frozenBalance,
+          remark: `批量转账 ${batchNo} 冻结（冻结余额对应分录）`,
+        })
+
         // 标记 PENDING → PROCESSING
         const lockResult = await tx.batchTransfer.updateMany({
           where: { id: created.id, status: BatchTransferStatus.PENDING },
@@ -447,6 +459,16 @@ export class BatchTransfersService {
               remark: `批次 ${batch.batchNo} 失败笔数退款（${failedCount} 笔）`,
             },
           })
+          // 复式记账：退回的对手方分录（frozenBalance 减少 = CREDIT）
+          await createFrozenLegLedgerEntry(this.prisma, {
+            accountId: senderAccount.id,
+            transactionId: refundOrder.id,
+            type: LedgerType.BATCH_TRANSFER,
+            amount: failedTotalAmount,
+            frozenBefore: updatedAccount!.frozenBalance + failedTotalAmount,
+            frozenAfter: updatedAccount!.frozenBalance,
+            remark: `批次 ${batch.batchNo} 失败笔数退款（冻结余额对应分录）`,
+          })
         }
       }
     }
@@ -474,14 +496,26 @@ export class BatchTransfersService {
   ): Promise<{ success: boolean; reason?: string }> {
     try {
       const result = await this.prisma.$transaction(async (tx) => {
+        // 抢占式认领：仅当明细仍为 PENDING 时置为 PROCESSING。
+        // 与 cancel（PENDING→FAILED+退款）并发时，二者只能有一个抢到，
+        // 从而杜绝"取消已退款 + 转账又成功"的双花竞态。
+        const claim = await tx.batchTransferItem.updateMany({
+          where: { id: itemId, status: BatchItemStatus.PENDING },
+          data: { status: BatchItemStatus.PROCESSING },
+        })
+        if (claim.count === 0) {
+          const existing = await tx.batchTransferItem.findUnique({
+            where: { id: itemId },
+            select: { status: true },
+          })
+          return { success: false, reason: `明细已被处理或跳过：${existing?.status ?? 'UNKNOWN'}` }
+        }
+
         const item = await tx.batchTransferItem.findUnique({
           where: { id: itemId },
         })
         if (!item) {
           return { success: false, reason: '明细不存在' }
-        }
-        if (item.status !== BatchItemStatus.PENDING) {
-          return { success: false, reason: `明细已处理：${item.status}` }
         }
 
         // 校验收款人
@@ -614,14 +648,19 @@ export class BatchTransfersService {
           },
         })
 
-        // 标记明细 SUCCESS + 关联 transactionId
-        await tx.batchTransferItem.updateMany({
-          where: { id: item.id, status: BatchItemStatus.PENDING },
+        // 标记明细 SUCCESS + 关联 transactionId（条件更新：仅当仍持有 PROCESSING）
+        const finalize = await tx.batchTransferItem.updateMany({
+          where: { id: item.id, status: BatchItemStatus.PROCESSING },
           data: {
             status: BatchItemStatus.SUCCESS,
             transactionId: order.id,
           },
         })
+        if (finalize.count === 0) {
+          // 状态被并发修改（理论上不可能：认领与划转同事务），
+          // 抛错回滚整个明细事务，避免资金已划转但明细状态不一致
+          throw new Error('明细状态并发变更，事务回滚')
+        }
         return { success: true }
       })
       return result
@@ -643,14 +682,17 @@ export class BatchTransfersService {
     }
   }
 
-  /** 标记明细失败（事务内） */
+  /** 标记明细失败（事务内；认领后为 PROCESSING，回滚后为 PENDING，两种都覆盖） */
   private async markItemFailed(
     tx: Prisma.TransactionClient,
     itemId: string,
     reason: string,
   ): Promise<void> {
     await tx.batchTransferItem.updateMany({
-      where: { id: itemId, status: BatchItemStatus.PENDING },
+      where: {
+        id: itemId,
+        status: { in: [BatchItemStatus.PENDING, BatchItemStatus.PROCESSING] },
+      },
       data: {
         status: BatchItemStatus.FAILED,
         failureReason: reason.slice(0, 200),
@@ -780,6 +822,16 @@ export class BatchTransfersService {
                     direction: Direction.DEBIT,
                     remark: `批次 ${batchNo} 取消，退回未处理明细资金`,
                   },
+                })
+                // 复式记账：取消退款的对手方分录（frozenBalance 减少 = CREDIT）
+                await createFrozenLegLedgerEntry(tx, {
+                  accountId: senderAccount.id,
+                  transactionId: refundOrder.id,
+                  type: LedgerType.BATCH_TRANSFER,
+                  amount: refundAmount,
+                  frozenBefore: updated!.frozenBalance + refundAmount,
+                  frozenAfter: updated!.frozenBalance,
+                  remark: `批次 ${batchNo} 取消退款（冻结余额对应分录）`,
                 })
               }
             }

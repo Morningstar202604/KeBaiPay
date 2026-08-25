@@ -27,6 +27,8 @@ export default defineConfig(({ mode }) => {
         '/cashier': { target: apiBase || 'http://localhost:3000', changeOrigin: true },
         '/qr-codes': { target: apiBase || 'http://localhost:3000', changeOrigin: true },
         '/users': { target: apiBase || 'http://localhost:3000', changeOrigin: true },
+        // 智能体对话接口（AgentChatView 使用）
+        '/agent': { target: apiBase || 'http://localhost:3000', changeOrigin: true },
       },
     },
     build: {

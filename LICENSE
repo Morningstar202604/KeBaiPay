@@ -1,91 +1,54 @@
-KeBaiPay 使用许可协议 / KeBaiPay Use License
-Version 1.0（2026-08-11）
+PolyForm Noncommercial License 1.0.0
 
-版权所有 © 2026 KeBaiPay Contributors。保留所有权利。
-Copyright © 2026 KeBaiPay Contributors. All rights reserved.
+Copyright (c) 2024-present, badhope / Morningstar202604
 
-============================================================
-中文
-============================================================
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
 
-本软件及其源代码、文档、构建产物、示例与派生作品（以下简称"本软件"）的
-著作权及相关权利归版权持有者所有。
+1. **Noncommercial Use Only.** You may not use the Software for any commercial
+   purpose. "Commercial purpose" means any use of the Software in connection
+   with a business, trade, or occupation, or for any revenue-generating activity,
+   including but not limited to offering the Software as a service (SaaS),
+   embedding it in a commercial product, or using it to provide paid services.
 
-一、允许的行为（无需授权）
-1. 出于学习、研究、评估目的，查看、阅读本软件源代码。
-2. 就本软件提出问题、报告缺陷或进行非营利性的技术交流。
+2. **Attribution.** You must retain all copyright, patent, trademark, and
+   attribution notices in the Software, and include a copy of this license
+   in all distributions.
 
-二、严格禁止的行为（未经版权持有者书面授权，一律禁止）
-1. 商业使用：不得以任何形式将本软件或其任何部分用于商业目的，包括但不限于
-   产品化、SaaS、外包、代运营、二次开发后销售、提供付费服务等。
-2. 个人使用：不得将本软件用于任何个人用途，包括但不限于个人部署、个人运营、
-   个人生产环境运行、个人项目集成等（非商业亦在禁止之列）。
-3. 复制、修改、编译、构建、部署、托管、运行、展示本软件。
-4. 再分发、再许可、出售、出租、出借本软件或其任何部分。
-5. 基于本软件创作、合并、派生任何作品并对外提供。
-6. 移除、篡改或绕过本协议的任何条款。
+3. **ShareAlike.** If you modify the Software and distribute the modified
+   version, you must license the modified version under the same terms as this
+   license, or a later version of this license.
 
-三、授权
-上述禁止行为如需豁免，须事先获得版权持有者的书面明确授权。
-授权与否、授权范围及条件由版权持有者单方决定。
-版权持有者未明确书面授权的任何使用，一律视为侵权。
+4. **No Endorsement.** You may not use the names of the copyright holders to
+   endorse or promote products derived from the Software without specific prior
+   written permission.
 
-四、免责声明
-本软件按"现状"提供，不附带任何明示或默示的担保，
-包括但不限于适销性、特定用途适用性及不侵权的担保。
-版权持有者不对因使用或无法使用本软件造成的任何直接、间接、附带、
-特殊或后果性损害承担责任。
+5. **Patent Grant.** Each contributor grants you a non-exclusive, worldwide,
+   royalty-free patent license under their essential patent claims to make, use,
+   sell, offer for sale, import, and otherwise transfer the Software, subject
+   to the noncommercial restriction above.
 
-五、协议变更
-版权持有者保留随时修改本协议的权利。修改后的协议自发布时生效。
+6. **Termination.** If you breach any term of this license, your rights under
+   this license terminate automatically. Upon termination, you must cease all
+   use, distribution, and modification of the Software.
 
-============================================================
-English
-============================================================
+7. **Disclaimer of Warranty.** THE SOFTWARE IS PROVIDED "AS IS", WITHOUT
+   WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+   WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+   LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+   CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH
+   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-The copyright and all related rights in this software, its source code,
-documentation, build artifacts, examples, and derivative works
-(collectively, the "Software") are owned by the copyright holder.
+---
 
-1. Permitted (no authorization required)
-   1.1 Viewing and reading the source code for the purpose of learning,
-       research, or evaluation.
-   1.2 Asking questions, reporting defects, or engaging in non-commercial
-       technical exchange regarding the Software.
+This license is the PolyForm Noncommercial License 1.0.0.
+For the full legal text, see: https://polyformproject.org/licenses/noncommercial/1.0.0/
 
-2. Strictly Prohibited (without prior written authorization from the
-   copyright holder, all of the following are forbidden)
-   2.1 Commercial use: using the Software, in whole or in part, for any
-       commercial purpose, including but not limited to productization,
-       SaaS, outsourcing, operations-on-behalf, resale of derivatives, or
-       paid services.
-   2.2 Personal use: using the Software for any personal purpose, including
-       but not limited to personal deployment, personal operation, running
-       in a personal production environment, or integration into personal
-       projects (non-commercial use is also prohibited).
-   2.3 Copying, modifying, compiling, building, deploying, hosting, running,
-       or displaying the Software.
-   2.4 Redistributing, relicensing, selling, renting, or lending the
-       Software or any part of it.
-   2.5 Creating, merging, or deriving any work based on the Software and
-       providing it to others.
-   2.6 Removing, altering, or circumventing any provision of this license.
-
-3. Authorization
-   Any exemption from the prohibitions above requires prior explicit
-   written authorization from the copyright holder. Whether, to what
-   extent, and under what conditions to grant such authorization is
-   determined solely by the copyright holder. Any use without such
-   explicit written authorization is deemed an infringement.
-
-4. Disclaimer
-   The Software is provided "AS IS", without warranty of any kind, express
-   or implied, including but not limited to the warranties of
-   merchantability, fitness for a particular purpose, and non-infringement.
-   In no event shall the copyright holder be liable for any claim, damages,
-   or other liability arising from or in connection with the use or
-   inability to use the Software.
-
-5. Changes
-   The copyright holder reserves the right to modify this license at any
-   time. The modified license takes effect upon publication.
+**Note:** This license permits use for learning, research, personal projects,
+and internal evaluation only. Any commercial use requires a separate commercial
+license from the copyright holders (badhope / Morningstar202604).
+Contact: [via GitCode/GitHub/Gitee profile]

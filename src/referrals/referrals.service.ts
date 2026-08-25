@@ -322,7 +322,7 @@ export class ReferralsService {
           const order2 = await tx.transactionOrder.create({
             data: {
               orderNo: rewardOrderNo,
-              type: TransactionType.RECHARGE, // 复用充值类型表示入账
+              type: TransactionType.RECHARGE, // 平台入账（对账公式按 -奖励额 抵扣，见 reconciliation.service）
               status: TransactionStatus.SUCCESS,
               amount: rewardAmount,
               fromUserId: null,
@@ -333,7 +333,7 @@ export class ReferralsService {
             },
           })
 
-          // 账本
+          // 账本：资金增加 = DEBIT（全库约定，与充值/收款一致）
           await tx.accountLedger.create({
             data: {
               accountId: referrerAccount.id,
@@ -342,7 +342,7 @@ export class ReferralsService {
               amount: rewardAmount,
               balanceBefore: updated.availableBalance - rewardAmount,
               balanceAfter: updated.availableBalance,
-              direction: Direction.CREDIT,
+              direction: Direction.DEBIT,
               remark: `邀请奖励 ${referral.referralNo}`,
             },
           })

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Injectable,
   BadRequestException,
   NotFoundException,
@@ -199,8 +199,20 @@ export class SubscriptionsService {
       throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '对方账户当前禁止收款'))
     }
 
-    // 校验支付密码
-    if (dto.payPassword) {
+    // 校验支付密码：
+    // - 无试用期计划：签约即首期扣款，属于即时资金支出，必须验密（与转账/提现/红包一致）；
+    // - 有试用期计划：首扣发生在试用期结束后的自动续费（合同扣款），
+    //   签约时不强制验密，但若提供了也顺带校验。
+    if (plan.trialDays > 0) {
+      if (dto.payPassword) {
+        await this.usersService.verifyPayPassword(subscriberId, dto.payPassword)
+      }
+    } else {
+      if (!dto.payPassword) {
+        throw new BadRequestException(
+          kbError(KBErrorCodes.INVALID_PARAMETER, '首次订阅扣款必须提供支付密码'),
+        )
+      }
       await this.usersService.verifyPayPassword(subscriberId, dto.payPassword)
     }
 
@@ -391,6 +403,8 @@ export class SubscriptionsService {
           failureReason: '付款方账户不存在',
         },
       })
+      // 同步返回值状态（否则调用方读到的是 PENDING 旧值）
+      charge.status = SubscriptionChargeStatus.FAILED
       return charge
     }
     if (subscriberAccount.status !== AccountStatus.ACTIVE) {
@@ -401,6 +415,8 @@ export class SubscriptionsService {
           failureReason: '付款方账户状态异常',
         },
       })
+      // 同步返回值状态（否则调用方读到的是 PENDING 旧值）
+      charge.status = SubscriptionChargeStatus.FAILED
       return charge
     }
 
@@ -416,6 +432,8 @@ export class SubscriptionsService {
           failureReason: '收款方账户不存在',
         },
       })
+      // 同步返回值状态（否则调用方读到的是 PENDING 旧值）
+      charge.status = SubscriptionChargeStatus.FAILED
       return charge
     }
     if (ownerAccount.status !== AccountStatus.ACTIVE) {
@@ -426,6 +444,8 @@ export class SubscriptionsService {
           failureReason: '收款方账户状态异常',
         },
       })
+      // 同步返回值状态（否则调用方读到的是 PENDING 旧值）
+      charge.status = SubscriptionChargeStatus.FAILED
       return charge
     }
 
@@ -448,6 +468,8 @@ export class SubscriptionsService {
           failureReason: '余额不足',
         },
       })
+      // 同步返回值状态（否则调用方读到的是 PENDING 旧值）
+      charge.status = SubscriptionChargeStatus.FAILED
       return charge
     }
 
@@ -785,7 +807,44 @@ export class SubscriptionsService {
             cycleEnd: sub.currentCycleEnd,
           })
 
-          // 计算下一周期
+          // 查询最近连续失败次数（用于暂停止损与退避计算）
+          const recentCharges = await tx.subscriptionCharge.findMany({
+            where: { subscriptionId: sub.id },
+            orderBy: { createdAt: 'desc' },
+            take: SUBSCRIPTION_MAX_FAILURES,
+          })
+          let consecutiveFailures = 0
+          for (const c of recentCharges) {
+            if (c.status !== SubscriptionChargeStatus.FAILED) break
+            consecutiveFailures++
+          }
+
+          // 扣款失败：不推进周期、不递增 completedCycles，
+          // 安排指数退避重试（24h 起，翻倍，上限 7 天）；
+          // 连续失败达上限则转 SUSPENDED 止损。
+          if (charge.status === SubscriptionChargeStatus.FAILED) {
+            const backoffMs = Math.min(
+              24 * 60 * 60 * 1000 * Math.pow(2, consecutiveFailures - 1),
+              7 * 24 * 60 * 60 * 1000,
+            )
+            const retryAt = new Date(Date.now() + backoffMs)
+            const shouldSuspend = consecutiveFailures >= SUBSCRIPTION_MAX_FAILURES
+            await tx.subscription.update({
+              where: { id: sub.id },
+              data: {
+                lastChargeId: charge.id,
+                nextChargeAt: shouldSuspend ? null : retryAt,
+                status: shouldSuspend ? SubscriptionStatus.SUSPENDED : SubscriptionStatus.ACTIVE,
+              },
+            })
+            this.logger.warn(
+              `订阅 ${sub.subscriptionNo} 本期扣款失败（连续第 ${consecutiveFailures} 次），` +
+                `${shouldSuspend ? '已转 SUSPENDED' : `将于 ${retryAt.toISOString()} 重试`}`,
+            )
+            return
+          }
+
+          // 扣款成功：推进周期
           const nextCycleStart = sub.currentCycleEnd
           const nextCycleEnd = addPeriod(
             nextCycleStart,
@@ -796,18 +855,6 @@ export class SubscriptionsService {
           const totalCyclesLimit = sub.plan.totalCycles
           const isExpired = totalCyclesLimit && newCompletedCycles >= totalCyclesLimit
 
-          // 失败次数过多：自动暂停
-          // 查询最近连续失败次数
-          const recentCharges = await tx.subscriptionCharge.findMany({
-            where: { subscriptionId: sub.id },
-            orderBy: { createdAt: 'desc' },
-            take: SUBSCRIPTION_MAX_FAILURES,
-          })
-          const allFailed = recentCharges.length >= SUBSCRIPTION_MAX_FAILURES
-            && recentCharges.every(
-              (c) => c.status === SubscriptionChargeStatus.FAILED,
-            )
-
           await tx.subscription.update({
             where: { id: sub.id },
             data: {
@@ -816,11 +863,7 @@ export class SubscriptionsService {
               currentCycleStart: nextCycleStart,
               currentCycleEnd: nextCycleEnd,
               nextChargeAt: isExpired ? null : nextCycleStart,
-              status: isExpired
-                ? SubscriptionStatus.EXPIRED
-                : allFailed
-                  ? SubscriptionStatus.SUSPENDED
-                  : SubscriptionStatus.ACTIVE,
+              status: isExpired ? SubscriptionStatus.EXPIRED : SubscriptionStatus.ACTIVE,
               endAt: isExpired ? new Date() : sub.endAt,
             },
           })

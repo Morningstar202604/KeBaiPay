@@ -57,14 +57,18 @@ export class ToolRegistry {
     return ctx.subjectId
   }
 
-  /** 校验金额（元）：非负、有限、在合理范围内 */
+  /** 校验金额（元）：非负、有限、且不超过 Agent 单笔限额（分） */
   private validateAmountYuan(amount: any): number {
     const n = Number(amount)
     if (!Number.isFinite(n) || n < 0.01) {
       throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '金额必须为不小于 0.01 的正数'))
     }
-    if (n > 500000) {
-      throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '单笔金额不能超过 50 万元'))
+    // Agent 专项限额：AGENT_MAX_AMOUNT_PER_OP（分），默认 500 元
+    const maxPerOpFen = Number(process.env.AGENT_MAX_AMOUNT_PER_OP) || 50000
+    if (Math.round(n * 100) > maxPerOpFen) {
+      throw new BadRequestException(
+        kbError(KBErrorCodes.INVALID_PARAMETER, `单笔金额不能超过智能体限额 ${fenToYuan(maxPerOpFen)} 元`),
+      )
     }
     return n
   }
@@ -194,7 +198,7 @@ export class ToolRegistry {
           type: 'object',
           properties: {
             toUserId: { type: 'string', description: '收款用户ID' },
-            amountYuan: { type: 'number', description: '金额（元），必须为正数且 ≤ 500000' },
+            amountYuan: { type: 'number', description: '金额（元），必须为正数且不超过智能体限额' },
             remark: { type: 'string', description: '转账备注，最多 200 字' },
           },
           required: ['toUserId', 'amountYuan'],
@@ -212,11 +216,37 @@ export class ToolRegistry {
           }
           // 备注长度限制
           const remark = this.truncate(args?.remark, 200)
-          // 该工具实际执行由 confirm 流程触发，这里只返回待确认信息
+          // 提案阶段只做校验与信息展示；真实资金操作由 executeConfirmed 在
+          // 用户 /agent/confirm 确认后执行（opLogId 作为幂等键）
           return {
             pending: true,
             message: `准备向用户 ${toUserId} 转账 ${amountYuan} 元，等待用户确认`,
             payload: { toUserId, amountYuan, remark },
+          }
+        },
+        executeConfirmed: async (args: any) => {
+          this.checkScope(ctx, 'wallet:write:transfer')
+          const subjectId = this.requireSubjectId(ctx)
+          const amountYuan = this.validateAmountYuan(args?.amountYuan)
+          const toUserId = this.truncate(args?.toUserId, 64)
+          if (!toUserId || toUserId === ctx.subjectId) {
+            throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '收款人ID无效或不能向自己转账'))
+          }
+          const remark = this.truncate(args?.remark, 200)
+          // opLogId 由 AgentService 注入 args.__opLogId，作为幂等键防止重复执行
+          const opLogId = this.truncate(args?.__opLogId, 64) || `AGENT:legacy:${Date.now()}`
+          const order = await deps.transfersService.agentTransfer(subjectId, {
+            toUserId,
+            amountFen: Math.round(amountYuan * 100),
+            remark,
+            idempotencyKey: `AGENT:${opLogId}`,
+          })
+          return {
+            success: true,
+            orderNo: order.orderNo,
+            amountYuan,
+            toUserId,
+            message: `转账成功，订单号 ${order.orderNo}`,
           }
         },
       },
@@ -379,9 +409,11 @@ export class ToolRegistry {
  *  - messagesService：发站内消息
  *  - couponsService：领取优惠券
  *  - scheduleHealthService：查调度健康
+ *  - transfersService：真实转账执行（kbpay_transfer 确认后调用）
  */
 export interface ToolDeps {
   messagesService: any
   couponsService: any
   scheduleHealthService: any
+  transfersService: any
 }

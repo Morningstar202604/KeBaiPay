@@ -298,7 +298,7 @@ describe('CouponsService', () => {
           minAmount: 500, // 满 5 元
         },
       })
-      prisma.userCoupon.update.mockResolvedValue({ status: UserCouponStatus.USED })
+      prisma.userCoupon.updateMany.mockResolvedValue({ count: 1 })
       const result = await service.useUserCoupon('user1', 'UC1', {
         orderNo: 'T123',
         orderAmount: 10, // 10 元
@@ -322,6 +322,7 @@ describe('CouponsService', () => {
           minAmount: 0,
         },
       })
+      prisma.userCoupon.updateMany.mockResolvedValue({ count: 1 })
       const result = await service.useUserCoupon('user1', 'UC1', {
         orderNo: 'T123',
         orderAmount: 100, // 100 元

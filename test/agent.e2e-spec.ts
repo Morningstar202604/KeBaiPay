@@ -19,6 +19,7 @@ import { PrismaService } from '../src/prisma/prisma.service'
 import { MessagesService } from '../src/messages/messages.service'
 import { CouponsService } from '../src/coupons/coupons.service'
 import { ScheduleHealthService } from '../src/common/schedule-health.service'
+import { TransfersService } from '../src/transfers/transfers.service'
 import { JWT_TOKEN_TYPE_AGENT } from '../src/common/constants'
 import type { AgentCurrentUser } from '../src/agent/agent-current-user.interface'
 
@@ -177,6 +178,7 @@ describe('AgentModule (e2e)', () => {
         { provide: MessagesService, useValue: mockMessagesService },
         { provide: CouponsService, useValue: mockCouponsService },
         { provide: ScheduleHealthService, useValue: mockScheduleHealthService },
+        { provide: TransfersService, useValue: { agentTransfer: jest.fn() } },
       ],
     })
       .overrideGuard(AgentAuthGuard)
@@ -258,6 +260,7 @@ describe('AgentModule (e2e)', () => {
           { provide: MessagesService, useValue: mockMessagesService },
           { provide: CouponsService, useValue: mockCouponsService },
           { provide: ScheduleHealthService, useValue: mockScheduleHealthService },
+          { provide: TransfersService, useValue: { agentTransfer: jest.fn() } },
         ],
       }).compile()
       const app2 = moduleRef2.createNestApplication()
@@ -474,6 +477,9 @@ describe('AgentModule (e2e)', () => {
         result: 'PENDING_CONFIRM',
         action: 'kbpay_transfer',
         scope: 'wallet:write:transfer',
+        // 属主信息必须与当前 agent token 主体一致（confirmOp 有属主校验）
+        subjectType: 'user',
+        subjectId: TEST_USER_ID,
         detail: JSON.stringify({ args: { toUserId: 'u2', amountYuan: 100 } }),
       })
       mockPrisma.agentOperationLog.update.mockResolvedValue({})
@@ -482,6 +488,23 @@ describe('AgentModule (e2e)', () => {
         .send({ opLogId: 'op-1', decision: 'REJECT' })
       expect(res.status).toBe(201)
       expect(res.body.success).toBe(false)
+    })
+
+    it('非属主确认他人操作返回 403', async () => {
+      mockPrisma.agentOperationLog.findUnique.mockResolvedValue({
+        id: 'op-2',
+        result: 'PENDING_CONFIRM',
+        action: 'kbpay_transfer',
+        scope: 'wallet:write:transfer',
+        subjectType: 'user',
+        // 与当前 token 主体（TEST_USER_ID）不同 → 拒绝
+        subjectId: 'other-user-9',
+        detail: JSON.stringify({ args: { toUserId: 'u2', amountYuan: 100 } }),
+      })
+      const res = await request(app.getHttpServer())
+        .post('/agent/confirm')
+        .send({ opLogId: 'op-2', decision: 'CONFIRM' })
+      expect(res.status).toBe(403)
     })
   })
 

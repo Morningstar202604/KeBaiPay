@@ -1,4 +1,4 @@
-# ===========================================================================
+﻿# ===========================================================================
 # 使用前请先复制环境变量模板：
 #   cp .env.example .env
 # 然后在 .env 中填写 JWT_USER_SECRET / JWT_ADMIN_SECRET / ADMIN_DEFAULT_PASSWORD
@@ -40,10 +40,10 @@ services:
     restart: unless-stopped
     command: >
       redis-server
-      --requirepass ${REDIS_PASSWORD:-redis}
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (资金操作并发安全依赖 Redis 密码)}
       --appendonly yes
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (资金操作并发安全依赖 Redis 密码)}
       TZ: Asia/Shanghai
     volumes:
       - redis_data:/data
@@ -77,12 +77,12 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kebaipay}?schema=public
-      REDIS_URL: redis://:${REDIS_PASSWORD:-redis}@redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (资金操作并发安全依赖 Redis 密码)}@redis:6379
       JWT_USER_SECRET: ${JWT_USER_SECRET:?JWT_USER_SECRET must be set in .env}
       JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET:?JWT_ADMIN_SECRET must be set in .env}
       ADMIN_DEFAULT_PASSWORD: ${ADMIN_DEFAULT_PASSWORD:?ADMIN_DEFAULT_PASSWORD must be set in .env}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set in .env}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (资金操作并发安全依赖 Redis 密码)}
       RECHARGE_NOTIFY_URL: ${RECHARGE_NOTIFY_URL:-}
       CASHIER_BASE_URL: ${CASHIER_BASE_URL:-http://localhost:3000}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}

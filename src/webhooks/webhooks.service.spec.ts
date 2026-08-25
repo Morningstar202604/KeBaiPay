@@ -42,7 +42,10 @@ describe('WebhooksService', () => {
       set: jest.fn().mockResolvedValue(undefined),
     }
     channelRegistry = {
-      getChannel: jest.fn().mockReturnValue({}),
+      // 默认 mock 渠道实现验签方法（验签为强制项：未实现的渠道会被拒绝）
+      getChannel: jest.fn().mockReturnValue({
+        verifyWebhookSignature: jest.fn().mockReturnValue(true),
+      }),
       getEnabledConfig: jest.fn().mockResolvedValue({ config: {} }),
     }
     transactions = { handleRechargeCallback: jest.fn().mockResolvedValue('RECHARGE_OK') }

@@ -48,21 +48,35 @@ async function main() {
   // 运行时 MCP SDK 要求工具参数为 Zod schema（ZodRawShapeCompat），不支持 JSON Schema 对象。
   const s = server as any
 
+  /**
+   * 身份绑定：设置 KBPAY_MCP_USER_ID 后，所有以 userId 为入参的工具
+   * 强制使用该身份，忽略调用方（LLM）传入的 userId —— 防止提示注入
+   * 诱导 MCP 工具查询/操作其他用户的数据。未设置时工具不可用（fail-closed）。
+   */
+  const boundUserId = process.env.KBPAY_MCP_USER_ID || ''
+  const requireUserId = (requested?: string): string => {
+    if (!boundUserId) {
+      throw new Error('未配置 KBPAY_MCP_USER_ID，禁止按任意 userId 查询（请在启动环境变量中绑定身份）')
+    }
+    return boundUserId
+  }
+
   // 查询用户余额
   s.tool(
     'kbpay_query_balance',
     '查询 KeBaiPay 用户钱包余额',
-    { userId: z.string().describe('用户 ID') },
+    { userId: z.string().describe('用户 ID').optional() },
     async (args: any) => {
+      const userId = requireUserId(args?.userId)
       const account = await prisma.account.findUnique({
-        where: { userId: args.userId },
+        where: { userId },
         select: { availableBalance: true, frozenBalance: true, totalBalance: true },
       })
       return {
         content: [{
           type: 'text' as const,
           text: JSON.stringify({
-            userId: args.userId,
+            userId,
             balanceYuan: account ? fenToYuan(account.totalBalance) : '0.00',
             availableYuan: account ? fenToYuan(account.availableBalance) : '0.00',
             frozenYuan: account ? fenToYuan(account.frozenBalance) : '0.00',
@@ -99,13 +113,14 @@ async function main() {
     'kbpay_query_bill',
     '查询用户账单列表',
     {
-      userId: z.string().describe('用户 ID'),
+      userId: z.string().describe('用户 ID').optional(),
       limit: z.number().optional().describe('返回条数，默认 20'),
     },
     async (args: any) => {
+      const userId = requireUserId(args?.userId)
       const limit = Math.min(args.limit ?? 20, 100)
       const bills = await prisma.bill.findMany({
-        where: { userId: args.userId },
+        where: { userId },
         orderBy: { createdAt: 'desc' },
         take: limit,
         select: {

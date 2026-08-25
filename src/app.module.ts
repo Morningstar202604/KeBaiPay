@@ -84,7 +84,7 @@ function spaStaticModules() {
       ServeStaticModule.forRoot({
         rootPath: adminDist,
         serveRoot: '/admin',
-        exclude: ['/admin/auth/{*splat}', '/admin/dashboard/{*splat}', '/admin/users/{*splat}', '/admin/merchants/{*splat}', '/admin/withdrawals/{*splat}', '/admin/payment-orders/{*splat}', '/admin/risk-events/{*splat}', '/admin/finance/{*splat}', '/admin/login-logs/{*splat}', '/admin/system-configs/{*splat}', '/admin/risk-rules/{*splat}', '/admin/identity/{*splat}', '/admin/accounts/{*splat}', '/admin/audit-logs/{*splat}'],
+        exclude: ['/admin/auth/{*splat}', '/admin/dashboard/{*splat}', '/admin/users/{*splat}', '/admin/merchants/{*splat}', '/admin/withdrawals/{*splat}', '/admin/payment-orders/{*splat}', '/admin/risk-events/{*splat}', '/admin/finance/{*splat}', '/admin/login-logs/{*splat}', '/admin/system-config/{*splat}', '/admin/system-config', '/admin/risk-rules/{*splat}', '/admin/identity/{*splat}', '/admin/accounts/{*splat}', '/admin/audit-logs/{*splat}', '/admin/admin-users/{*splat}', '/admin/channels/{*splat}', '/admin/channel-reconciliation/{*splat}', '/admin/reconciliation/{*splat}', '/agent/{*splat}'],
       }),
     )
   }
@@ -116,7 +116,7 @@ function spaStaticModules() {
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
       // /portal、/h5、/admin 由 spaStaticModules 单独托管，根静态模块不拦截
-      exclude: ['/portal/{*splat}', '/h5/{*splat}', '/admin/{*splat}'],
+      exclude: ['/portal/{*splat}', '/h5/{*splat}', '/admin/{*splat}', '/agent/{*splat}'],
     }),
     PrismaModule,
     RedisModule,

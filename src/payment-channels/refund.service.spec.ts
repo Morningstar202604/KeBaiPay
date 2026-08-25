@@ -20,7 +20,7 @@ type PrismaMock = {
     count: jest.Mock
     aggregate: jest.Mock
   }
-  account: { findUnique: jest.Mock; update: jest.Mock }
+  account: { findUnique: jest.Mock; update: jest.Mock; updateMany: jest.Mock }
   accountLedger: { create: jest.Mock; findFirst: jest.Mock }
   paymentOrder: { findUnique: jest.Mock; update: jest.Mock }
   $transaction: jest.Mock
@@ -65,7 +65,12 @@ describe('RefundService', () => {
         count: jest.fn().mockResolvedValue(0),
         aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }),
       },
-      account: { findUnique: jest.fn(), update: jest.fn() },
+      account: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        // 条件更新防负余额：默认抢到扣款权
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
       accountLedger: { create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
       paymentOrder: { findUnique: jest.fn(), update: jest.fn() },
       // $transaction 接收回调并把同一 prisma 对象作为 tx 传入，让 mock 复用
@@ -178,8 +183,12 @@ describe('RefundService', () => {
       // 验证乐观锁条件：where 必须包含 status=PROCESSING
       const updateManyArgs = prisma.transactionOrder.updateMany.mock.calls[0][0]
       expect(updateManyArgs.where.status).toBe(TransactionStatus.PROCESSING)
-      expect(prisma.account.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ availableBalance: { decrement: 100 } }) }),
+      // 资金退回使用条件更新（availableBalance gte 防负余额）
+      expect(prisma.account.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ availableBalance: { gte: 100 } }),
+          data: expect.objectContaining({ availableBalance: { decrement: 100 } }),
+        }),
       )
       // 风控频率记录被调用
       expect(risk.recordTransaction).toHaveBeenCalled()
@@ -325,8 +334,12 @@ describe('RefundService', () => {
       const updateArgs = prisma.transactionOrder.update.mock.calls[0][0]
       expect(updateArgs.data.status).toBe(TransactionStatus.SUCCESS)
       expect(updateArgs.data.channelOrderNo).toBe('CH_RF_NEW')
-      // 验证账户扣款
-      expect(prisma.account.update).toHaveBeenCalled()
+      // 验证账户扣款（条件更新防负余额）
+      expect(prisma.account.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ availableBalance: { gte: 100 } }),
+        }),
+      )
       // 验证 paymentOrder.refundAmount 累加
       expect(prisma.paymentOrder.update).toHaveBeenCalledWith(
         expect.objectContaining({

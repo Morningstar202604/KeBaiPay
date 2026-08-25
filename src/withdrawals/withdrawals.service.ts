@@ -23,7 +23,7 @@ import { PaymentChannelBridge } from '../payment-channels/payment-channel.bridge
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { JournalService } from '../finance/journal.service'
 import { CryptoService } from '../crypto/crypto.service'
-import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
+import { createFrozenLegLedgerEntry, fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import { DEFAULT_WITHDRAW_DAILY_LIMIT_CENTS, LARGE_WITHDRAWAL_THRESHOLD_CENTS, RATE_DENOMINATOR, REDIS_LOCK_TTL_SECONDS } from '../common/constants'
 
@@ -200,6 +200,18 @@ export class WithdrawalsService {
           direction: Direction.CREDIT,
           remark: '提现冻结',
         },
+      })
+
+      // 复式记账：冻结的对手方分录（frozenBalance 增加 = DEBIT），
+      // 保证"冻结"这一内部动作账本净额为 0，日终对账 ledger_balance 不因内部划转失衡
+      await createFrozenLegLedgerEntry(tx, {
+        accountId: account.id,
+        transactionId: order.id,
+        type: LedgerType.WITHDRAW,
+        amount,
+        frozenBefore: updatedAccount!.frozenBalance - amount,
+        frozenAfter: updatedAccount!.frozenBalance,
+        remark: '提现冻结（冻结余额对应分录）',
       })
 
       if (amount > LARGE_WITHDRAWAL_THRESHOLD_CENTS) {

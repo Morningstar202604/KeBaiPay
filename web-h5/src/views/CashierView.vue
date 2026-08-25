@@ -86,7 +86,8 @@ async function pay(o: CashierOrder) {
     ElMessage.success('支付成功')
     load()
   } catch (e: unknown) {
-    if ((e as { __CANCEL__?: boolean })?.__CANCEL__) return
+    // ElMessageBox 取消/关闭时 reject 字符串 'cancel'/'close'（非 axios __CANCEL__）
+    if (e === 'cancel' || e === 'close') return
     ElMessage.error(extractError(e))
   }
 }

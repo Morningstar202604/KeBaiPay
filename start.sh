@@ -32,6 +32,12 @@ npx prisma generate
 echo
 
 echo "[4/5] 执行数据库迁移..."
+# 加载 .env（脚本环境变量通常没有 DATABASE_URL，配置实际写在 .env 里）
+if [ -f .env ]; then
+    set -a
+    . ./.env
+    set +a
+fi
 if [ -n "$DATABASE_URL" ]; then
     npx prisma migrate deploy
     if [ $? -ne 0 ]; then

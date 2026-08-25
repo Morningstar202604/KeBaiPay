@@ -11,7 +11,7 @@
         <el-form-item label="密码" prop="password"><el-input v-model="form.password" type="password" show-password size="large" /></el-form-item>
         <el-button type="primary" size="large" class="btn" :loading="loading" @click="submit">登 录</el-button>
       </el-form>
-      <div class="tip">测试账号：admin / Admin2026</div>
+      <div v-if="isDev" class="tip">测试账号：admin / Admin2026（仅开发环境显示，生产环境请修改种子口令）</div>
     </div>
   </div>
 </template>
@@ -19,6 +19,8 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+
+const isDev = import.meta.env.DEV
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { extractError } from '@/api/http'

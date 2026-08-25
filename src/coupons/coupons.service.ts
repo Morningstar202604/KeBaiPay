@@ -166,11 +166,18 @@ export class CouponsService {
             },
           })
 
-          // 增加发放计数
-          await tx.coupon.update({
-            where: { id: coupon.id },
-            data: { issuedCount: { increment: 1 } },
-          })
+          // 条件更新抢占发放名额：不同用户并发领取的锁互不互斥，
+          // 普通读检查 + 无条件 increment 在高并发下会超发。
+          // 仅当 issuedCount < totalQuota 时才递增，抢不到即回滚整个领取事务。
+          if (coupon.totalQuota > 0) {
+            const quotaResult = await tx.coupon.updateMany({
+              where: { id: coupon.id, issuedCount: { lt: coupon.totalQuota } },
+              data: { issuedCount: { increment: 1 } },
+            })
+            if (quotaResult.count === 0) {
+              throw new BadRequestException(kbError(KBErrorCodes.COUPON_QUOTA_EXHAUSTED))
+            }
+          }
 
           return userCoupon
         }),
@@ -241,15 +248,19 @@ export class CouponsService {
       // 折扣不能超过订单金额
       if (discountFen > orderAmountFen) discountFen = orderAmountFen
 
-      // 标记为已使用
-      await tx.userCoupon.update({
-        where: { id: uc.id },
+      // 条件更新抢占核销：并发核销同一张券时仅一方成功，
+      // 防止一张券对多笔订单各抵扣一次（一券多用）
+      const claimUse = await tx.userCoupon.updateMany({
+        where: { id: uc.id, status: UserCouponStatus.AVAILABLE },
         data: {
           status: UserCouponStatus.USED,
           usedAt: new Date(),
           usedOrderNo: dto.orderNo,
         },
       })
+      if (claimUse.count === 0) {
+        throw new BadRequestException(kbError(KBErrorCodes.USER_COUPON_USED))
+      }
 
       return {
         userCouponNo: uc.userCouponNo,

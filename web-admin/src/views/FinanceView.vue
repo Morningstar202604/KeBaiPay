@@ -26,7 +26,7 @@ const fields = computed<Record<string, string>>(() => {
     总支出: `¥${d.totalExpenseYuan ?? '0.00'}`,
     手续费: `¥${d.totalFeeYuan ?? '0.00'}`,
     净收入: `¥${d.netIncomeYuan ?? '0.00'}`,
-    总资产: `¥${d.totalAssets ?? '0.00'}`,
+    总资产: `¥${d.totalAssetsYuan ?? '0.00'}`,
     交易笔数: `${d.transactionCount ?? 0}`,
   }
 })

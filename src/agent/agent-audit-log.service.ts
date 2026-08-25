@@ -40,8 +40,10 @@ export class AgentAuditLogService {
     tx?: any,
   ): Promise<{ id: string; hash: string }> {
     const doLog = async (client: any) => {
-      // PG 事务级咨询锁，串行化同 Agent 的日志写入
-      await client.$executeRaw`SELECT pg_advisory_xact_lock(${AGENT_LOG_ADVISORY_LOCK_ID}, ${input.agentId}::text::int % 32767)`
+      // PG 事务级咨询锁，串行化同 Agent 的日志写入。
+      // agentId 是 uuid（含字母），::int 转换会直接抛 invalid input syntax，
+      // 必须用 hashtext() 先散列成 int 再取模
+      await client.$executeRaw`SELECT pg_advisory_xact_lock(${AGENT_LOG_ADVISORY_LOCK_ID}, hashtext(${input.agentId}::text) % 32767)`
 
       // 取上一条日志的 hash
       const lastLog = await client.agentOperationLog.findFirst({

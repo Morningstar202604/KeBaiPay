@@ -49,7 +49,6 @@ model User {
   messageReads        MessageRead[]         @relation("MessageReadUser")
   riskAuditSessions   RiskAuditSession[]    @relation("RiskAuditSessionUser")
   agentConversations  AgentConversation[]   @relation("AgentConversationUser")
-  agentAuthorizations AgentAuthorization[]  @relation("AgentAuthorizationUser")
 
   @@map("users")
 }
@@ -188,6 +187,8 @@ model Bill {
 
   user User @relation(fields: [userId], references: [id])
 
+  // 同一用户同一交易只允许一条账单（防重复写账单的 DB 级兜底）
+  @@unique([userId, transactionId])
   @@index([userId])
   @@index([userId, createdAt])
   @@index([transactionId])
@@ -798,6 +799,8 @@ model SubscriptionCharge {
   subscription Subscription @relation("SubscriptionChargeSubscription", fields: [subscriptionId], references: [id])
   owner        User         @relation("SubscriptionCharger", fields: [ownerId], references: [id])
 
+  // 同一订阅同一周期只允许一条扣款记录（防重复扣款的 DB 级兜底）
+  @@unique([subscriptionId, cycleStart])
   @@index([subscriptionId])
   @@index([subscriberId])
   @@index([ownerId])
@@ -1109,7 +1112,10 @@ model Agent {
 model AgentAuthorization {
   id          String    @id @default(uuid())
   agentId     String    @map("agent_id")
-  subjectType String @map("subject_type") // user / merchant
+  subjectType String    @map("subject_type") // user / merchant
+  /// 主体 ID：user 或 Merchant 的 id。
+  /// 不设外键 —— subjectType 决定目标表（users/merchants），单一 FK 只能指向一张表，
+  /// 会阻断 merchant 主体授权；存在性校验在应用层完成，此处仅保留联合索引
   subjectId   String    @map("subject_id")
   /// scopes JSON 数组：["wallet:read","wallet:write:transfer"]，必须是 Agent.scopes 的子集
   scopes      String
@@ -1120,7 +1126,6 @@ model AgentAuthorization {
   createdAt   DateTime  @default(now()) @map("created_at")
 
   agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  user  User? @relation("AgentAuthorizationUser", fields: [subjectId], references: [id])
 
   @@index([agentId, subjectType, subjectId])
   @@index([subjectType, subjectId])

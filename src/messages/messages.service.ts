@@ -13,7 +13,7 @@ import {
   NotifyChannel,
 } from '../common/enums'
 import { NotificationsService } from '../notifications/notifications.service'
-import { generateOrderNo } from '../common/helpers'
+import { escapeHtml, generateOrderNo } from '../common/helpers'
 import { maskPhone } from '../common/mask'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import { SendMessageDto, ListMessageDto, BroadcastMessageDto } from './dto/message.dto'
@@ -234,10 +234,11 @@ export class MessagesService {
 
     if (needEmail && user.email) {
       try {
+        // HTML 转义：title/content 可能包含用户/LLM 生成的任意文本，防止邮件客户端 HTML 注入
         await this.notificationsService.sendEmail({
           to: user.email,
           subject: message.title,
-          html: `<div><h2>${message.title}</h2><p>${message.content}</p></div>`,
+          html: `<div><h2>${escapeHtml(message.title)}</h2><p>${escapeHtml(message.content)}</p></div>`,
         })
         this.logger.log(`EMAIL 推送成功: ${message.messageNo} -> ${user.email}`)
       } catch (err) {

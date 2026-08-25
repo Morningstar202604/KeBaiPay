@@ -2,7 +2,7 @@
 
 export interface AdminLoginResult {
   token: string
-  admin: { id: string; username: string }
+  adminId: string
 }
 
 export interface DashboardStats {
@@ -67,7 +67,10 @@ export interface RiskEvent {
   id: string
   type: string
   level: string
-  status: string
+  description?: string
+  handled?: boolean
+  handledBy?: string | null
+  handledAt?: string | null
   userId: string | null
   createdAt: string
 }

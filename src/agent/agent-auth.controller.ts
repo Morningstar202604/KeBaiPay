@@ -61,9 +61,9 @@ export class AgentAuthController {
 
   @UseGuards(AgentUserAuthGuard)
   @Post('revoke/:authId')
-  @ApiOperation({ summary: '撤销授权' })
-  async revoke(@Param('authId') authId: string) {
-    return this.agentAuthService.revoke(authId)
+  @ApiOperation({ summary: '撤销授权（仅限本人授权）' })
+  async revoke(@Req() req: any, @Param('authId') authId: string) {
+    return this.agentAuthService.revoke(authId, req.user.userId)
   }
 
   @UseGuards(AgentUserAuthGuard)

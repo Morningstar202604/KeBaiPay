@@ -1,6 +1,7 @@
 import { Controller, Headers, Param, Post, Req } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger'
 import { Request } from 'express'
+import { SkipThrottle } from '@nestjs/throttler'
 import { WebhooksService } from './webhooks.service'
 
 type RawBodyRequest = Request & {
@@ -11,8 +12,12 @@ type RawBodyRequest = Request & {
  * Webhook 回调由外部支付渠道调用，负载格式由各渠道决定，字段不受控制。
  * 因此这里不使用 @Body()（避免全局 ValidationPipe 的 whitelist 剥离/拒绝外部字段），
  * 一律从 req.rawBody（rawBody: true 已启用）读取原始负载，验签与解析在渠道层完成。
+ *
+ * SkipThrottle：全局 100/min/IP 限流不应作用于渠道回调 —— 高峰期/重试风暴
+ * 触发 429 会造成入账延迟与对账噪音；幂等由 redis.withLock + 状态机守卫保障。
  */
 @ApiTags('Webhooks')
+@SkipThrottle()
 @Controller('webhooks')
 export class WebhooksController {
   constructor(

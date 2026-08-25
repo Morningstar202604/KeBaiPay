@@ -378,18 +378,10 @@ export class UsersService {
   }
 
   /** 更新用户基础资料：昵称、头像、邮箱（仅基础更新，邮箱绑定走 bind-email 走验证码流程） */
-  async updateProfile(userId: string, dto: { nickname?: string; avatar?: string; email?: string }) {
-    const data: { nickname?: string; avatar?: string; email?: string } = {}
+  async updateProfile(userId: string, dto: { nickname?: string; avatar?: string }) {
+    const data: { nickname?: string; avatar?: string } = {}
     if (dto.nickname !== undefined) data.nickname = dto.nickname
     if (dto.avatar !== undefined) data.avatar = dto.avatar
-    if (dto.email !== undefined) {
-      // 改邮箱前先校验是否被其他账号占用
-      const existing = await this.prisma.user.findUnique({ where: { email: dto.email } })
-      if (existing && existing.id !== userId) {
-        throw new BadRequestException(kbError(KBErrorCodes.EMAIL_ALREADY_BOUND))
-      }
-      data.email = dto.email
-    }
     if (Object.keys(data).length === 0) {
       throw new BadRequestException('至少修改一个字段')
     }
