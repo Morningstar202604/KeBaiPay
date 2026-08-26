@@ -1,10 +1,10 @@
-# KeBaiPay 更新日志
+﻿# KeBaiPay 更新日志
 
 > 版本更新记录与功能清单
 
 ## 目录
 
-- [版本 2.2.1（进行中）](#版本-221进行中)
+- [版本 2.2.1（2026-08-26）](#版本-2212026-08-26)
 - [仓库体检与开源规范化](#仓库体检与开源规范化)
 - [Agent 智能体修复与测试](#agent-智能体修复与测试)
 - [视觉升级（UI/UX）](#视觉升级uiux)
@@ -19,9 +19,36 @@
 
 ---
 
-## 版本 2.2.1（进行中）
+## 版本 2.2.1（2026-08-26）
 
-**版本类型：** Bug 修复 + MVP 可运行化
+**版本类型：** Bug 修复 + 安全修复 + MVP 可运行化
+
+### 安全与正确性修复（2026-08-26 专家评审 Phase 0）
+
+- **外呼重试幂等门控（P0-5）**：`ConnectorRouter` 此前对任何错误盲目重试 create 类外呼，渠道侧无幂等键时超时重试可能双下单/双放款。现仅当请求携带 `orderNo / refundNo / idempotencyKey`（微信 out_batch_no、支付宝 out_biz_no/out_request_no 同源）才启用指数退避重试；Stripe Connector 三处 create 调用贯通官方 `Idempotency-Key` header。
+- **Agent 密钥轮换接口**：新增 `POST /agent/admin/agents/:id/rotate-secret`（管理端），新明文仅本次响应返回一次。
+- **测试规模统计脚本**：`scripts/test-stats.mjs` 输出套件/用例数（当前 77 套件 / 约 1186 例），文档数字自此由脚本生成。
+- **E2E 场景修复 + 进 CI**：场景 5 并发回调此前硬编码金额 10000 与订单 100 分不符——旧代码忽略回调金额才"通过"，恰是 H-2 要拦的错误假设；已修正为与订单一致。E2E（48 例）接入 CI 独立 job；test job 新增 PG16 service 容器执行空库 `migrate deploy` 冒烟，提前暴露 schema↔migration 漂移。
+- **开放 API 签名口径统一（集成定时炸弹排除）**：服务端自始只存 `sha256(appSecret)`，但官方 Node SDK 与 SDK_GUIDE 四语言示例曾用明文 secret 作 HMAC key——按旧文档接入 100% 验签失败。现 SDK 内置 SHA-256 预哈希，Node/Python/Java/PHP 示例与 QUICKSTART、签名公式、API_REFERENCE 兼容期说明全部对齐（存量商户不受影响）。
+- **Agent appSecret 只存哈希**：`createAgent` 此前明文落库；现比照 MerchantApp 标准仅存 sha256 摘要，明文只在创建响应回显一次。
+- **嵌入式 MCP Server 身份绑定 fail-closed**：`kbpay_query_balance / kbpay_query_bill` 此前接受任意 userId（经 HTTP transport 暴露即水平越权）；现强制绑定 `KBPAY_MCP_USER_ID`，未绑定或身份不匹配直接拒绝，与 standalone 进程同一策略。
+- **批量转账退款事务化 + 幂等键加固**：收尾退款此前分两次独立提交（冻结释放与退款订单创建间存在崩溃窗口），幂等判定靠 remark 字符串匹配。现整体包进 `$transaction`，改用确定性幂等键 `BT-REFUND:{batchNo}`（唯一约束兜底），OR 条件兼容历史存量退款单防重复退款。
+- **分布式锁失败语义修正**：`withLock` 获取锁失败由裸 `Error`（500）改为 `ConflictException`（409 + 新错误码 KB707），高并发争用时客户端收到可重试的冲突语义。
+- **/metrics token 常量时间比较**：SHA-256 摘要后 `timingSafeEqual`，消除逐字节短路泄露。
+- **bcrypt cost 10 → 12**：仅影响新哈希（cost 存于 hash 头，存量密码校验兼容）。
+- **微信 V3 回调时间戳时效校验**：验签增加 ±300 秒窗口，历史合法回调无法无限期重放。
+- **支付宝代付回调单号语义修复**：`parsePayoutCallback` 此前把 `out_biz_no`（我方单号）同时填入 `channelOrderNo` 与 `orderNo`，与 `createPayout` 存储的渠道侧单号 `order_id` 恒不匹配——真实回调必然命中 `CALLBACK_CHANNEL_ORDER_NO_MISMATCH`、提现订单永久卡死 PROCESSING。现按"channelOrderNo 恒为渠道侧单号"约定修正解析与 `queryPayout` 查询字段；提现回调匹配兼容存量占位数据并支持渠道单号补录。
+- **日切时区统一 Asia/Shanghai（P0-6）**：限额/风控/订单号日期前缀等 14 处"自然日"此前用 UTC 日切，北京时间 0:00-8:00 的交易计入"昨日"、日限额早 8 点才翻转。新增 `businessDayKey()`（`date-helpers.ts`）并全量替换（finance 报表区间构造为独立口径，后续批次处理）。
+- **jest 稳定性配置**：`testTimeout` 5s→15s + `maxWorkers: '50%'`，消除弱机/CI 上 supertest 用例偶发超时导致的假红灯（评审实测 5 例失败）。
+- **渠道凭据加密落库（高危修复）**：微信 `apiV3Key`、支付宝应用私钥等渠道配置字符串值此前为明文 JSON 直接入库；现于 `ChannelConfigService` 写入路径统一做 AES-256-GCM 信封加密（密文带 `enc:v1:` 前缀），`PaymentChannelRegistry` / 连接器热同步读取时解密。历史明文存量兼容读取，且在任意一次配置保存时自动迁移为密文。
+- **充值回调实付金额强校验（高危修复）**：`handleRechargeCallback` 此前忽略回调携带的实付金额、直接按订单金额入账；现成功回调必须满足 `实付金额 === 订单金额`（新增错误码 `KB706 CALLBACK_AMOUNT_MISMATCH`），金额缺失或不一致一律 fail-closed 拒绝入账并记录错误日志，符合微信/支付宝官方接入规范的强制核对项。
+
+### 文档与工程化
+
+- **根 README.md 补齐**（此前根目录无 README）：合规红线警示、核心特性、快速开始、命令表、文档索引、目录结构。
+- **文档失实勘误**：PRODUCTION_READINESS 的"Sentry 配 DSN 即启用"（项目从未接入 Sentry SDK）与"没有 CI"（ci.yml 已存在且持续增强）两条已标注勘误；PROJECT_PLAN 测试数字修正为实测口径（E2E 48 而非误记的 324）。
+- **CI 接入版本门禁**：test job 新增 `npm run version:check` 步骤，版本漂移直接红。
+- **版本管理规范化**：新增 `docs/VERSIONING.md`（严格 SemVer 纪律：日常修复走 PATCH、新功能走 MINOR、破坏性变更走 MAJOR）；新增 `scripts/version-sync.mjs` 与 `npm run version:sync / version:check`——根 package.json 为唯一版本源，三前端版本号禁止独立修改。三前端虚高的 2.3.0 回退对齐至 2.2.1。
 
 ### 修复内容
 

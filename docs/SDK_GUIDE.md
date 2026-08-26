@@ -1,4 +1,4 @@
-# KeBaiPay 开放 API SDK 使用说明
+﻿# KeBaiPay 开放 API SDK 使用说明
 
 > 版本 2.0.0 | 适用商户后端 | 多语言 SDK 参考（Node.js / Python / Java / PHP）
 > 配套文档：[API_REFERENCE.md](./API_REFERENCE.md) · [MERCHANT_GUIDE.md](./MERCHANT_GUIDE.md) · [QUICKSTART.md](./QUICKSTART.md)
@@ -50,7 +50,7 @@ X-Signature:  9c8b7a6f5e4d3c2b1a0987654321fedcba9876543210987654321fedcba98765
 
 ```text
 sign_string = HTTP_METHOD\nPATH\nRAW_BODY\nTIMESTAMP\nNONCE\nAPP_ID
-signature   = HMAC-SHA256(appSecret, sign_string)  # 输出小写 hex
+signature   = HMAC-SHA256(SHA256(appSecret), sign_string)  # key 为 appSecret 的 SHA-256 摘要，输出小写 hex
 ```
 
 > ⚠️ **安全警告**：`appSecret` 是商户密钥，泄露后可伪造任意 OpenAPI 请求（下单、退款、转账、查余额），等同接管商户账户。**禁止硬编码、禁止前端、必须环境变量。**
@@ -124,10 +124,12 @@ class KeBaiPay {
   /**
    * 生成 HMAC-SHA256 签名
    * 签名串：`{method}\n{path}\n{rawBody}\n{timestamp}\n{nonce}\n{appId}`
+   * 注意：先对 appSecret 做 SHA-256，以其摘要作为 HMAC key（与服务端存储口径一致）
    */
   sign(method, path, rawBody, timestamp, nonce) {
     const message = [method, path, rawBody, timestamp, nonce, this.appId].join('\n');
-    return crypto.createHmac('sha256', this.appSecret).update(message, 'utf8').digest('hex');
+    const key = crypto.createHash('sha256').update(this.appSecret, 'utf8').digest();
+    return crypto.createHmac('sha256', key).update(message, 'utf8').digest('hex');
   }
 
   /** 生成 32 位 hex nonce */
@@ -395,7 +397,9 @@ class KeBaiPay:
     def _sign(self, method: str, path: str, raw_body: str,
               timestamp: str, nonce: str) -> str:
         message = '\n'.join([method, path, raw_body, timestamp, nonce, self.app_id])
-        return hmac.new(self.app_secret.encode('utf-8'),
+        # 先对 app_secret 做 SHA-256，以其摘要作为 HMAC key（与服务端存储口径一致）
+        key = hashlib.sha256(self.app_secret.encode('utf-8')).digest()
+        return hmac.new(key,
                         message.encode('utf-8'),
                         hashlib.sha256).hexdigest()
 
@@ -530,7 +534,7 @@ Java 接入推荐使用 `HttpURLConnection` 或 `OkHttp`，签名算法核心使
 
 1. **依赖**：JDK 8+，无需第三方库；若用 OkHttp 则引入 `com.squareup.okhttp3:okhttp`。
 2. **签名串拼接**：严格按 `method\npath\nrawBody\ntimestamp\nnonce\nappId` 顺序拼接，**换行符必须为 `\n`**。
-3. **HMAC-SHA256**：`Mac.getInstance("HmacSHA256")` → `new SecretKeySpec(appSecret.getBytes("UTF-8"), "HmacSHA256")` → 输出 hex 小写。
+3. **HMAC-SHA256**：先计算 `byte[] key = MessageDigest.getInstance("SHA-256").digest(appSecret.getBytes("UTF-8"))`，再 `Mac.getInstance("HmacSHA256")` → `new SecretKeySpec(key, "HmacSHA256")` → 输出 hex 小写（**必须预哈希**，与服务端存储口径一致）。
 4. **请求头**：设置 `X-App-Id` / `X-Timestamp` / `X-Nonce` / `X-Signature` 四个签名头，外加 `Content-Type: application/json`。
 5. **重试策略**：使用 `Thread.sleep` 或 `ScheduledExecutorService` 实现 1s/2s/4s 指数退避，仅对 5xx 与网络异常重试。
 6. **`rawBody`**：直接使用 `JSON.toJSONString(payload)` 的字节序列，**不要在签名后再序列化**，否则签名失效。
@@ -588,7 +592,7 @@ PHP 接入推荐使用 cURL 扩展，签名算法使用 `hash_hmac` 内置函数
 **关键接入点：**
 
 1. **依赖**：PHP 7.2+，开启 `curl` 扩展；JSON 编码使用 `json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)`。
-2. **签名**：`hash_hmac('sha256', $signString, $appSecret)` 直接输出小写 hex。
+2. **签名**：`hash_hmac('sha256', $signString, hash('sha256', $appSecret, true))` 输出小写 hex（**必须预哈希**）。
 3. **签名串**：`implode("\n", [$method, $path, $rawBody, $timestamp, $nonce, $appId])`，注意 `\n` 必须是双引号字符串。
 4. **请求头**：cURL 设置 `CURLOPT_HTTPHEADER`，包含 4 个签名头。
 5. **`rawBody`**：**必须**用与签名时相同的字符串作为 `CURLOPT_POSTFIELDS`，不要再次 `json_encode`。
@@ -612,7 +616,9 @@ class KeBaiPay {
 
     private function sign($method, $path, $rawBody, $timestamp, $nonce) {
         $message = implode("\n", [$method, $path, $rawBody, $timestamp, $nonce, $this->appId]);
-        return hash_hmac('sha256', $message, $this->appSecret); // 输出小写 hex
+        // 先对 appSecret 做 SHA-256，以其摘要作为 HMAC key（与服务端存储口径一致）
+        $key = hash('sha256', $this->appSecret, true);
+        return hash_hmac('sha256', $message, $key); // 输出小写 hex
     }
 
     private function request($method, $path, $body = null) {

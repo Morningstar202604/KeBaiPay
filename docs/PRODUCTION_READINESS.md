@@ -1,4 +1,4 @@
-# 生产就绪指南：哪些功能不能直接用 & 怎么启用
+﻿# 生产就绪指南：哪些功能不能直接用 & 怎么启用
 
 > **用途**：交给部署/运维/交付人员。明确列出"现在还不能直接使用"的功能、为什么不能用、以及如何申请资质/配置使其可用。**在对外营业前，请务必先读这一篇。**
 >
@@ -190,7 +190,7 @@ SMS_HUAWEI_SENDER="签名通道号"
 ## 7. 可观测性（可选，不影响可用性）
 
 - OTEL trace：配 `OTEL_EXPORTER_OTLP_ENDPOINT` 即启用（Jaeger/Tempo 等）。
-- Sentry：配 `SENTRY_DSN` 即启用异常上报。
+- ~~Sentry：配 `SENTRY_DSN` 即启用异常上报~~（2026-08-26 勘误：项目**未接入 Sentry SDK**，该配置项当前无效；如需异常上报请自建 OTLP → 临时方案接 Grafana/Tempo，或贡献 Sentry exporter）。
 - Prometheus：`/metrics` 默认暴露。
 - 详见 `docs/DEPLOYMENT.md` §8。
 
@@ -225,7 +225,7 @@ SMS_HUAWEI_SENDER="签名通道号"
 - **前端 `API_BASE=''`（`public/app.js:22`）**：所有请求走相对路径，生产必须由 Nginx 将 `/` 与 `/api` 反代到同一后端，否则前端 404。
 - **管理员初始密码**：seed 用 `ADMIN_DEFAULT_PASSWORD` 创建 `admin` 账号，**首次登录后必须立即改密**。
 - **`.env` 请勿提交版本库**（已在 `.gitignore`）。`.env.example` 里是占位值，直接 copy 使用会被安全校验拦截（这是保护机制）。
-- **没有 CI**：`.github/` 为空，交付后建议补 GitHub Actions 跑 `tsc + jest`，防止回归（可参考 `docs/DEVELOPER_GUIDE.md` 的测试命令）。
+- **CI 已就绪**：`.github/workflows/ci.yml` 已包含 `tsc` 类型检查 + 单测 + 三前端构建 + 版本号一致性校验（2026-08-26 勘误，原文"没有 CI"已过期）。
 
 ---
 

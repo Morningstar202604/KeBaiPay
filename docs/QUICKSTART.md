@@ -1,4 +1,4 @@
-# KeBaiPay 商户 5 分钟快速接入指南
+﻿# KeBaiPay 商户 5 分钟快速接入指南
 
 > 本指南面向第一次接入 KeBaiPay 的商户开发者，按步骤走完即可完成一笔真实收款。
 
@@ -291,7 +291,7 @@ app.listen(3001, () => {
 
 ```
 签名串 = `${method}\n${path}\n${rawBody}\n${timestamp}\n${nonce}\n${appId}`
-签名值 = HMAC-SHA256(appSecret, 签名串)  // 输出 hex
+签名值 = HMAC-SHA256(SHA256(appSecret), 签名串)  // key 为 appSecret 的 SHA-256 摘要，输出 hex
 ```
 
 ```javascript
@@ -299,7 +299,8 @@ app.listen(3001, () => {
 function signRequest(method, path, body, timestamp, nonce, appId, appSecret) {
   const rawBody = body ? JSON.stringify(body) : ''
   const signString = `${method}\n${path}\n${rawBody}\n${timestamp}\n${nonce}\n${appId}`
-  return crypto.createHmac('sha256', appSecret).update(signString, 'utf8').digest('hex')
+  const key = crypto.createHash('sha256').update(appSecret, 'utf8').digest()
+  return crypto.createHmac('sha256', key).update(signString, 'utf8').digest('hex')
 }
 
 // 调用时把签名放进请求头
@@ -315,7 +316,7 @@ function signRequest(method, path, body, timestamp, nonce, appId, appSecret) {
 
 ```
 签名串 = `${timestamp}\n${nonce}\n${rawBody}`
-签名值 = HMAC-SHA256(appSecret, 签名串)  // 输出 hex
+签名值 = HMAC-SHA256(SHA256(appSecret), 签名串)  // key 为 appSecret 的 SHA-256 摘要，输出 hex
 ```
 
 ```javascript

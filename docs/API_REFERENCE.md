@@ -135,6 +135,11 @@ signature   = HMAC-SHA256(hmac_key, sign_string)  # 输出小写 hex
 > （服务端数据库只存哈希，验签直接用库中哈希作密钥）。
 > 客户端务必先对 appSecret 做 `sha256` 再签名。
 
+> 📌 兼容期说明（2026-08-26）：官方 SDK（`public/sdk/kebaipay.js`）与本文档四语言示例
+> 已统一为「先 sha256 再 HMAC」口径。历史版本 SDK/示例曾使用明文 secret 作 key，
+> 该口径与服务端存储不兼容（按旧示例接入会 100% 返回 KB401）——若你从旧文档迁移，
+> 只需在签名前增加一步 `key = sha256(appSecret)` 即可，其余签名串构造不变。
+
 appSecret 明文仅在「创建应用」与「重新生成密钥」两个接口的响应中返回一次，
 之后无法再次获取，请妥善保存。商户侧回调通知签名使用同一约定：
 回调头 `X-KB-Signature = HMAC-SHA256(sha256(appSecret), body)`。
