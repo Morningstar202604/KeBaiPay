@@ -119,4 +119,11 @@ export class AgentAdminController {
       scopes: dto.scopes,
     })
   }
+
+  @UseGuards(AgentAdminAuthGuard)
+  @Post('agents/:id/rotate-secret')
+  @ApiOperation({ summary: '轮换 Agent 密钥（管理端，新密钥仅本次响应返回一次）' })
+  async rotateAppSecret(@Param('id') id: string) {
+    return this.agentAuthService.rotateAppSecret(id)
+  }
 }

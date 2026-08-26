@@ -1,3 +1,4 @@
+import { businessDayKey } from '../common/date-helpers'
 import {
   Injectable,
   Logger,
@@ -215,7 +216,7 @@ export class CashierService {
     const amount = order.amount
     const fee = Math.round((amount * order.merchant.payRate) / RATE_DENOMINATOR)
     const actualAmount = amount - fee
-    const dateStr = new Date().toISOString().slice(0, 10)
+    const dateStr = businessDayKey()
 
     const paidOrder = await this.redis.withLock(
       `cashier:pay:${dto.orderNo}:${payerId}`,
@@ -626,7 +627,7 @@ export class CashierService {
     dailyLimit: number,
     amount: number,
   ) {
-    const dateStr = new Date().toISOString().slice(0, 10)
+    const dateStr = businessDayKey()
 
     let usage = await tx.dailyLimitUsage.findFirst({
       where: {

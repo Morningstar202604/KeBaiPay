@@ -48,10 +48,14 @@ class KeBaiPay {
     this.maxRetries = options.maxRetries !== undefined ? options.maxRetries : DEFAULT_MAX_RETRIES;
   }
 
-  // Node.js crypto 同步生成 HMAC-SHA256，避免浏览器端 Web Crypto 的异步与密钥暴露
+  // 签名口径（与 docs/API_REFERENCE.md 一致）：先对 appSecret 做 SHA-256，
+  // 以其 32 字节摘要作为 HMAC-SHA256 的 key 对 sign_string 签名，输出小写 hex。
+  // 服务端只存 appSecret 的 SHA-256 摘要（不存明文），因此客户端必须预哈希。
+  // Node.js crypto 同步生成，避免浏览器端 Web Crypto 的异步与密钥暴露
   _sign(method, path, body, timestamp, nonce) {
     const message = method + '\n' + path + '\n' + body + '\n' + timestamp + '\n' + nonce + '\n' + this.appId;
-    return crypto.createHmac('sha256', this.appSecret).update(message, 'utf8').digest('hex');
+    const key = crypto.createHash('sha256').update(this.appSecret, 'utf8').digest();
+    return crypto.createHmac('sha256', key).update(message, 'utf8').digest('hex');
   }
 
   _nonce() {

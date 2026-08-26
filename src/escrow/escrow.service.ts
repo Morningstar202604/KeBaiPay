@@ -1,3 +1,4 @@
+import { businessDayKey } from '../common/date-helpers'
 import {
   Injectable,
   BadRequestException,
@@ -190,7 +191,7 @@ export class EscrowService {
           }
 
           // 单日限额
-          const dateStr = new Date().toISOString().slice(0, 10)
+          const dateStr = businessDayKey()
           const limitConfig = await tx.systemConfig.findUnique({
             where: { key: 'escrow_daily_limit' },
           })

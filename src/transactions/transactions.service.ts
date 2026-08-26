@@ -218,6 +218,20 @@ export class TransactionsService {
         }
 
         // 成功：入账
+        // H2 安全修复：成功回调必须核对实付金额与订单金额一致——这是微信/支付宝官方
+        // 接入规范的强制核对项。渠道侧实际成交金额与订单金额不一致的一切场景
+        // （改价、组合支付、渠道异常）都不得按订单金额入账，否则少收多入账；
+        // 退款模块以订单金额为可退基数，损失会被进一步放大。fail-closed：
+        // 回调未携带金额同样拒绝。
+        if (result.amount !== order.amount) {
+          this.logger.error(
+            `充值回调金额不一致：订单 ${order.orderNo} 订单金额=${order.amount} 实付金额=${result.amount}，拒绝入账`,
+          )
+          throw new BadRequestException(
+            kbError(KBErrorCodes.CALLBACK_AMOUNT_MISMATCH),
+          )
+        }
+
         const account = await tx.account.findUnique({
           where: { userId: order.toUserId! },
         })

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../audit/audit-log.service'
+import { CryptoService } from '../crypto/crypto.service'
 import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
 import { ConnectorRegistry } from '../payment-channels/connector.registry'
 import { CHANNEL_CONNECTOR_NAME } from '../payment-channels/payment-channel.bridge'
@@ -18,6 +19,7 @@ export class ChannelConfigService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly crypto: CryptoService,
     private readonly channelRegistry: PaymentChannelRegistry,
     private readonly connectorRegistry: ConnectorRegistry,
   ) {}
@@ -27,22 +29,17 @@ export class ChannelConfigService {
       orderBy: { priority: 'desc' },
     })
     return channels.map((ch) => {
-      let safeConfig = '{}'
-      try {
-        const parsed = JSON.parse(ch.config)
-        const safeFields: Record<string, string> = {}
-        for (const key of Object.keys(parsed)) {
-          if (typeof parsed[key] === 'string' && parsed[key].length > 20) {
-            safeFields[key] = parsed[key].slice(0, 8) + '****'
-          } else {
-            safeFields[key] = parsed[key]
-          }
+      // H1 安全修复：库内字符串值为密文（enc:v1: 前缀），展示前先解密再脱敏
+      const parsed = this.decryptConfigJson(ch.config)
+      const safeFields: Record<string, string> = {}
+      for (const key of Object.keys(parsed)) {
+        if (typeof parsed[key] === 'string' && parsed[key].length > 20) {
+          safeFields[key] = (parsed[key] as string).slice(0, 8) + '****'
+        } else {
+          safeFields[key] = parsed[key] as string
         }
-        safeConfig = JSON.stringify(safeFields)
-      } catch {
-        // ignore
       }
-      return { ...ch, config: safeConfig }
+      return { ...ch, config: JSON.stringify(safeFields) }
     })
   }
 
@@ -50,6 +47,8 @@ export class ChannelConfigService {
     dto: { code: string; name: string; type: string; enabled: boolean; priority: number; config?: string },
     ctx: AuditContext,
   ) {
+    // H1 安全修复：渠道凭据（apiV3Key/应用私钥等）落库前逐字段 AES-256-GCM 加密
+    const encryptedConfig = this.encryptConfigJson(dto.config)
     const result = await this.prisma.$transaction(async (tx) => {
       const created = await tx.paymentChannelConfig.create({
         data: {
@@ -58,7 +57,7 @@ export class ChannelConfigService {
           type: dto.type,
           enabled: dto.enabled,
           priority: dto.priority,
-          config: dto.config || '{}',
+          config: encryptedConfig,
         },
       })
       await this.auditLog.log(
@@ -89,20 +88,27 @@ export class ChannelConfigService {
       return { error: '渠道不存在' }
     }
 
-    let mergedConfig = existing.config
+    let mergedConfig: string
     if (dto.config) {
+      // H1 安全修复：旧值先解密（兼容历史明文），合并新值后整体重新加密落库
+      let oldParsed: Record<string, unknown>
       try {
-        const oldParsed = JSON.parse(existing.config)
-        const newParsed = JSON.parse(dto.config)
+        oldParsed = this.decryptConfigJson(existing.config)
+        const newParsed = JSON.parse(dto.config) as Record<string, unknown>
         for (const [k, v] of Object.entries(newParsed)) {
           if (v !== undefined && v !== '' && v !== null) {
             oldParsed[k] = v
           }
         }
-        mergedConfig = JSON.stringify(oldParsed)
       } catch {
-        mergedConfig = dto.config
+        oldParsed = this.decryptConfigJson(existing.config)
       }
+      mergedConfig = JSON.stringify(this.crypto.encryptConfigValues(oldParsed))
+    } else {
+      // 未传 config 时也重新加密一次：顺带把历史明文存量迁移为密文
+      mergedConfig = JSON.stringify(
+        this.crypto.encryptConfigValues(this.decryptConfigJson(existing.config)),
+      )
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -164,7 +170,29 @@ export class ChannelConfigService {
     }
   }
 
-  /** 渠道配置热更新联动：将 DB 配置同步到连接器运行时 */
+  /** 渠道配置 JSON：解析后逐字段加密再序列化；非法 JSON 原样返回（交由上层校验） */
+  private encryptConfigJson(configJson: string | undefined): string {
+    if (!configJson) return '{}'
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON.parse(configJson) as Record<string, unknown>
+    } catch {
+      return configJson
+    }
+    return JSON.stringify(this.crypto.encryptConfigValues(parsed))
+  }
+
+  /** 渠道配置 JSON：解密带密文前缀的字段后返回对象；非法 JSON 返回空对象 */
+  private decryptConfigJson(configJson: string): Record<string, unknown> {
+    try {
+      const parsed = JSON.parse(configJson) as Record<string, unknown>
+      return this.crypto.decryptConfigValues(parsed)
+    } catch {
+      return {}
+    }
+  }
+
+  /** 渠道配置热更新联动：将 DB 配置（解密后）同步到连接器运行时 */
   private async syncConnector(code: string): Promise<void> {
     const connectorName = CHANNEL_CONNECTOR_NAME[code] ?? code
     if (!this.connectorRegistry.get(connectorName)) return
@@ -173,12 +201,7 @@ export class ChannelConfigService {
       this.connectorRegistry.syncConfig(connectorName, { priority: 0, credentials: {} })
       return
     }
-    let credentials: Record<string, string> = {}
-    try {
-      credentials = JSON.parse(row.config) as Record<string, string>
-    } catch {
-      // ignore
-    }
+    const credentials = this.decryptConfigJson(row.config) as Record<string, string>
     this.connectorRegistry.syncConfig(connectorName, { priority: row.priority, credentials })
   }
 }

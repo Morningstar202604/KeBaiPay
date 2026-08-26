@@ -1,3 +1,4 @@
+import { businessDayKey } from '../common/date-helpers'
 import {
   Injectable,
   BadRequestException,
@@ -129,7 +130,7 @@ export class WithdrawalsService {
       }
 
       // 单日提现限额：从 systemConfig 读取（单位元），默认 DEFAULT_WITHDRAW_DAILY_LIMIT_CENTS
-      const dateStr = new Date().toISOString().slice(0, 10)
+      const dateStr = businessDayKey()
       const limitConfig = await tx.systemConfig.findUnique({
         where: { key: 'withdrawal_daily_limit' },
       })
@@ -441,9 +442,22 @@ export class WithdrawalsService {
         if (order.channel !== channelCode) {
           throw new BadRequestException(kbError(KBErrorCodes.CALLBACK_CHANNEL_MISMATCH))
         }
-        if (order.channelOrderNo !== result.channelOrderNo) {
+        // channelOrderNo 匹配（语义约定：恒为渠道侧单号）。兼容两种边角：
+        // 1) 订单尚未持久化渠道单号（approve 渠道调用成功后、update 前进程崩溃）——
+        //    回调已验签，以回调携带的渠道侧单号补录；
+        // 2) 历史数据以我方单号占位存储（createPayout 在渠道未返回 order_id 时回退），
+        //    此时回调的 orderNo 与存量值相等同样放行。
+        const channelOrderNoMissing = !order.channelOrderNo
+        if (
+          !channelOrderNoMissing &&
+          order.channelOrderNo !== result.channelOrderNo &&
+          order.channelOrderNo !== result.orderNo
+        ) {
           throw new BadRequestException(kbError(KBErrorCodes.CALLBACK_CHANNEL_ORDER_NO_MISMATCH))
         }
+        // 渠道侧单号补录：仅当订单缺失且回调携带了非空渠道单号时写入
+        const needChannelNoBackfill =
+          channelOrderNoMissing && result.channelOrderNo !== ''
 
         const account = await tx.account.findUnique({
           where: { userId: order.userId },
@@ -453,7 +467,10 @@ export class WithdrawalsService {
         if (result.status === 'SUCCESS') {
           await tx.withdrawalOrder.update({
             where: { id: order.id },
-            data: { status: WithdrawalStatus.SUCCESS },
+            data: {
+              ...(needChannelNoBackfill ? { channelOrderNo: result.channelOrderNo } : {}),
+              status: WithdrawalStatus.SUCCESS,
+            },
           })
 
           await tx.bill.create({
@@ -484,6 +501,7 @@ export class WithdrawalsService {
             data: {
               status: WithdrawalStatus.FAILED,
               remark: '代付失败，余额退回',
+              ...(needChannelNoBackfill ? { channelOrderNo: result.channelOrderNo } : {}),
             },
           })
           if (statusUpdate.count === 0) {

@@ -1,3 +1,4 @@
+import { businessDayKey } from '../common/date-helpers'
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
@@ -288,7 +289,7 @@ export class UsersService {
     })
     const limit = config ? Math.round(Number(config.value) * 100) : DEFAULT_TRANSFER_DAILY_LIMIT_CENTS
 
-    const today = new Date().toISOString().slice(0, 10)
+    const today = businessDayKey()
 
     const usage = await this.prisma.dailyLimitUsage.findUnique({
       where: {

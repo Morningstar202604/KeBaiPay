@@ -1,3 +1,4 @@
+import { businessDayKey } from '../common/date-helpers'
 import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
@@ -435,7 +436,7 @@ export class RiskEngineService {
   }
 
   private async getDailyCount(userId: string, type: TransactionType): Promise<number> {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = businessDayKey()
     const startDate = new Date(`${today}T00:00:00.000Z`)
 
     const count = await this.prisma.transactionOrder.count({
@@ -450,7 +451,7 @@ export class RiskEngineService {
   }
 
   private async getDailyAmount(userId: string, type: TransactionType): Promise<number> {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = businessDayKey()
     const startDate = new Date(`${today}T00:00:00.000Z`)
 
     const result = await this.prisma.transactionOrder.aggregate({

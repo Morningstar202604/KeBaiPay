@@ -53,6 +53,24 @@ export class AgentMcpServer implements OnModuleInit {
   }
 
   /**
+   * P0-8b：嵌入实例的 userId 类工具强制绑定身份（与 standalone 的
+   * KBPAY_MCP_USER_ID fail-closed 策略一致）。此前嵌入式工具接受任意 userId，
+   * 一旦经 HTTP transport 暴露即构成水平越权读取任意用户余额/账单的高危口子。
+   */
+  private resolveBoundUserId(requestedUserId?: string): string {
+    const bound = (this.configService.get<string>('KBPAY_MCP_USER_ID') || '').trim()
+    if (!bound) {
+      throw new Error(
+        '未配置 KBPAY_MCP_USER_ID，MCP 工具禁止按任意 userId 查询（fail-closed，请在启动环境变量中绑定身份）',
+      )
+    }
+    if (requestedUserId && requestedUserId !== bound) {
+      throw new Error(`userId 与 MCP 绑定身份不匹配，拒绝查询`)
+    }
+    return bound
+  }
+
+  /**
    * 初始化 MCP Server，注册所有工具
    * 使用动态 import 避免在未安装 @modelcontextprotocol/sdk 时崩溃
    */
@@ -77,15 +95,16 @@ export class AgentMcpServer implements OnModuleInit {
       '查询 KeBaiPay 用户钱包余额',
       { userId: z.string().describe('用户 ID') },
       async (args: any) => {
+        const userId = this.resolveBoundUserId(args.userId)
         const account = await this.prisma.account.findUnique({
-          where: { userId: args.userId },
+          where: { userId },
           select: { availableBalance: true, frozenBalance: true, totalBalance: true },
         })
         return {
           content: [{
             type: 'text',
             text: JSON.stringify({
-              userId: args.userId,
+              userId,
               balanceYuan: account ? fenToYuan(account.totalBalance) : '0.00',
               balanceFen: account?.totalBalance ?? 0,
               availableYuan: account ? fenToYuan(account.availableBalance) : '0.00',
@@ -133,9 +152,10 @@ export class AgentMcpServer implements OnModuleInit {
         limit: z.number().optional().describe('返回条数，默认 20，最大 100'),
       },
       async (args: any) => {
+        const userId = this.resolveBoundUserId(args.userId)
         const limit = Math.min(args.limit ?? 20, 100)
         const bills = await this.prisma.bill.findMany({
-          where: { userId: args.userId },
+          where: { userId },
           orderBy: { createdAt: 'desc' },
           take: limit,
           select: {

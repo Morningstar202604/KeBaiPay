@@ -1,3 +1,4 @@
+import { businessDayKey } from '../common/date-helpers'
 import {
   Injectable,
   BadRequestException,
@@ -147,7 +148,7 @@ export class QrCodesService {
       )
     }
 
-    const dateStr = new Date().toISOString().slice(0, 10)
+    const dateStr = businessDayKey()
 
     const runTransaction = async () => {
       try {

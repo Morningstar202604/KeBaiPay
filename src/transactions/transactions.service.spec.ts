@@ -422,5 +422,74 @@ describe('TransactionsService', () => {
       expect(prisma.account.update).not.toHaveBeenCalled()
       expect(prisma.transactionOrder.update).not.toHaveBeenCalled()
     })
+
+    it('回调实付金额与订单金额不一致：拒绝入账（H2 安全修复 KB706）', async () => {
+      // 场景：渠道侧实际成交金额小于订单金额（改价/组合支付等），
+      // 若按订单金额入账则少收多入账。必须 fail-closed 拒绝。
+      const orderNo = 'R903'
+      const channelOrderNo = `MOCK_R_${orderNo}`
+      const orderAmount = 1000
+      const paidAmount = 500
+
+      prisma.transactionOrder.findUnique.mockResolvedValue({
+        id: 't903',
+        orderNo,
+        status: 'PENDING',
+        amount: orderAmount,
+        toUserId: 'u1',
+        channel: 'mock',
+        channelOrderNo,
+      })
+
+      const body = JSON.stringify({
+        orderNo,
+        channelOrderNo,
+        amount: paidAmount,
+        status: 'SUCCESS',
+      })
+      const sig = mockChannel.sign(`${orderNo}${channelOrderNo}${paidAmount}`)
+      const headers = { 'x-signature': sig }
+
+      await expect(
+        service.handleRechargeCallback('mock', body, headers),
+      ).rejects.toThrow(BadRequestException)
+      expect(prisma.account.update).not.toHaveBeenCalled()
+      expect(prisma.accountLedger.create).not.toHaveBeenCalled()
+      expect(prisma.bill.create).not.toHaveBeenCalled()
+      expect(prisma.transactionOrder.update).not.toHaveBeenCalled()
+    })
+
+    it('回调未携带金额：同样拒绝入账（fail-closed）', async () => {
+      const orderNo = 'R904'
+      const channelOrderNo = `MOCK_R_${orderNo}`
+      const orderAmount = 1000
+
+      prisma.transactionOrder.findUnique.mockResolvedValue({
+        id: 't904',
+        orderNo,
+        status: 'PENDING',
+        amount: orderAmount,
+        toUserId: 'u1',
+        channel: 'mock',
+        channelOrderNo,
+      })
+
+      // 构造无 amount 字段的合法签名回调：mock 验签串中 undefined 会被 String() 转为 "undefined"
+      const rawBodyWithoutAmount = {
+        orderNo,
+        channelOrderNo,
+        status: 'SUCCESS',
+      }
+      const sig = mockChannel.sign(
+        `${rawBodyWithoutAmount.orderNo}${rawBodyWithoutAmount.channelOrderNo}undefined`,
+      )
+      const body = JSON.stringify(rawBodyWithoutAmount)
+      const headers = { 'x-signature': sig }
+
+      await expect(
+        service.handleRechargeCallback('mock', body, headers),
+      ).rejects.toThrow(BadRequestException)
+      expect(prisma.account.update).not.toHaveBeenCalled()
+    })
   })
 })

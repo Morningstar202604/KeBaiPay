@@ -63,6 +63,8 @@ export interface StripePayoutRequest {
   destination: string // 外部账户 ID 或银行卡 token
   description?: string
   metadata?: Record<string, string>
+  /** 我方单号：作为 Stripe Idempotency-Key 传递（P0-5），防止重试双放款 */
+  orderNo?: string
 }
 
 /** Stripe Connector 凭据 */
@@ -285,6 +287,7 @@ export class StripeConnector implements Connector {
     const response = await this.stripePost<Record<string, any>>(
       STRIPE_API_PATHS.paymentIntents,
       this.toFormData(params),
+      orderNo, // P0-5：以我方单号作为 Stripe 幂等键，重试不会双开 PaymentIntent
     )
 
     return {
@@ -328,6 +331,7 @@ export class StripeConnector implements Connector {
     connectorOrderId: string,
     amount?: number,
     reason?: string,
+    idempotencyKey?: string,
   ): Promise<any> {
     this.assertCredentials()
 
@@ -347,6 +351,8 @@ export class StripeConnector implements Connector {
     const response = await this.stripePost<Record<string, any>>(
       STRIPE_API_PATHS.refunds,
       this.toFormData(params),
+      // P0-5：优先用调用方幂等键；否则按 intent+金额派生确定性键（同参数重试安全）
+      idempotencyKey || `${connectorOrderId}:${amount ?? 'full'}`,
     )
 
     return {
@@ -381,6 +387,7 @@ export class StripeConnector implements Connector {
     const response = await this.stripePost<Record<string, any>>(
       STRIPE_API_PATHS.payouts,
       this.toFormData(params),
+      request.orderNo, // P0-5：幂等键，防止超时重试双放款
     )
 
     return {
@@ -657,8 +664,11 @@ export class StripeConnector implements Connector {
 
   /**
    * Stripe POST 请求
+   *
+   * P0-5：idempotencyKey 非空时将作为 `Idempotency-Key` header 发送
+   * （Stripe 官方幂等机制，24h 内同键重放返回同一结果）。
    */
-  private async stripePost<T>(path: string, body: string): Promise<T> {
+  private async stripePost<T>(path: string, body: string, idempotencyKey?: string): Promise<T> {
     this.assertCredentials()
     const creds = this.credentials!
 
@@ -666,8 +676,11 @@ export class StripeConnector implements Connector {
       return this.mockResponse('POST', path) as T
     }
 
+    // 实际实现应使用 HttpService；headers 必须携带：
+    //   Authorization: Bearer <secretKey>
+    //   Idempotency-Key: <idempotencyKey>（当调用方提供时）
     throw new Error(
-      `Stripe HTTP POST 调用尚未接入真实 API。Path=${path}，请配置真实凭据或使用 sandbox 模式。`,
+      `Stripe HTTP POST 调用尚未接入真实 API。Path=${path}${idempotencyKey ? `，Idempotency-Key=${idempotencyKey}` : ''}，请配置真实凭据或使用 sandbox 模式。`,
     )
   }
 

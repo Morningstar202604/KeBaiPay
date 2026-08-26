@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { Request } from 'express'
 import { SkipThrottle } from '@nestjs/throttler'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
+import { createHash, timingSafeEqual } from 'crypto'
 import { MetricsService } from './metrics.service'
 
 /**
@@ -33,7 +34,12 @@ export class MetricsController {
     const expected = this.configService.get<string>('METRICS_TOKEN')
     if (expected) {
       const auth = req.headers.authorization || ''
-      if (auth !== `Bearer ${expected}`) {
+      // L1 修复：哈希后常量时间比较，避免逐字节短路泄露前缀匹配长度
+      const providedHash = createHash('sha256').update(auth).digest()
+      const expectedHash = createHash('sha256')
+        .update(`Bearer ${expected}`)
+        .digest()
+      if (!timingSafeEqual(providedHash, expectedHash)) {
         throw new UnauthorizedException('metrics token invalid')
       }
     }

@@ -44,3 +44,19 @@ export function getTodayRange(): { start: Date; end: Date } {
     end: today.endOf('day').toDate(),
   }
 }
+
+/** 业务日切时区：限额/风控/订单号日期前缀等"自然日"口径统一按北京时间计算 */
+export const BUSINESS_TIMEZONE = 'Asia/Shanghai'
+
+/**
+ * 业务日键（P0-6 时区统一）。
+ *
+ * 返回业务时区（默认 Asia/Shanghai）下的 YYYY-MM-DD。
+ * 此前的 `new Date().toISOString().slice(0, 10)` 是 UTC 日切：
+ * 北京时间 0:00-8:00 的交易被计入"昨日"，日限额在早上 8 点才翻转，
+ * 既是资损窗口也是风控口径错误。新代码禁止再用 UTC 日切。
+ */
+export function businessDayKey(date: Date = new Date()): string {
+  // en-CA 区域的 ISO 风格格式恰好是 YYYY-MM-DD
+  return new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TIMEZONE }).format(date)
+}

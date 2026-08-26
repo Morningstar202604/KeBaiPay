@@ -452,6 +452,9 @@ export class AlipayChannel implements PaymentChannel {
       }
 
       return {
+        // 语义约定：channelOrderNo 恒为渠道侧单号（支付宝 order_id）。
+        // 极端情况下渠道未返回 order_id 时回退我方单号占位，
+        // 回调匹配逻辑对这两种取值均兼容（见 withdrawals.service.handlePayoutCallback）。
         channelOrderNo: (result.order_id as string) || params.orderNo,
         status: 'PROCESSING',
         message: '转账受理中',
@@ -479,7 +482,9 @@ export class AlipayChannel implements PaymentChannel {
     try {
       const result = await sdk.exec(
         'alipay.fund.trans.order.query',
-        { bizContent: { out_biz_no: channelOrderNo } },
+        // createPayout 持久化的是渠道侧单号（order_id），查询必须用同一字段；
+        // 此前误将其作为 out_biz_no（我方单号）查询，永远查不到订单
+        { bizContent: { order_id: channelOrderNo } },
         { validateSign: false },
       )
 
@@ -518,8 +523,12 @@ export class AlipayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '支付宝代付回调签名验证失败'))
     }
 
+    // 支付宝转账异步通知同时携带 out_biz_no（我方单号）与 order_id（渠道侧单号）。
+    // 语义约定：channelOrderNo 恒取渠道侧单号 order_id，orderNo 取我方单号 out_biz_no。
+    // 此前两者都填 out_biz_no，与 createPayout 存储的 order_id 恒不匹配，
+    // 导致真实回调必然命中 CALLBACK_CHANNEL_ORDER_NO_MISMATCH、订单卡死 PROCESSING。
     return {
-      channelOrderNo: params.out_biz_no || '',
+      channelOrderNo: params.order_id || '',
       orderNo: params.out_biz_no || '',
       status: params.status === 'SUCCESS' ? 'SUCCESS' : 'FAILED',
       signature: params.sign || '',

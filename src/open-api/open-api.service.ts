@@ -1,3 +1,4 @@
+import { businessDayKey } from '../common/date-helpers'
 import {
   Injectable,
   BadRequestException,
@@ -382,8 +383,8 @@ export class OpenApiService {
         // 回滚日限额：仅当支付发生在当天时，退款才释放当日已用额度，
         // 避免付款方/商户退款后仍占用日限额导致无法继续交易
         if (order.paidAt) {
-          const paidDateStr = order.paidAt.toISOString().slice(0, 10)
-          const todayStr = new Date().toISOString().slice(0, 10)
+          const paidDateStr = businessDayKey(order.paidAt)
+          const todayStr = businessDayKey()
           if (paidDateStr === todayStr) {
             if (order.payerId) {
               await this.rollbackDailyLimit(tx, order.payerId, 'CASHIER', todayStr, refundAmount)

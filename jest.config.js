@@ -23,4 +23,8 @@ module.exports = {
     }],
   },
   clearMocks: true,
+  // 弱机/CI 2 核 runner 下 supertest 控制器用例偶发超过默认 5s 超时（评审实测 5 例失败），
+  // 统一放宽到 15s；maxWorkers 上限避免高并发下机器过载放大超时
+  testTimeout: 15000,
+  maxWorkers: '50%',
 }

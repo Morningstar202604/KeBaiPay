@@ -1,3 +1,4 @@
+import { businessDayKey } from '../common/date-helpers'
 import {
   Injectable,
   BadRequestException,
@@ -141,7 +142,7 @@ export class RedPacketsService {
       }
 
       // 单日发红包限额
-      const dateStr = new Date().toISOString().slice(0, 10)
+      const dateStr = businessDayKey()
       const limitConfig = await tx.systemConfig.findUnique({
         where: { key: 'red_packet_daily_limit' },
       })

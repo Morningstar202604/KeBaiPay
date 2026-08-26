@@ -3,10 +3,17 @@ import { ChannelConfigController } from './channel-config.controller'
 import { ChannelConfigService } from './channel-config.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../audit/audit-log.service'
+import { CryptoService } from '../crypto/crypto.service'
 import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
 import { ConnectorRegistry } from '../payment-channels/connector.registry'
 import { AdminJwtAuthGuard } from './admin-jwt-auth.guard'
 import { PermissionsGuard } from './permissions.guard'
+
+// 真实 CryptoService（固定测试密钥），用于验证凭据加密落库与解密读取
+const crypto = new CryptoService({
+  get: () => 'unit-test-encryption-key-0123456789abcdef',
+} as never)
+crypto.onModuleInit()
 
 describe('ChannelConfigController', () => {
   let controller: ChannelConfigController
@@ -47,6 +54,7 @@ describe('ChannelConfigController', () => {
         ChannelConfigService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AuditLogService, useValue: mockAuditLog },
+        { provide: CryptoService, useValue: crypto },
         { provide: PaymentChannelRegistry, useValue: mockChannelRegistry },
         { provide: ConnectorRegistry, useValue: mockConnectorRegistry },
       ],
@@ -172,7 +180,13 @@ describe('ChannelConfigController', () => {
     const updateCall = mockPrisma.paymentChannelConfig.update.mock.calls[0][0]
     expect(updateCall.where).toEqual({ code: 'alipay' })
     expect(updateCall.data.name).toBe('支付宝2')
-    const merged = JSON.parse(updateCall.data.config)
+    // H1 安全修复：合并后的凭据必须以密文落库（不含明文值）
+    const stored = JSON.parse(updateCall.data.config) as Record<string, string>
+    expect(stored.b).not.toBe('3')
+    expect(stored.c).not.toBe('4')
+    expect(stored.c).toMatch(/^enc:v1:/)
+    // 解密后得到明文合并结果
+    const merged = crypto.decryptConfigValues(stored)
     expect(merged).toEqual({ a: '1', b: '3', c: '4' })
     expect(mockAuditLog.log).toHaveBeenCalledWith(
       expect.objectContaining({

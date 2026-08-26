@@ -1,3 +1,4 @@
+import { businessDayKey } from '../common/date-helpers'
 import {
   Injectable,
   BadRequestException,
@@ -151,7 +152,7 @@ export class BatchTransfersService {
         }
 
         // 单日限额
-        const dateStr = new Date().toISOString().slice(0, 10)
+        const dateStr = businessDayKey()
         const limitConfig = await tx.systemConfig.findUnique({
           where: { key: 'batch_transfer_daily_limit' },
         })
@@ -391,8 +392,9 @@ export class BatchTransfersService {
 
   /**
    * 崩溃恢复：重放停留在 PROCESSING 且仍存在 PENDING 明细的批量转账批次。
-   * processItem 以 PENDING 为幂等守卫；收尾退款通过“已存在退款订单”幂等，
-   * 避免崩溃窗口导致的重复退款。
+    * processItem 以 PENDING 为幂等守卫；收尾退款通过确定性幂等键
+    * idempotencyKey=BT-REFUND:{batchNo}（唯一约束兜底）幂等，
+    * 避免崩溃窗口导致的重复退款。
    */
   async resumeProcessing(batchId: string): Promise<boolean> {
     const batch = await this.prisma.batchTransfer.findUnique({
@@ -416,61 +418,75 @@ export class BatchTransfersService {
     const failedCount = failedItems.length
     const failedTotalAmount = failedItems.reduce((s, i) => s + i.amount, 0)
 
-    // 幂等收尾：若该批次退款订单已存在，说明已收尾过，跳过退款
-    const existingRefund = await this.prisma.transactionOrder.findFirst({
-      where: { remark: `批次 ${batch.batchNo} 失败笔数退款` },
-    })
-    if (failedTotalAmount > 0 && !existingRefund) {
-      const senderAccount = await this.prisma.account.findUnique({
-        where: { userId: batch.senderId },
-      })
-      if (senderAccount) {
-        const releaseResult = await this.prisma.account.updateMany({
+    // P0-7 修复：收尾退款整体包进事务（此前冻结释放与退款订单创建分属两次独立提交，
+    // 崩溃可停在中间态）；幂等判定改用确定性幂等键 idempotencyKey（唯一约束兜底），
+    // 此前按 remark 字符串匹配是全项目幂等设计中最弱的一环。
+    // OR 兼容历史存量：升级前已按 remark 落库的退款订单仍能命中，防止恢复流程重复退款。
+    if (failedTotalAmount > 0) {
+      await this.prisma.$transaction(async (tx) => {
+        const refundIdempotencyKey = `BT-REFUND:${batch.batchNo}`
+        const existingRefund = await tx.transactionOrder.findFirst({
+          where: {
+            OR: [
+              { idempotencyKey: refundIdempotencyKey },
+              { remark: `批次 ${batch.batchNo} 失败笔数退款` },
+            ],
+          },
+        })
+        if (existingRefund) return
+
+        const senderAccount = await tx.account.findUnique({
+          where: { userId: batch.senderId },
+        })
+        if (!senderAccount) return
+
+        const releaseResult = await tx.account.updateMany({
           where: { id: senderAccount.id, frozenBalance: { gte: failedTotalAmount } },
           data: {
             availableBalance: { increment: failedTotalAmount },
             frozenBalance: { decrement: failedTotalAmount },
           },
         })
-        if (releaseResult.count === 1) {
-          const updatedAccount = await this.prisma.account.findUnique({
-            where: { id: senderAccount.id },
-          })
-          const refundOrder = await this.prisma.transactionOrder.create({
-            data: {
-              orderNo: generateOrderNo('T'),
-              type: TransactionType.REFUND,
-              status: TransactionStatus.SUCCESS,
-              amount: failedTotalAmount,
-              fromUserId: batch.senderId,
-              remark: `批次 ${batch.batchNo} 失败笔数退款`,
-              completedAt: new Date(),
-            },
-          })
-          await this.prisma.accountLedger.create({
-            data: {
-              accountId: senderAccount.id,
-              transactionId: refundOrder.id,
-              type: LedgerType.BATCH_TRANSFER,
-              amount: failedTotalAmount,
-              balanceBefore: updatedAccount!.availableBalance - failedTotalAmount,
-              balanceAfter: updatedAccount!.availableBalance,
-              direction: Direction.DEBIT,
-              remark: `批次 ${batch.batchNo} 失败笔数退款（${failedCount} 笔）`,
-            },
-          })
-          // 复式记账：退回的对手方分录（frozenBalance 减少 = CREDIT）
-          await createFrozenLegLedgerEntry(this.prisma, {
+        if (releaseResult.count === 0) return
+
+        const updatedAccount = await tx.account.findUnique({
+          where: { id: senderAccount.id },
+        })
+        const refundOrder = await tx.transactionOrder.create({
+          data: {
+            orderNo: generateOrderNo('T'),
+            type: TransactionType.REFUND,
+            status: TransactionStatus.SUCCESS,
+            amount: failedTotalAmount,
+            fromUserId: batch.senderId,
+            remark: `批次 ${batch.batchNo} 失败笔数退款`,
+            idempotencyKey: refundIdempotencyKey,
+            completedAt: new Date(),
+          },
+        })
+        await tx.accountLedger.create({
+          data: {
             accountId: senderAccount.id,
             transactionId: refundOrder.id,
             type: LedgerType.BATCH_TRANSFER,
             amount: failedTotalAmount,
-            frozenBefore: updatedAccount!.frozenBalance + failedTotalAmount,
-            frozenAfter: updatedAccount!.frozenBalance,
-            remark: `批次 ${batch.batchNo} 失败笔数退款（冻结余额对应分录）`,
-          })
-        }
-      }
+            balanceBefore: updatedAccount!.availableBalance - failedTotalAmount,
+            balanceAfter: updatedAccount!.availableBalance,
+            direction: Direction.DEBIT,
+            remark: `批次 ${batch.batchNo} 失败笔数退款（${failedCount} 笔）`,
+          },
+        })
+        // 复式记账：退回的对手方分录（frozenBalance 减少 = CREDIT）
+        await createFrozenLegLedgerEntry(tx, {
+          accountId: senderAccount.id,
+          transactionId: refundOrder.id,
+          type: LedgerType.BATCH_TRANSFER,
+          amount: failedTotalAmount,
+          frozenBefore: updatedAccount!.frozenBalance + failedTotalAmount,
+          frozenAfter: updatedAccount!.frozenBalance,
+          remark: `批次 ${batch.batchNo} 失败笔数退款（冻结余额对应分录）`,
+        })
+      })
     }
 
     // 状态机：PROCESSING → COMPLETED（updateMany 保证仅一次成功）

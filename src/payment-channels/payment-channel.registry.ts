@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
+import { CryptoService } from '../crypto/crypto.service'
 import { PaymentChannel, ChannelConfig } from './payment-channel.interface'
 import { MockChannel } from './channels/mock.channel'
 import { WechatPayChannel } from './channels/wechat-pay.channel'
@@ -10,7 +11,8 @@ import { AlipayChannel } from './channels/alipay.channel'
  * 支付渠道注册中心
  *
  * 负责渠道实例的注册、查找与配置加载。
- * 渠道配置存储在 PaymentChannelConfig 表中，config 字段为 JSON 字符串。
+ * 渠道配置存储在 PaymentChannelConfig 表中，config 字段为 JSON 字符串，
+ * 其中字符串凭据以 AES-256-GCM 密文落库（enc:v1: 前缀），本类读取时统一解密。
  *
  * 安全说明：生产环境不会降级到 mock 渠道，必须显式配置真实渠道。
  */
@@ -23,6 +25,7 @@ export class PaymentChannelRegistry {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly crypto: CryptoService,
     mockChannel: MockChannel,
     wechatPayChannel: WechatPayChannel,
     alipayChannel: AlipayChannel,
@@ -63,7 +66,9 @@ export class PaymentChannelRegistry {
     }
     let parsed: ChannelConfig = {}
     try {
-      parsed = JSON.parse(config.config) as ChannelConfig
+      parsed = this.crypto.decryptConfigValues(
+        JSON.parse(config.config) as Record<string, unknown>,
+      ) as ChannelConfig
     } catch {
       this.logger.warn(`渠道 ${code} 配置解析失败，使用空配置`)
     }
@@ -96,7 +101,9 @@ export class PaymentChannelRegistry {
       if (channel) {
         let parsed: ChannelConfig = {}
         try {
-          parsed = JSON.parse(config.config) as ChannelConfig
+          parsed = this.crypto.decryptConfigValues(
+            JSON.parse(config.config) as Record<string, unknown>,
+          ) as ChannelConfig
         } catch {
           // ignore
         }

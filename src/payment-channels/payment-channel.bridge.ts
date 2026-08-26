@@ -101,7 +101,8 @@ export class PaymentChannelBridge {
    * 统一外呼入口：
    * 1. 渠道实例由 PaymentChannelRegistry 按编码解析（同步、无 DB）
    * 2. 若该渠道已注册对应连接器，则经 ConnectorRouter 路由（preferredName 精确匹配，
-   *    重试策略沿用默认，幂等键保证重试不重复扣款/退款）
+   *    重试仅对携带幂等键的请求启用——见 ConnectorRouter.canSafelyRetry，
+   *    无键请求失败即返回，防止渠道双下单/双放款）
    * 3. 未注册连接器时回退直连渠道，保持可用性
    */
   private async routeToChannel<R>(

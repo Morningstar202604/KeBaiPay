@@ -20,6 +20,8 @@ export class CryptoService implements OnModuleInit {
   private readonly IV_LENGTH = 12
   // salt 固定值：用于 scrypt 密钥派生，与历史密文兼容；轮换密钥需重新加密全量数据
   private readonly SALT = 'kebaipay-salt-v1'
+  // 渠道配置密文前缀：标识该字符串为 AES-256-GCM 密文（前缀后为 base64(iv:ciphertext:authTag)）
+  private readonly CONFIG_ENC_PREFIX = 'enc:v1:'
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -65,6 +67,53 @@ export class CryptoService implements OnModuleInit {
       decipher.update(ciphertext),
       decipher.final(),
     ]).toString('utf8')
+  }
+
+  /**
+   * 加密配置对象中的字符串值（渠道凭据等敏感配置落库前调用）
+   *
+   * 仅处理非空 string 值，输出带 enc:v1: 前缀的密文；其余类型原样保留。
+   * 已带前缀的值不重复加密（幂等），支持重复保存同一配置。
+   */
+  encryptConfigValues(config: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(config)) {
+      if (
+        typeof value === 'string' &&
+        value !== '' &&
+        !value.startsWith(this.CONFIG_ENC_PREFIX)
+      ) {
+        out[key] = this.CONFIG_ENC_PREFIX + this.encrypt(value)
+      } else {
+        out[key] = value
+      }
+    }
+    return out
+  }
+
+  /**
+   * 解密配置对象中带 enc:v1: 前缀的字符串值（业务读取配置时调用）
+   *
+   * 未带前缀的值原样返回——兼容历史明文存量数据，实现平滑迁移；
+   * 单个字段解密失败时保留原值并记录告警，避免一个坏字段阻断整个渠道。
+   */
+  decryptConfigValues(config: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(config)) {
+      if (typeof value === 'string' && value.startsWith(this.CONFIG_ENC_PREFIX)) {
+        try {
+          out[key] = this.decrypt(value.slice(this.CONFIG_ENC_PREFIX.length))
+        } catch (err) {
+          this.logger.warn(
+            `配置字段 ${key} 解密失败（密钥不匹配或密文损坏），已保留原值: ${err instanceof Error ? err.message : err}`,
+          )
+          out[key] = value
+        }
+      } else {
+        out[key] = value
+      }
+    }
+    return out
   }
 
   /**

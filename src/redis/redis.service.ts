@@ -1,7 +1,8 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
+import { ConflictException, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import Redis from 'ioredis'
 import { randomUUID } from 'crypto'
+import { KBErrorCodes, kbError } from '../common/error-codes'
 
 // 原子释放锁的 Lua 脚本：仅当锁值匹配时才删除，防止误释放他人锁
 const RELEASE_LOCK_SCRIPT = `
@@ -258,7 +259,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const token = identifier || `lock:${Date.now()}:${randomUUID()}`
     const acquired = await this.acquireLock(lockKey, ttlSeconds, token)
     if (!acquired) {
-      throw new Error(`获取锁失败: ${lockKey}`)
+      // L6 修复：抛业务异常（409）而非裸 Error——高并发争用时客户端应收到
+      // 可重试的冲突语义，而非未知 500 污染错误监控
+      throw new ConflictException(
+        kbError(KBErrorCodes.LOCK_ACQUISITION_FAILED, `获取锁失败: ${lockKey}`),
+      )
     }
     // 看门狗：临界区执行时间可能超过 TTL（如 bcrypt 验密 + 多表事务），
     // 锁过期会导致第二个请求进入临界区。以 TTL/3 周期自动续期，

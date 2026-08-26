@@ -1,3 +1,4 @@
+import { businessDayKey } from '../common/date-helpers'
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
@@ -99,7 +100,7 @@ export class SmsService implements OnModuleDestroy {
     scene: 'register' | 'login' | 'reset' | 'bind' = 'login',
     clientIp?: string,
   ): Promise<SendSmsResult> {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessDayKey();
 
     // 1. 手机号维度日发送量限制
     const phoneDailyKey = `sms:daily:phone:${phone}:${today}`;

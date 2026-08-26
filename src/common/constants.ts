@@ -1,4 +1,6 @@
-export const BCRYPT_SALT_ROUNDS = 10
+// bcrypt cost：10 约 60-80ms，12 约 250-300ms（2026 年硬件基线）。
+// 提升只影响新哈希（cost 存于 hash 头，旧哈希校验不受影响），登录接口耗时相应增加属预期。
+export const BCRYPT_SALT_ROUNDS = 12
 
 /** 费率分母：万分之一 */
 export const RATE_DENOMINATOR = 10000

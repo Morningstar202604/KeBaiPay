@@ -1,3 +1,4 @@
+import { businessDayKey } from '../common/date-helpers'
 import {
   Injectable,
   BadRequestException,
@@ -175,7 +176,7 @@ export class SplitsService {
         }
 
         // 单日限额
-        const dateStr = new Date().toISOString().slice(0, 10)
+        const dateStr = businessDayKey()
         const limitConfig = await tx.systemConfig.findUnique({
           where: { key: 'split_daily_limit' },
         })

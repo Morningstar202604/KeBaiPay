@@ -122,6 +122,19 @@ export class WechatPayChannel implements PaymentChannel {
       return false
     }
 
+    // M2 修复：时间戳时效校验（±5 分钟）。微信 V3 验签本身不含新鲜度，
+    // 不校验则历史合法回调可被无限期重放（业务幂等为兜底，此处补纵深防御）
+    const timestampSeconds = Number.parseInt(timestamp, 10)
+    if (!Number.isFinite(timestampSeconds)) {
+      this.logger.warn(`微信回调时间戳缺失或非法: "${timestamp}"，拒绝处理`)
+      return false
+    }
+    const skewSeconds = Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds)
+    if (skewSeconds > 300) {
+      this.logger.warn(`微信回调时间戳偏差 ${skewSeconds}s 超过 300s 窗口，疑似重放，拒绝处理`)
+      return false
+    }
+
     return this.verifyV3(timestamp, nonce, rawBody, signature, platformCert)
   }
 

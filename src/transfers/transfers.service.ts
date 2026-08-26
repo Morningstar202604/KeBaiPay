@@ -1,3 +1,4 @@
+import { businessDayKey } from '../common/date-helpers'
 import {
   Injectable,
   BadRequestException,
@@ -77,7 +78,7 @@ export class TransfersService {
         )
       }
 
-      const dateStr = new Date().toISOString().slice(0, 10)
+      const dateStr = businessDayKey()
 
       return this.prisma.$transaction(async (tx) => {
         // 单日限额校验放入事务内，保证原子性，避免高并发突破限额
@@ -170,7 +171,7 @@ export class TransfersService {
         )
       }
 
-      const dateStr = new Date().toISOString().slice(0, 10)
+      const dateStr = businessDayKey()
 
       return this.prisma.$transaction(async (tx) => {
         // Agent 专项单日累计限额（含本次）

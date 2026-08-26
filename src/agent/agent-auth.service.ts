@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
+import { createHash } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
 import { kbError, KBErrorCodes } from '../common/error-codes'
 import {
@@ -36,19 +37,37 @@ export class AgentAuthService {
     if (!AGENT_SCENARIOS.includes(input.scenario as AgentScenario)) {
       throw new UnauthorizedException(kbError(KBErrorCodes.AGENT_SCOPE_DENIED, '场景类型无效'))
     }
+    // M5 修复：appSecret 只存 sha256 哈希（与 MerchantApp 同一标准）。
+    // 明文仅在创建响应中回显一次，此后不可查询——DB 读取者无法伪造 Agent 凭据
+    const appSecret = generateAppSecret()
+    const appSecretHash = createHash('sha256').update(appSecret).digest('hex')
     const agent = await this.prisma.agent.create({
       data: {
         agentNo: generateOrderNo('AGT'),
         name: input.name,
         description: input.description,
-        appSecret: generateAppSecret(),
+        appSecret: appSecretHash,
         status: 'ACTIVE',
         scopes: JSON.stringify(input.scopes ?? []),
         scenario: input.scenario,
         version: '1.0.0',
       },
     })
-    return agent
+    return { ...agent, appSecret }
+  }
+
+  /** P0-8：轮换 Agent 密钥（管理端调用）。新明文仅本次响应返回一次，库中只存哈希 */
+  async rotateAppSecret(agentId: string) {
+    const agent = await this.prisma.agent.findUnique({ where: { id: agentId } })
+    if (!agent) throw new NotFoundException(kbError(KBErrorCodes.AGENT_NOT_FOUND))
+
+    const appSecret = generateAppSecret()
+    const appSecretHash = createHash('sha256').update(appSecret).digest('hex')
+    const updated = await this.prisma.agent.update({
+      where: { id: agentId },
+      data: { appSecret: appSecretHash },
+    })
+    return { ...updated, appSecret }
   }
 
   /** 用户/商户授权某个 Agent 代为操作 */

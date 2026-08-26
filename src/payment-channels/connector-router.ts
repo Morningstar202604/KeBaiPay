@@ -144,6 +144,13 @@ export class ConnectorRouter {
 
   /**
    * 带指数退避的重试执行
+   *
+   * P0-5：仅当请求携带幂等键时才允许自动重试。create 类外呼（下单/代付/退款）
+   * 在渠道侧无幂等键保护时，超时重试可能造成渠道双下单/双放款——此前对任何错误
+   * 盲目重试与 bridge 层"幂等键保证不重复扣款"的注释不符。
+   * 判定依据：请求对象上 idempotencyKey / orderNo / refundNo 任一非空
+   * （微信 out_batch_no、支付宝 out_biz_no/out_request_no、Stripe Idempotency-Key
+   * 均以我方单号作为渠道侧幂等键，见各 connector 实现）。
    */
   private async executeWithRetry<P, R>(
     connector: Connector<P, R>,
@@ -161,6 +168,12 @@ export class ConnectorRouter {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
         if (attempt < maxRetries) {
+          if (!this.canSafelyRetry(request)) {
+            this.logger.warn(
+              `连接器 ${connector.metadata.name} 请求未携带幂等键，禁止自动重试（防止渠道双下单），直接失败`,
+            )
+            throw lastError
+          }
           const delay = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs)
           this.logger.warn(
             `重试 ${connector.metadata.name} 第 ${attempt + 1}/${maxRetries} 次，等待 ${delay}ms`,
@@ -171,6 +184,16 @@ export class ConnectorRouter {
     }
 
     throw lastError!
+  }
+
+  /**
+   * 判定请求是否可安全重试：必须携带明确的幂等键
+   */
+  private canSafelyRetry(request: unknown): boolean {
+    if (!request || typeof request !== 'object') return false
+    const r = request as Record<string, unknown>
+    const hasKey = (v: unknown): boolean => typeof v === 'string' && v !== ''
+    return hasKey(r.idempotencyKey) || hasKey(r.orderNo) || hasKey(r.refundNo)
   }
 
   private sleep(ms: number): Promise<void> {

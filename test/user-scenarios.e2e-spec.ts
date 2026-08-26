@@ -1317,19 +1317,21 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
       const rechargeOrders = allOrders.filter((o: any) => o.type === 'RECHARGE')
       expect(rechargeOrders.length).toBe(CONCURRENT)
 
-      // 模拟批量回调
+      // 模拟批量回调（金额必须与订单一致——H2 修复后实付金额会被强校验；
+      // 每笔充值 1 元 = 100 分，recharge() 返回体不含 amount，故显式取已知值）
+      const RECHARGE_AMOUNT_FEN = 100
       const callbackResults = await Promise.allSettled(
         orders.map((order) => {
           const callbackBody = JSON.stringify({
             orderNo: order.orderNo,
             channelOrderNo: order.channelOrderNo,
-            amount: 10000,
+            amount: RECHARGE_AMOUNT_FEN,
             status: 'SUCCESS',
           })
           const signature = signMockBody({
             orderNo: order.orderNo,
             channelOrderNo: order.channelOrderNo || '',
-            amount: 10000,
+            amount: RECHARGE_AMOUNT_FEN,
           })
           return transSvc5.handleRechargeCallback('mock', callbackBody, { 'x-signature': signature })
         }),

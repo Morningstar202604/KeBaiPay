@@ -117,6 +117,57 @@ describe('AlipayChannel', () => {
     })
   })
 
+  describe('parsePayoutCallback 代付回调单号语义（P0-4）', () => {
+    const buildCfg = () => ({ appId: '2021000000000000', privateKey: keyPair.privateKey, alipayPublicKey: keyPair.publicKey })
+
+    it('channelOrderNo 取渠道侧单号 order_id，orderNo 取我方单号 out_biz_no', () => {
+      // 支付宝转账异步通知同时携带 out_biz_no 与 order_id；
+      // 此前两者都填 out_biz_no，与 createPayout 存储的 order_id 恒不匹配
+      const params: Record<string, string> = {
+        app_id: '2021000000000000',
+        out_biz_no: 'W20260826001',
+        order_id: '2026082611007000123456000001',
+        status: 'SUCCESS',
+      }
+      params.sign = signNotifyParams(params, keyPair.privateKey)
+
+      const result = channel.parsePayoutCallback(buildRawBody(params), {}, buildCfg())
+      expect(result.channelOrderNo).toBe('2026082611007000123456000001')
+      expect(result.orderNo).toBe('W20260826001')
+      expect(result.status).toBe('SUCCESS')
+    })
+
+    it('非 SUCCESS 状态解析为 FAILED，单号语义不变', () => {
+      const params: Record<string, string> = {
+        app_id: '2021000000000000',
+        out_biz_no: 'W20260826002',
+        order_id: '2026082611007000123456000002',
+        status: 'FAIL',
+      }
+      params.sign = signNotifyParams(params, keyPair.privateKey)
+
+      const result = channel.parsePayoutCallback(buildRawBody(params), {}, buildCfg())
+      expect(result.channelOrderNo).toBe('2026082611007000123456000002')
+      expect(result.orderNo).toBe('W20260826002')
+      expect(result.status).toBe('FAILED')
+    })
+
+    it('签名非法时应抛错（防止伪造代付成功回调）', () => {
+      const params: Record<string, string> = {
+        app_id: '2021000000000000',
+        out_biz_no: 'W20260826003',
+        order_id: '2026082611007000123456000003',
+        status: 'SUCCESS',
+      }
+      params.sign = signNotifyParams(params, keyPair.privateKey)
+      params.status = 'FAIL'
+
+      expect(() =>
+        channel.parsePayoutCallback(buildRawBody(params), {}, buildCfg()),
+      ).toThrow(KBErrorCodes.AUTHENTICATION_FAILED)
+    })
+  })
+
   describe('createRecharge', () => {
     it('page 支付应生成包含签名参数的网关 URL', async () => {
       const result = await channel.createRecharge({

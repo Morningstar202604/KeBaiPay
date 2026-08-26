@@ -41,7 +41,7 @@ describe('BatchTransfersService', () => {
       accountLedger: { create: jest.fn() },
       bill: { create: jest.fn() },
       riskEvent: { create: jest.fn() },
-      transactionOrder: { create: jest.fn() },
+      transactionOrder: { create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
       user: {
         findUnique: jest.fn().mockResolvedValue(null),
       },
