@@ -1,0 +1,51 @@
+name: 🐛 Bug 报告
+description: 报告一个可复现的问题
+labels: ['bug', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请先搜索现有 issue 避免重复。安全问题请勿在此提交，走 [SECURITY.md](../SECURITY.md) 私下披露。
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么？
+      description: 描述期望行为与实际行为。
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 配置 ...
+        2. 调用 POST /...
+        3. 返回 KBxxx
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响范围
+      options:
+        - 资金链路（充值/转账/提现/退款）
+        - 开放 API / SDK
+        - 渠道接入（微信/支付宝/Stripe…）
+        - 管理后台 / 商户门户 / H5 前端
+        - AI 智能体 / MCP
+        - 部署 / Docker / CI
+        - 其他
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本 / 提交
+      placeholder: v2.2.1 或 commit hash
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 截图
+      description: 脱敏后粘贴关键日志。**严禁贴出密钥、身份证号等敏感信息。**
