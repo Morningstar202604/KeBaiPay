@@ -1,6 +1,6 @@
 {
   "name": "kebaipay",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "KeBaiPay 科佰支付 - 个人钱包 + 商户收款 + 开放 API + 多平台对账聚合 + AI 智能体层平台（NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7 + Vercel AI SDK v7 + MCP）",
   "author": "KeBaiPay Contributors",
   "license": "SEE LICENSE IN LICENSE",
@@ -29,6 +29,8 @@
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.config.js",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "version:sync": "node scripts/version-sync.mjs",
+    "version:check": "node scripts/version-sync.mjs --check",
     "clean": "node -e \"const fs=require('fs');for(const p of ['dist','node_modules/.cache'])fs.rmSync(p,{recursive:true,force:true})\"",
     "check:external": "node scripts/check-external.mjs"
   },

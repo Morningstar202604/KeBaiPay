@@ -1,6 +1,6 @@
 {
   "name": "kebaipay-web",
-  "version": "2.3.0",
+  "version": "2.2.1",
   "description": "KeBaiPay 科佰支付 - 商户后台 Vue 3 SPA",
   "private": true,
   "type": "module",
