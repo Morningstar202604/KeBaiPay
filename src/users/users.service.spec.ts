@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing'
 import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { createHash } from 'crypto'
 import { UsersService } from './users.service'
 import { PrismaService } from '../prisma/prisma.service'
@@ -74,6 +75,8 @@ describe('UsersService', () => {
         { provide: RedisService, useValue: redis },
         { provide: CryptoService, useValue: crypto },
         { provide: SmsService, useValue: smsService },
+        // get() 返回 undefined：NODE_ENV/SANDBOX_AUTO_APPROVE 均未命中 → 沙箱自动审批关闭
+        { provide: ConfigService, useValue: { get: () => undefined } },
       ],
     }).compile()
 

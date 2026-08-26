@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common'
 import { createHash } from 'crypto'
+import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
 import { CryptoService } from '../crypto/crypto.service'
 import { Merchant, PaymentOrder, Prisma } from '@prisma/client'
@@ -40,6 +41,7 @@ export class MerchantsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cryptoService: CryptoService,
+    private readonly configService: ConfigService,
   ) {}
 
   async register(
@@ -84,6 +86,21 @@ export class MerchantsService {
         dailyLimit: DEFAULT_MERCHANT_DAILY_LIMIT_CENTS,
       },
     })
+
+    // P1-6 沙箱自动审批：非生产 + SANDBOX_AUTO_APPROVE=true 时立即通过，
+    // 商户注册→收款全流程 UI 自助；生产环境开关无效
+    if (
+      this.configService.get('NODE_ENV') !== 'production' &&
+      this.configService.get('SANDBOX_AUTO_APPROVE') === 'true'
+    ) {
+      const approved = await this.prisma.merchant.updateMany({
+        where: { id: merchant.id, status: MerchantStatus.PENDING },
+        data: { status: MerchantStatus.APPROVED, reviewedBy: 'SANDBOX_AUTO', reviewedAt: new Date() },
+      })
+      if (approved.count === 1) {
+        return this.formatMerchant({ ...merchant, status: MerchantStatus.APPROVED })
+      }
+    }
 
     return this.formatMerchant(merchant)
   }

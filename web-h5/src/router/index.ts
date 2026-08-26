@@ -8,6 +8,7 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/home' },
     { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') },
+    { path: '/register', name: 'register', component: () => import('@/views/RegisterView.vue') },
     {
       path: '/',
       component: () => import('@/layout/H5Layout.vue'),
@@ -19,6 +20,7 @@ const router = createRouter({
         { path: 'redpacket', name: 'redpacket', component: () => import('@/views/RedPacketView.vue'), meta: { title: '红包' } },
         { path: 'bills', name: 'bills', component: () => import('@/views/BillsView.vue'), meta: { title: '账单' } },
         { path: 'cashier', name: 'cashier', component: () => import('@/views/CashierView.vue'), meta: { title: '收银台' } },
+        { path: 'kyc', name: 'kyc', component: () => import('@/views/KycView.vue'), meta: { title: '实名认证' } },
         { path: 'agent', name: 'agent', component: () => import('@/views/AgentChatView.vue'), meta: { title: 'AI 助手' } },
       ],
     },

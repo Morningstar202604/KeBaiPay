@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing'
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { MerchantsService } from './merchants.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { CryptoService } from '../crypto/crypto.service'
@@ -63,6 +64,8 @@ describe('MerchantsService', () => {
         MerchantsService,
         { provide: PrismaService, useValue: prisma },
         { provide: CryptoService, useValue: cryptoService },
+        // get() 返回 undefined：沙箱自动审批关闭，保持既有审核流断言不变
+        { provide: ConfigService, useValue: { get: () => undefined } },
       ],
     }).compile()
 

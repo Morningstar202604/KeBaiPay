@@ -16,6 +16,7 @@
         <el-button type="primary" size="large" class="btn" :loading="loading" @click="submit">登 录</el-button>
       </el-form>
       <div v-if="isDev" class="tip">测试账号：13800000001 / Abc12345（仅开发环境显示，生产环境请修改种子口令）</div>
+      <div class="alt">还没有账号？<router-link to="/register">立即注册</router-link></div>
     </div>
   </div>
 </template>
@@ -76,4 +77,6 @@ async function submit() {
 :deep(.el-form-item__content) { display: block; }
 .btn { width: 100%; margin-top: 6px; height: 46px; font-size: 15px; }
 .tip { text-align: center; color: var(--el-text-color-placeholder); margin-top: 16px; font-size: 12px; }
+.alt { text-align: center; margin-top: 12px; font-size: 13px; }
+.alt a { color: var(--el-color-primary); text-decoration: none; font-weight: 600; }
 </style>

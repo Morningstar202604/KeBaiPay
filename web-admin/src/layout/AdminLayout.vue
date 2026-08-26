@@ -12,6 +12,8 @@
         <el-menu-item index="/dashboard"><el-icon><DataAnalysis /></el-icon><span>数据概览</span></el-menu-item>
         <el-menu-item index="/users"><el-icon><User /></el-icon><span>用户管理</span></el-menu-item>
         <el-menu-item index="/merchants"><el-icon><Shop /></el-icon><span>商户管理</span></el-menu-item>
+        <el-menu-item index="/identities"><el-icon><Postcard /></el-icon><span>实名审核</span></el-menu-item>
+        <el-menu-item index="/channels"><el-icon><Connection /></el-icon><span>渠道配置</span></el-menu-item>
         <el-menu-item index="/withdrawals"><el-icon><Money /></el-icon><span>提现审核</span></el-menu-item>
         <el-menu-item index="/orders"><el-icon><List /></el-icon><span>支付订单</span></el-menu-item>
         <el-menu-item index="/finance"><el-icon><DataBoard /></el-icon><span>财务总览</span></el-menu-item>
@@ -52,7 +54,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataAnalysis, User, Shop, Money, List, DataBoard, Warning, ArrowDown, MagicStick } from '@element-plus/icons-vue'
+import { DataAnalysis, User, Shop, Money, List, DataBoard, Warning, ArrowDown, MagicStick, Postcard, Connection } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 

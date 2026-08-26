@@ -15,6 +15,7 @@
         <el-menu-item index="/reconciliation"><el-icon><DocumentChecked /></el-icon><span>对账查询</span></el-menu-item>
         <el-menu-item index="/qrcodes"><el-icon><Grid /></el-icon><span>收款码</span></el-menu-item>
         <el-menu-item index="/apps"><el-icon><Key /></el-icon><span>应用管理</span></el-menu-item>
+        <el-menu-item index="/kyc"><el-icon><Postcard /></el-icon><span>实名认证</span></el-menu-item>
         <el-menu-item index="/merchant"><el-icon><Shop /></el-icon><span>商户资料</span></el-menu-item>
       </el-menu>
 
@@ -55,7 +56,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataAnalysis, List, DocumentChecked, Grid, Key, Shop, User, ArrowDown } from '@element-plus/icons-vue'
+import { DataAnalysis, List, DocumentChecked, Grid, Key, Shop, User, ArrowDown, Postcard } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 

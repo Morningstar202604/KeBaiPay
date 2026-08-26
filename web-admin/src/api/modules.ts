@@ -121,3 +121,64 @@ export async function updateAgent(
 }
 
 export { extractError }
+
+// ---------- 实名审核（P1-2） ----------
+export interface PendingIdentity {
+  id: string
+  realName: string
+  idCardMasked?: string
+  status: string
+  createdAt: string
+  user?: { id: string; nickname?: string; phone?: string; email?: string }
+}
+
+export async function fetchPendingIdentities(params: { page?: number; limit?: number }): Promise<Paged<PendingIdentity>> {
+  const { data } = await http.get<Paged<PendingIdentity>>('/admin/identity/pending', { params })
+  return data
+}
+
+export async function approveIdentity(id: string): Promise<unknown> {
+  const { data } = await http.post(`/admin/identity/${id}/approve`)
+  return data
+}
+
+export async function rejectIdentity(id: string, body: { reason: string }): Promise<unknown> {
+  const { data } = await http.post(`/admin/identity/${id}/reject`, body)
+  return data
+}
+
+// ---------- 渠道配置中心（P1-3） ----------
+export interface ChannelConfigRow {
+  id?: string
+  code: string
+  name: string
+  type: string
+  enabled: boolean
+  priority: number
+  config: string
+}
+
+export async function fetchChannels(): Promise<ChannelConfigRow[]> {
+  const { data } = await http.get<ChannelConfigRow[]>('/admin/channels')
+  return data
+}
+
+export async function createChannel(body: Omit<ChannelConfigRow, 'id'>): Promise<unknown> {
+  const { data } = await http.post('/admin/channels', body)
+  return data
+}
+
+export async function updateChannel(code: string, body: Partial<Omit<ChannelConfigRow, 'id' | 'code'>>): Promise<unknown> {
+  const { data } = await http.put(`/admin/channels/${code}`, body)
+  return data
+}
+
+export async function deleteChannel(code: string): Promise<unknown> {
+  const { data } = await http.delete(`/admin/channels/${code}`)
+  return data
+}
+
+export async function testChannel(code: string): Promise<{ available: boolean; message: string }> {
+  const { data } = await http.post(`/admin/channels/${code}/test`)
+  return data
+}

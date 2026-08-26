@@ -1,5 +1,6 @@
 import { businessDayKey } from '../common/date-helpers'
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { CryptoService } from '../crypto/crypto.service'
@@ -24,6 +25,7 @@ export class UsersService {
     private readonly redis: RedisService,
     private readonly crypto: CryptoService,
     private readonly smsService: SmsService,
+    private readonly configService: ConfigService,
   ) {}
 
   // Redis 不可用时降级到进程内缓存；生产环境务必配置 Redis
@@ -186,7 +188,38 @@ export class UsersService {
       }),
     ])
 
-    return identity
+    return this.autoApproveInSandbox(identity, payPasswordHash)
+  }
+
+  /**
+   * P1-6 沙箱自动审批：非生产环境且 SANDBOX_AUTO_APPROVE=true 时，
+   * 提交实名后立即按"管理员通过"语义生效（写入暂存的支付密码哈希），
+   * 让新用户全程 UI 自助开通，Time-to-First-Payment 不被人工审核卡住。
+   * 生产环境该开关无效，仍走人工审核。
+   */
+  private async autoApproveInSandbox(
+    identity: { id: string; userId: string; status: string },
+    payPasswordHash: string,
+  ) {
+    const isSandbox =
+      this.configService.get('NODE_ENV') !== 'production' &&
+      this.configService.get('SANDBOX_AUTO_APPROVE') === 'true'
+    if (!isSandbox) return identity
+
+    const verified = await this.prisma.identityVerification.updateMany({
+      where: { id: identity.id, status: RealNameStatus.PENDING },
+      data: { status: RealNameStatus.VERIFIED },
+    })
+    if (verified.count !== 1) return identity
+
+    await this.prisma.user.update({
+      where: { id: identity.userId },
+      data: {
+        realNameStatus: RealNameStatus.VERIFIED,
+        payPassword: payPasswordHash,
+      },
+    })
+    return { ...identity, status: RealNameStatus.VERIFIED, autoApproved: true }
   }
 
   async verifyPayPassword(userId: string, payPassword: string) {

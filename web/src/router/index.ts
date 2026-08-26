@@ -20,6 +20,7 @@ const router = createRouter({
         { path: 'apps', name: 'apps', component: () => import('@/views/AppsView.vue'), meta: { title: '应用管理' } },
         { path: 'merchant', name: 'merchant', component: () => import('@/views/MerchantInfoView.vue'), meta: { title: '商户资料' } },
         { path: 'merchant/register', name: 'merchant-register', component: () => import('@/views/MerchantRegisterView.vue'), meta: { title: '商户入驻' } },
+        { path: 'kyc', name: 'kyc', component: () => import('@/views/KycView.vue'), meta: { title: '实名认证' } },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
