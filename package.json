@@ -38,7 +38,7 @@
     "@ai-sdk/openai": "^4.0.50",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs-modules/mailer": "^2.3.7",
-    "@nestjs/common": "^11.1.27",
+    "@nestjs/common": "^11.2.3",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.27",
     "@nestjs/jwt": "^11.0.2",
