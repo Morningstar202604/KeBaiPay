@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.50",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@nestjs-modules/mailer": "^2.3.7",
     "@nestjs/common": "^11.2.3",
     "@nestjs/config": "^4.0.4",
