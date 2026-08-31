@@ -35,7 +35,7 @@
     "check:external": "node scripts/check-external.mjs"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^4.0.17",
+    "@ai-sdk/openai": "^4.0.50",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs-modules/mailer": "^2.3.7",
     "@nestjs/common": "^11.1.27",
