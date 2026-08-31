@@ -38,12 +38,12 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/test?schema=public"
       REDIS_URL: "redis://localhost:6379"
-      JWT_USER_SECRET: "ci-test-secret-user-32chars-padding"
-      JWT_ADMIN_SECRET: "ci-test-secret-admin-32chars-padding"
-      JWT_AGENT_SECRET: "ci-test-secret-agent-32chars-padding"
-      ADMIN_DEFAULT_PASSWORD: "CiTest2026"
-      ENCRYPTION_KEY: "ci-test-encryption-key-32-chars-ok"
-      MOCK_CHANNEL_SECRET: "ci-test-mock-secret"
+      JWT_USER_SECRET: ${{ secrets.CI_JWT_USER_SECRET || 'ci-test-secret-user-32chars-padding' }}
+      JWT_ADMIN_SECRET: ${{ secrets.CI_JWT_ADMIN_SECRET || 'ci-test-secret-admin-32chars-padding' }}
+      JWT_AGENT_SECRET: ${{ secrets.CI_JWT_AGENT_SECRET || 'ci-test-secret-agent-32chars-padding' }}
+      ADMIN_DEFAULT_PASSWORD: ${{ secrets.CI_ADMIN_DEFAULT_PASSWORD || 'CiTest2026' }}
+      ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY || 'ci-test-encryption-key-32-chars-ok' }}
+      MOCK_CHANNEL_SECRET: ${{ secrets.CI_MOCK_CHANNEL_SECRET || 'ci-test-mock-secret' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -79,12 +79,12 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/test?schema=public"
       REDIS_URL: "redis://localhost:6379"
-      JWT_USER_SECRET: "ci-test-secret-user-32chars-padding"
-      JWT_ADMIN_SECRET: "ci-test-secret-admin-32chars-padding"
-      JWT_AGENT_SECRET: "ci-test-secret-agent-32chars-padding"
-      ADMIN_DEFAULT_PASSWORD: "CiTest2026"
-      ENCRYPTION_KEY: "ci-test-encryption-key-32-chars-ok"
-      MOCK_CHANNEL_SECRET: "ci-test-mock-secret"
+      JWT_USER_SECRET: ${{ secrets.CI_JWT_USER_SECRET || 'ci-test-secret-user-32chars-padding' }}
+      JWT_ADMIN_SECRET: ${{ secrets.CI_JWT_ADMIN_SECRET || 'ci-test-secret-admin-32chars-padding' }}
+      JWT_AGENT_SECRET: ${{ secrets.CI_JWT_AGENT_SECRET || 'ci-test-secret-agent-32chars-padding' }}
+      ADMIN_DEFAULT_PASSWORD: ${{ secrets.CI_ADMIN_DEFAULT_PASSWORD || 'CiTest2026' }}
+      ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY || 'ci-test-encryption-key-32-chars-ok' }}
+      MOCK_CHANNEL_SECRET: ${{ secrets.CI_MOCK_CHANNEL_SECRET || 'ci-test-mock-secret' }}
     steps:
       - uses: actions/checkout@v4
 
