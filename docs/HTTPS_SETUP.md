@@ -1,4 +1,4 @@
-﻿# KeBaiPay HTTPS 部署指南
+# KeBaiPay HTTPS 部署指南
 
 > 本文档提供三种 HTTPS 配置方案，适用于 Docker Compose 和裸机部署。
 

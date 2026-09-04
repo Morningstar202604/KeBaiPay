@@ -1,4 +1,4 @@
-﻿# KeBaiPay 开发者指南
+# KeBaiPay 开发者指南
 
 > 科佰支付 - 个人钱包 + 商户收款平台
 
@@ -39,7 +39,7 @@
 ```bash
 # 1. 克隆项目（任选其一，国内推荐 gitcode 镜像）
 # GitHub（国际）：
-git clone https://github.com/weed33834/KeBaiPay.git
+git clone https://github.com/Morningstar202604/KeBaiPay.git
 # gitcode（国内）：
 git clone https://gitcode.com/badhope/KeBaiPay.git
 cd KeBaiPay

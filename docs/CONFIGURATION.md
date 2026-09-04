@@ -1,4 +1,4 @@
-﻿# 配置参考（Configuration Reference）
+# 配置参考（Configuration Reference）
 
 > 全部环境变量集中在根目录 `.env`（模板见 [`.env.example`](../.env.example)）。
 > 部署形态差异见 [`DEPLOYMENT.md`](DEPLOYMENT.md)。生产环境由 `SecurityValidatorService`

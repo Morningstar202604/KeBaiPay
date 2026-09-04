@@ -1,4 +1,4 @@
-﻿# KeBaiPay 部署指南
+# KeBaiPay 部署指南
 
 > 生产环境部署、配置、运维与故障恢复的**权威参考**。  
 > 适用于 KeBaiPay v2.0（NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7）。
@@ -110,7 +110,7 @@ cd /opt/kebaipay
 
 # 方式一：git clone（推荐，便于后续升级）
 # 任选其一，国内服务器推荐 gitcode 镜像访问更快
-git clone https://github.com/weed33834/KeBaiPay.git .
+git clone https://github.com/Morningstar202604/KeBaiPay.git .
 # 或：git clone https://gitcode.com/badhope/KeBaiPay.git .
 
 # 方式二：上传 tar 包
@@ -526,7 +526,7 @@ sudo mkdir -p /opt/kebaipay
 sudo chown $USER:$USER /opt/kebaipay
 cd /opt/kebaipay
 
-git clone https://github.com/weed33834/KeBaiPay.git .
+git clone https://github.com/Morningstar202604/KeBaiPay.git .
 # 或国内镜像：git clone https://gitcode.com/badhope/KeBaiPay.git .
 
 # 安装依赖（生产 + dev，因为 build 需要 typescript）

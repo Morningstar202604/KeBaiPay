@@ -8,7 +8,7 @@
 
 `NestJS 11` `TypeScript 6` `Prisma 7` `PostgreSQL 16` `Redis 7` `Vercel AI SDK` `MCP`
 
-[![CI](https://github.com/weed33834/KeBaiPay/actions/workflows/ci.yml/badge.svg)](https://github.com/weed33834/KeBaiPay/actions/workflows/ci.yml)
+[![CI](https://github.com/Morningstar202604/KeBaiPay/actions/workflows/ci.yml/badge.svg)](https://github.com/Morningstar202604/KeBaiPay/actions/workflows/ci.yml)
 [![version](https://img.shields.io/badge/version-2.2.1-0FA968)](docs/CHANGELOG.md)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](package.json)
 [![tests](https://img.shields.io/badge/tests-1177%20passing-0FA968)](docs/CHANGELOG.md)
@@ -54,7 +54,7 @@ KeBaiPay 是一套**可私有化部署**的支付中台参考实现：把「C �
 ## 🚀 快速开始
 
 ```bash
-git clone https://github.com/weed33834/KeBaiPay.git && cd KeBaiPay
+git clone https://github.com/Morningstar202604/KeBaiPay.git && cd KeBaiPay
 npm install
 
 cp .env.example .env                          # 开发模式默认 mock 渠道/短信
@@ -143,7 +143,7 @@ PR 前 `npm run lint && npm test` 必须全绿；发版遵循 [SemVer 纪律](do
 
 | 平台 | 仓库 |
 |---|---|
-| GitHub | [weed33834/KeBaiPay](https://github.com/weed33834/KeBaiPay) |
+| GitHub | [Morningstar202604/KeBaiPay](https://github.com/Morningstar202604/KeBaiPay) |
 | Gitee | [badhope/kebaipay](https://gitee.com/badhope/kebaipay) |
 | GitCode | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) |
 

@@ -26,7 +26,7 @@
 
 ## 执行责任
 
-项目负责人 [@weed33834](https://github.com/weed33834) 和联合开发者 [@KEBAI-CN](https://github.com/KEBAI-CN) 负责澄清和执行本准则的标准，并会对任何他们认为不当、威胁、冒犯或有害的行为采取适当且公平的纠正措施。
+项目负责人 [@Morningstar202604](https://github.com/Morningstar202604) 和联合开发者 [@KEBAI-CN](https://github.com/KEBAI-CN) 负责澄清和执行本准则的标准，并会对任何他们认为不当、威胁、冒犯或有害的行为采取适当且公平的纠正措施。
 
 ## 适用范围
 

@@ -127,12 +127,12 @@
     "risk-control",
     "self-hosted"
   ],
-  "homepage": "https://github.com/weed33834/KeBaiPay",
+  "homepage": "https://github.com/Morningstar202604/KeBaiPay",
   "repository": {
     "type": "git",
-    "url": "https://github.com/weed33834/KeBaiPay.git"
+    "url": "https://github.com/Morningstar202604/KeBaiPay.git"
   },
   "bugs": {
-    "url": "https://github.com/weed33834/KeBaiPay/issues"
+    "url": "https://github.com/Morningstar202604/KeBaiPay/issues"
   }
 }

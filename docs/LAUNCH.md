@@ -25,16 +25,16 @@
 
 | # | 检查项 | 当前值 | 目标值 | 状态 |
 |---|---|---|---|---|
-| 1 | README CI 徽章 | weed33834/KeBaiPay | ✅ | 已修复 |
-| 2 | README clone 命令 | weed33834/KeBaiPay | ✅ | 已修复 |
-| 3 | README 三平台表格 GitHub 行 | weed33834/KeBaiPay | ✅ | 已修复 |
+| 1 | README CI 徽章 | Morningstar202604/KeBaiPay | ✅ | 已修复 |
+| 2 | README clone 命令 | Morningstar202604/KeBaiPay | ✅ | 已修复 |
+| 3 | README 三平台表格 GitHub 行 | Morningstar202604/KeBaiPay | ✅ | 已修复 |
 | 4 | README tests 徽章链接 | docs/CHANGELOG.md | ✅ | 已修复（原为 GitCode 错误链接） |
-| 5 | package.json homepage | github.com/weed33834/KeBaiPay | ✅ | 已修复 |
-| 6 | package.json repository | github.com/weed33834/KeBaiPay | ✅ | 已修复 |
-| 7 | package.json bugs | github.com/weed33834/KeBaiPay | ✅ | 已修复 |
-| 8 | .github/ISSUE_TEMPLATE/config.yml | weed33834/KeBaiPay | ✅ | 已修复 |
-| 9 | CONTRIBUTING.md 主仓库 | weed33834/KeBaiPay | ✅ | 无需改动 |
-| 10 | SECURITY.md 主仓库 | weed33834/KeBaiPay | ✅ | 无需改动 |
+| 5 | package.json homepage | github.com/Morningstar202604/KeBaiPay | ✅ | 已修复 |
+| 6 | package.json repository | github.com/Morningstar202604/KeBaiPay | ✅ | 已修复 |
+| 7 | package.json bugs | github.com/Morningstar202604/KeBaiPay | ✅ | 已修复 |
+| 8 | .github/ISSUE_TEMPLATE/config.yml | Morningstar202604/KeBaiPay | ✅ | 已修复 |
+| 9 | CONTRIBUTING.md 主仓库 | Morningstar202604/KeBaiPay | ✅ | 无需改动 |
+| 10 | SECURITY.md 主仓库 | Morningstar202604/KeBaiPay | ✅ | 无需改动 |
 
 ### 1.3 许可证与合规
 
@@ -76,7 +76,7 @@
 | 修改后必须用相同许可证 | |
 | 修改后必须标注原作者 | |
 
-**商业用途联系：** 请联系 GitHub 账号 `weed33834` 或 `Morningstar202604` 获取书面授权。
+**商业用途联系：** 请联系 GitHub 账号 `Morningstar202604` 或 `Morningstar202604` 获取书面授权。
 
 **学习使用：** 无需联系，直接使用，遵守许可证条款即可。
 
@@ -88,9 +88,9 @@
 
 1. **保留版权信息**：LICENSE 文件和 Copyright 声明不得删除或修改
 2. **保持相同许可证**：修改版本必须继续使用 PolyForm Noncommercial 1.0.0
-3. **标注原作者**：在修改文件中注明原始作者和来源（GitHub: weed33834/KeBaiPay）
+3. **标注原作者**：在修改文件中注明原始作者和来源（GitHub: Morningstar202604/KeBaiPay）
 4. **禁止商业背书**：不得使用 KeBaiPay 品牌或作者名称进行产品推广
-5. **遵守安全披露**：发现漏洞通过 [GitHub Security Advisories](https://github.com/weed33834/KeBaiPay/security) 私下报告，勿公开
+5. **遵守安全披露**：发现漏洞通过 [GitHub Security Advisories](https://github.com/Morningstar202604/KeBaiPay/security) 私下报告，勿公开
 
 ---
 
@@ -114,7 +114,7 @@
 
 | 平台 | 地址 | 定位 |
 |---|---|---|
-| **GitHub（主仓库）** | [weed33834/KeBaiPay](https://github.com/weed33834/KeBaiPay) | 主要开发平台，Issues / PR / CI |
+| **GitHub（主仓库）** | [Morningstar202604/KeBaiPay](https://github.com/Morningstar202604/KeBaiPay) | 主要开发平台，Issues / PR / CI |
 | Gitee | [badhope/kebaipay](https://gitee.com/badhope/kebaipay) | 国内镜像，方便国内开发者访问 |
 | GitCode | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) | 备用镜像 |
 
@@ -151,7 +151,7 @@ git check-ignore -v dist/ node_modules/ demo/videos/
 ### 日常维护
 
 1. **依赖更新**：每月人工执行 `npm audit` 和 `npm outdated`，评估后手动升级
-2. **CI 监控**：确保 CI 流水线持续通过（[CI 状态](https://github.com/weed33834/KeBaiPay/actions)）
+2. **CI 监控**：确保 CI 流水线持续通过（[CI 状态](https://github.com/Morningstar202604/KeBaiPay/actions)）
 3. **Issue 响应**：48 小时内响应 Issue，安全漏洞 24 小时内响应
 4. **文档同步**：任何代码变更需同步更新相关文档
 
@@ -184,7 +184,7 @@ git check-ignore -v dist/ node_modules/ demo/videos/
 
 ### 漏洞报告
 
-请勿通过公开 Issue 报告安全漏洞。请使用 [GitHub Security Advisories](https://github.com/weed33834/KeBaiPay/security) 私下披露。
+请勿通过公开 Issue 报告安全漏洞。请使用 [GitHub Security Advisories](https://github.com/Morningstar202604/KeBaiPay/security) 私下披露。
 
 ---
 
@@ -200,7 +200,7 @@ git check-ignore -v dist/ node_modules/ demo/videos/
 
 ```bash
 # 克隆主仓库
-git clone https://github.com/weed33834/KeBaiPay.git && cd KeBaiPay
+git clone https://github.com/Morningstar202604/KeBaiPay.git && cd KeBaiPay
 
 # 安装依赖
 npm install

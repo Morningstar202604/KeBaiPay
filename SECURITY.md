@@ -6,7 +6,7 @@
 
 如发现安全漏洞，请通过以下方式私下报告：
 
-1. GitHub Security Advisory：[新建安全公告](https://github.com/weed33834/KeBaiPay/security/advisories/new)
+1. GitHub Security Advisory：[新建安全公告](https://github.com/Morningstar202604/KeBaiPay/security/advisories/new)
 2. 邮件：发送至维护者邮箱（见贡献者主页）
 
 **响应时间**：收到报告后 48 小时内确认，7 天内给出初步评估，30 天内发布修复版本。
