@@ -29,7 +29,7 @@ flowchart LR
         Nginx[Nginx<br/>TLS 1.2+ / HSTS / 反向代理]
     end
     subgraph AppTier[应用层]
-        App[NestJS App<br/>:3000<br/>PM2 cluster / docker / k8s]
+        App[NestJS App<br/>:3001<br/>PM2 cluster / docker / k8s]
     end
     subgraph DataTier[数据层]
         PG[(PostgreSQL 16<br/>主库)]
@@ -45,7 +45,7 @@ flowchart LR
     end
 
     Client -->|HTTPS 443| Nginx
-    Nginx -->|HTTP 3000| App
+    Nginx -->|HTTP 3001| App
     App --> PG
     App --> Redis
     App -->|HTTPS| WeChat
@@ -110,7 +110,7 @@ cd /opt/kebaipay
 
 # 方式一：git clone（推荐，便于后续升级）
 # 任选其一，国内服务器推荐 gitcode 镜像访问更快
-git clone https://github.com/weed33834/KeBaiPay.git .
+git clone https://github.com/Morningstar202604/KeBaiPay.git .
 # 或：git clone https://gitcode.com/badhope/KeBaiPay.git .
 
 # 方式二：上传 tar 包
@@ -202,7 +202,7 @@ docker compose ps
 
 # 期望输出：
 # NAME                  STATUS                   PORTS
-# kebaipay-app          Up (healthy)             0.0.0.0:3000->3000/tcp
+# kebaipay-app          Up (healthy)             0.0.0.0:3001->3001/tcp
 # kebaipay-postgres     Up (healthy)             5432/tcp
 # kebaipay-redis        Up (healthy)             6379/tcp
 
@@ -210,8 +210,8 @@ docker compose ps
 docker compose logs -f app
 
 # 健康检查
-curl http://localhost:3000/health
-curl http://localhost:3000/health/ready
+curl http://localhost:3001/health
+curl http://localhost:3001/health/ready
 ```
 
 ### 4.6 初始化管理员
@@ -232,7 +232,7 @@ docker compose exec app npx prisma db seed
 
 ### 4.7 配置 Nginx 反向代理 + HTTPS
 
-> Docker Compose 部署中，Nginx 建议运行在宿主机或独立容器，仅代理到 `127.0.0.1:3000`。
+> Docker Compose 部署中，Nginx 建议运行在宿主机或独立容器，仅代理到 `127.0.0.1:3001`。
 
 **安装 Nginx + Certbot**：
 
@@ -245,7 +245,7 @@ sudo apt install -y nginx certbot python3-certbot-nginx
 
 ```nginx
 upstream kebaipay {
-    server 127.0.0.1:3000;
+    server 127.0.0.1:3001;
     keepalive 64;
 }
 
@@ -417,7 +417,7 @@ docker compose up -d --build
 
 # 5. 验证
 docker compose ps
-curl http://localhost:3000/health/ready
+curl http://localhost:3001/health/ready
 docker compose logs -f app
 ```
 
@@ -442,7 +442,7 @@ gunzip -c /data/backups/kebaipay-pre-upgrade-YYYYMMDD_HHMMSS.sql.gz | \
 docker compose up -d --build app
 
 # 5. 验证
-curl http://localhost:3000/health/ready
+curl http://localhost:3001/health/ready
 ```
 
 > **警告**：数据库迁移**不可逆**。任何破坏性迁移（删列、改类型）必须在升级前完整备份并测试。
@@ -526,7 +526,7 @@ sudo mkdir -p /opt/kebaipay
 sudo chown $USER:$USER /opt/kebaipay
 cd /opt/kebaipay
 
-git clone https://github.com/weed33834/KeBaiPay.git .
+git clone https://github.com/Morningstar202604/KeBaiPay.git .
 # 或国内镜像：git clone https://gitcode.com/badhope/KeBaiPay.git .
 
 # 安装依赖（生产 + dev，因为 build 需要 typescript）
@@ -557,7 +557,7 @@ ENCRYPTION_KEY="your-aes-256-encryption-key-32chars-2026"
 REDIS_PASSWORD="your-redis-password-2026"
 
 NODE_ENV="production"
-PORT=3000
+PORT=3001
 CORS_ORIGINS="https://your-domain.com"
 RECHARGE_NOTIFY_URL="https://api.your-domain.com/webhooks/recharge"
 CASHIER_BASE_URL="https://pay.your-domain.com"
@@ -613,7 +613,7 @@ module.exports = {
     merge_logs: true,
     kill_timeout: 10000,        // SIGTERM 后给 10s 优雅停机
     wait_ready: true,
-    listen_timeout: 30000,
+    listen_timeout: 30010,
   }],
 }
 EOF
@@ -676,7 +676,7 @@ sudo journalctl -u kebaipay -f
 
 ### 5.10 Nginx 配置（裸机模式）
 
-裸机模式下 Nginx 配置与 [4.7 节](#47-配置-nginx-反向代理--https) 完全一致，upstream 指向 `127.0.0.1:3000` 即可。
+裸机模式下 Nginx 配置与 [4.7 节](#47-配置-nginx-反向代理--https) 完全一致，upstream 指向 `127.0.0.1:3001` 即可。
 
 ---
 
@@ -712,7 +712,7 @@ spec:
         - name: app
           image: registry.cn-hangzhou.aliyuncs.com/your-registry/kebaipay:2.0.0
           ports:
-            - containerPort: 3000
+            - containerPort: 3001
           envFrom:
             - configMapRef:
                 name: kebaipay-config
@@ -728,14 +728,14 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: 3000
+              port: 3001
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /health/ready
-              port: 3000
+              port: 3001
             initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 3
@@ -760,7 +760,7 @@ spec:
     app: kebaipay
   ports:
     - port: 80
-      targetPort: 3000
+      targetPort: 3001
       protocol: TCP
 ---
 # k8s/ingress.yaml
@@ -802,7 +802,7 @@ metadata:
   namespace: kebaipay
 data:
   NODE_ENV: 'production'
-  PORT: '3000'
+  PORT: '3001'
   DATABASE_URL: 'postgresql://kebaipay@kebaipay-pg:5432/kebaipay?schema=public'
   REDIS_URL: 'redis://kebaipay-redis:6379'
   CORS_ORIGINS: 'https://your-domain.com'
@@ -899,7 +899,7 @@ gunzip -c /data/backups/kebaipay-YYYYMMDD_HHMMSS.sql.gz | \
 | **强制新增** | `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry trace 导出端点 |
 | **强制新增** | `SENTRY_DSN` | Sentry 异常告警 DSN |
 | **强制新增** | `DATABASE_CONNECTION_LIMIT` | 默认 5，多副本需调小 |
-| **强制新增** | `DATABASE_STATEMENT_TIMEOUT_MS` | 默认 30000 |
+| **强制新增** | `DATABASE_STATEMENT_TIMEOUT_MS` | 默认 30010 |
 | **强制新增** | `DATABASE_POOL_TIMEOUT_SEC` | 默认 10 |
 | **变更** | `SMS_PROVIDER` | 生产环境禁止 `mock`，启动校验会拒绝 |
 | **变更** | `RECHARGE_NOTIFY_URL` | 生产环境必须 https + 非 localhost |
@@ -944,7 +944,7 @@ scrape_configs:
   - job_name: 'kebaipay'
     metrics_path: /metrics
     static_configs:
-      - targets: ['app:3000']   # docker compose 模式
+      - targets: ['app:3001']   # docker compose 模式
       # - targets: ['kebaipay.default.svc:80']  # k8s 模式
 ```
 
@@ -1033,7 +1033,7 @@ curl https://api.your-domain.com/health/channels
 | 变量 | 默认值 | 建议值（按副本数） | 说明 |
 |------|--------|------------------|------|
 | `DATABASE_CONNECTION_LIMIT` | 5 | `PG max_connections / 副本数 - 2` | 单进程最大连接数 |
-| `DATABASE_STATEMENT_TIMEOUT_MS` | 30000 | 30000 | 单条 SQL 执行超时（毫秒），防慢查询挂死连接 |
+| `DATABASE_STATEMENT_TIMEOUT_MS` | 30010 | 30010 | 单条 SQL 执行超时（毫秒），防慢查询挂死连接 |
 | `DATABASE_POOL_TIMEOUT_SEC` | 10 | 10 | 获取连接超时（秒），快速失败 |
 
 **多副本部署计算示例**：
@@ -1184,7 +1184,7 @@ docker compose start app
 # 或裸机：pm2 start kebaipay
 
 # 4. 验证
-curl http://localhost:3000/health/ready
+curl http://localhost:3001/health/ready
 ```
 
 ### 11.2 Redis 故障应对

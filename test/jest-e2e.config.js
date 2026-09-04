@@ -10,6 +10,8 @@ module.exports = {
   moduleNameMapper: {
     // e2e 规格里使用 src/xxx 路径别名导入模块
     '^src/(.*)$': '<rootDir>/src/$1',
+    // @nestjs/axios@12 是 ESM-only，jest 无法加载，映射到 CJS mock
+    '^@nestjs/axios$': '<rootDir>/test/mocks/nestjs-axios.mock.ts',
   },
   transform: {
     '^.+\\.ts$': ['ts-jest', {
@@ -25,4 +27,6 @@ module.exports = {
     }],
   },
   clearMocks: true,
+  // @nestjs/axios 是 ESM-only 包，须放行让 ts-jest 转换（Stripe connector 依赖 HttpService）
+  transformIgnorePatterns: ['node_modules/(?!@nestjs/axios)'],
 }

@@ -1,4 +1,4 @@
-# KeBaiPay Web H5 — 用户端 H5
+﻿# KeBaiPay Web H5 — 用户端 H5
 
 KeBaiPay 用户端移动 H5（**钱包 / 收银台 / 红包**），使用 **Vue 3 + TypeScript + Vite + Pinia + Vue Router + Element Plus** 构建，移动端优先。
 
@@ -32,7 +32,7 @@ web-h5/
 
 | 变量 | 说明 |
 |---|---|
-| `VITE_API_BASE` | 后端 API 地址。开发默认 `http://localhost:3000`；生产留空（同源） |
+| `VITE_API_BASE` | 后端 API 地址。开发默认 `http://localhost:3001`；生产留空（同源） |
 
 ## 开发 / 构建
 

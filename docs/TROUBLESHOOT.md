@@ -164,15 +164,15 @@ P3009: migration failed with errors code "P3009"
 
 ---
 
-### 1.5 端口 3000 被占用
+### 1.5 端口 3001 被占用
 
 **错误信息：**
 
 ```text
-Error: listen EADDRINUSE: address already in use :::3000
+Error: listen EADDRINUSE: address already in use :::3001
 ```
 
-**原因：** 宿主机的 3000 端口已被占用，或上一轮容器未正常退出。
+**原因：** 宿主机的 3001 端口已被占用，或上一轮容器未正常退出。
 
 **解决：**
 
@@ -180,9 +180,9 @@ Error: listen EADDRINUSE: address already in use :::3000
 
    ```bash
    # 宿主机
-   lsof -i :3000
+   lsof -i :3001
    # 或
-   ss -lntp | grep :3000
+   ss -lntp | grep :3001
    ```
 
 2. **改 docker-compose.yml 端口映射**（推荐）：
@@ -190,14 +190,14 @@ Error: listen EADDRINUSE: address already in use :::3000
    ```yaml
    app:
      ports:
-       - '8080:3000'   # 宿主机 8080 -> 容器 3000
+       - '8080:3001'   # 宿主机 8080 -> 容器 3001
    ```
 
 3. **或停止占用进程：**
 
    ```bash
    docker compose down            # 停掉本应用的所有容器
-   npx kill-port 3000             # 停掉本机 Node 进程
+   npx kill-port 3001             # 停掉本机 Node 进程
    ```
 
 ---
@@ -473,7 +473,7 @@ P2002: Unique constraint failed on the fields: (idempotencyKey)
 2. **主动触发回调（mock 场景或本地测试）：**
 
    ```bash
-   curl -X POST http://localhost:3000/cashier/orders/<orderNo>/notify \
+   curl -X POST http://localhost:3001/cashier/orders/<orderNo>/notify \
      -H "Content-Type: application/json"
    ```
 
@@ -601,7 +601,7 @@ KB941: 已存在该日期的对账单，状态为 FETCHED，拒绝重复拉取
 1. **指派处理人：**
 
    ```bash
-   curl -X POST http://localhost:3000/admin/reconciliation/differences/<diffId>/assign \
+   curl -X POST http://localhost:3001/admin/reconciliation/differences/<diffId>/assign \
      -H "Authorization: Bearer <admin-token>" \
      -H "Content-Type: application/json" \
      -d '{"assigneeId": "<adminUserId>"}'
@@ -610,7 +610,7 @@ KB941: 已存在该日期的对账单，状态为 FETCHED，拒绝重复拉取
 2. **解决差异：**
 
    ```bash
-   curl -X POST http://localhost:3000/admin/reconciliation/differences/<diffId>/resolve \
+   curl -X POST http://localhost:3001/admin/reconciliation/differences/<diffId>/resolve \
      -H "Authorization: Bearer <admin-token>" \
      -H "Content-Type: application/json" \
      -d '{"resolution": "MANUAL_ADJUST", "note": "已与渠道核对一致"}'
@@ -639,7 +639,7 @@ KB941: 已存在该日期的对账单，状态为 FETCHED，拒绝重复拉取
 2. **DISMISSED 状态：** 对已确认的误报，调用人工复核接口标记为 `DISMISSED`，不计入风险统计：
 
    ```bash
-   curl -X POST http://localhost:3000/admin/risk-audit/events/<eventId>/review \
+   curl -X POST http://localhost:3001/admin/risk-audit/events/<eventId>/review \
      -H "Authorization: Bearer <admin-token>" \
      -H "Content-Type: application/json" \
      -d '{"decision": "DISMISSED", "reason": "误报：办公网出口 IP"}'
@@ -661,7 +661,7 @@ KB941: 已存在该日期的对账单，状态为 FETCHED，拒绝重复拉取
 
    ```bash
    # .env
-   DATABASE_STATEMENT_TIMEOUT_MS=30000   # 30s
+   DATABASE_STATEMENT_TIMEOUT_MS=30010   # 30s
    ```
 
 2. **EXPLAIN ANALYZE 定位：**
@@ -817,7 +817,7 @@ docker compose top app                   > "$OUTDIR/top-app.txt"    2>&1
 docker compose exec -T app npx prisma migrate status > "$OUTDIR/migrate-status.txt" 2>&1
 
 # 健康检查
-curl -s http://localhost:3000/health/ready > "$OUTDIR/health.json"
+curl -s http://localhost:3001/health/ready > "$OUTDIR/health.json"
 
 tar -czf "$OUTDIR.tar.gz" -C "$OUTDIR" .
 echo "收集完成：$OUTDIR.tar.gz"

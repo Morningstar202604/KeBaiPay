@@ -106,16 +106,18 @@ export class AlipayConnector implements Connector {
   async healthCheck(): Promise<ConnectorHealth> {
     const startTime = Date.now()
     try {
+      // 通过查询一个不存在的订单做连通性验证（支付宝正常响应返回错误码即表示可达）
+      const result = await this.channel.queryOrder(`__healthcheck_${Date.now()}__`, {})
       const latency = Date.now() - startTime
       return {
-        status: 'ACTIVE' as ConnectorStatus,
+        status: 'ACTIVE',
         lastChecked: new Date(),
         latency,
         errorRate: 0,
       }
     } catch (error) {
       return {
-        status: 'DEGRADED' as ConnectorStatus,
+        status: 'DEGRADED',
         lastChecked: new Date(),
         latency: Date.now() - startTime,
         errorRate: 1,

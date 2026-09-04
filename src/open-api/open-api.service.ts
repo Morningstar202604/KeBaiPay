@@ -44,7 +44,7 @@ export class OpenApiService {
   private getCashierBaseUrl(): string {
     return (
       this.configService.get<string>('CASHIER_BASE_URL') ||
-      'http://localhost:3000'
+      'http://localhost:3001'
     )
   }
 

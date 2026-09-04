@@ -37,7 +37,7 @@ describe('TransactionsService', () => {
 
   beforeEach(async () => {
     // P0-5: recharge 已移除 '/webhooks/recharge/mock' fallback，测试需显式提供
-    process.env.RECHARGE_NOTIFY_URL = 'http://localhost:3000/webhooks/recharge/mock'
+    process.env.RECHARGE_NOTIFY_URL = 'http://localhost:3001/webhooks/recharge/mock'
 
     prisma = {
       $transaction: jest.fn(async (cb: (p: PrismaMock) => Promise<unknown>) => cb(prisma)),

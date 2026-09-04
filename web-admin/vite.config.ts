@@ -17,9 +17,9 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: 5175,
       proxy: {
-        '/admin': { target: apiBase || 'http://localhost:3000', changeOrigin: true },
+        '/admin': { target: apiBase || 'http://localhost:3001', changeOrigin: true },
         // 智能体管理接口（AgentView 使用）
-        '/agent': { target: apiBase || 'http://localhost:3000', changeOrigin: true },
+        '/agent': { target: apiBase || 'http://localhost:3001', changeOrigin: true },
       },
     },
     build: {

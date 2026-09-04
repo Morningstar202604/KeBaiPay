@@ -117,7 +117,7 @@ async function bootstrap() {
 
   const allowedOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
-    : ['http://localhost:3000', 'http://localhost:8080']
+    : ['http://localhost:3001', 'http://localhost:8080']
   app.enableCors({
     origin: allowedOrigins,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -199,7 +199,7 @@ async function bootstrap() {
     })
   }
 
-  const port = process.env.PORT || 3000
+  const port = process.env.PORT || 3001
   await app.listen(port)
   const logger = new Logger('Bootstrap')
   logger.log(`KeBaiPay MVP running on http://localhost:${port}`)

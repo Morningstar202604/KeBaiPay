@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common'
+import { HttpModule } from '@nestjs/axios'
 import { PaymentChannelRegistry } from './payment-channel.registry'
 import { RefundService } from './refund.service'
 import { ChannelHealthService } from './channel-health.service'
@@ -26,7 +27,7 @@ import { RedisModule } from '../redis/redis.module'
 
 @Global()
 @Module({
-  imports: [PrismaModule, RedisModule],
+  imports: [PrismaModule, RedisModule, HttpModule],
   providers: [
     // 兼容层
     PaymentChannelRegistry,

@@ -66,7 +66,7 @@ export class AgentAdminAuthGuard implements CanActivate {
         kbError(KBErrorCodes.AUTHENTICATION_FAILED, '管理员不存在或已被禁用'),
       )
     }
-    if (!Object.values(AdminRole).includes(admin.role as any)) {
+    if (!Object.values(AdminRole).includes(admin.role as AdminRole)) {
       throw new UnauthorizedException(
         kbError(KBErrorCodes.AUTHENTICATION_FAILED, '管理员角色无效'),
       )

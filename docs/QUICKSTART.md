@@ -30,7 +30,7 @@ KeBaiPay 对外提供三种典型接入场景，请根据业务形态选择：
 
 ```http
 POST /auth/register HTTP/1.1
-Host: your-domain:3000
+Host: your-domain:3001
 Content-Type: application/json
 
 {
@@ -61,7 +61,7 @@ KeBaiPay 要求所有商户主体必须先完成实名认证，提交后进入 `
 
 ```http
 POST /users/verify-identity HTTP/1.1
-Host: your-domain:3000
+Host: your-domain:3001
 Content-Type: application/json
 Authorization: Bearer <token>
 
@@ -98,7 +98,7 @@ Authorization: Bearer <token>
 
 ```http
 POST /merchants/register HTTP/1.1
-Host: your-domain:3000
+Host: your-domain:3001
 Content-Type: application/json
 Authorization: Bearer <token>
 
@@ -144,7 +144,7 @@ Authorization: Bearer <token>
 
 ```http
 POST /merchants/apps HTTP/1.1
-Host: your-domain:3000
+Host: your-domain:3001
 Content-Type: application/json
 Authorization: Bearer <token>
 
@@ -502,4 +502,4 @@ mock 渠道在开发/测试环境自动启用，无需额外配置：
 | [MERCHANT_GUIDE.md](./MERCHANT_GUIDE.md) | 商户注册、应用创建、订单管理、结算管理手册 |
 | [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) | 项目架构、v2.0.0 模块概览、数据库与复式记账、权限系统、认证方式 |
 
-> 更多帮助：Swagger 文档 `http://your-domain:3000/api/docs`（仅开发环境） | 技术支持 `support@kebaipay.com` | 工作时间 周一至周五 9:00-18:00
+> 更多帮助：Swagger 文档 `http://your-domain:3001/api/docs`（仅开发环境） | 技术支持 `support@kebaipay.com` | 工作时间 周一至周五 9:00-18:00

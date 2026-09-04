@@ -7,6 +7,8 @@
 // ============================================================================
 
 import { Injectable, Logger } from '@nestjs/common'
+import { HttpService } from '@nestjs/axios'
+import { firstValueFrom } from 'rxjs'
 import * as crypto from 'crypto'
 import {
   Connector,
@@ -236,6 +238,8 @@ export class StripeConnector implements Connector {
   }
 
   private credentials?: StripeCredentials
+
+  constructor(private readonly httpService?: HttpService) {}
 
   getConfig(): ConnectorConfig {
     return { ...this.config }
@@ -656,10 +660,16 @@ export class StripeConnector implements Connector {
       return this.mockResponse('GET', path) as T
     }
 
-    // 实际实现应使用 HttpService
-    throw new Error(
-      `Stripe HTTP GET 调用尚未接入真实 API。Path=${path}，请配置真实凭据或使用 sandbox 模式。`,
+    if (!this.httpService) {
+      throw new Error('Stripe Connector 未注入 HttpService，请在模块中提供。Path=' + path)
+    }
+    const res = await firstValueFrom(
+      this.httpService.get(`${STRIPE_API_BASE}${path}`, {
+        headers: { Authorization: `Bearer ${creds.secretKey}` },
+        timeout: this.config.timeout,
+      }),
     )
+    return res.data as T
   }
 
   /**
@@ -676,12 +686,23 @@ export class StripeConnector implements Connector {
       return this.mockResponse('POST', path) as T
     }
 
-    // 实际实现应使用 HttpService；headers 必须携带：
-    //   Authorization: Bearer <secretKey>
-    //   Idempotency-Key: <idempotencyKey>（当调用方提供时）
-    throw new Error(
-      `Stripe HTTP POST 调用尚未接入真实 API。Path=${path}${idempotencyKey ? `，Idempotency-Key=${idempotencyKey}` : ''}，请配置真实凭据或使用 sandbox 模式。`,
+    if (!this.httpService) {
+      throw new Error('Stripe Connector 未注入 HttpService，请在模块中提供。Path=' + path)
+    }
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${creds.secretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    }
+    if (idempotencyKey) {
+      headers['Idempotency-Key'] = idempotencyKey
+    }
+    const res = await firstValueFrom(
+      this.httpService.post(`${STRIPE_API_BASE}${path}`, body, {
+        headers,
+        timeout: this.config.timeout,
+      }),
     )
+    return res.data as T
   }
 
   /**

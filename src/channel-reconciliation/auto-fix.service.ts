@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
 import {
   ReconciliationDiffStatus,
@@ -49,9 +50,18 @@ export interface AutoFixRecord {
 @Injectable()
 export class AutoFixService {
   private readonly logger = new Logger(AutoFixService.name)
-  private config: AutoFixConfig = { ...DEFAULT_CONFIG }
+  private config: AutoFixConfig
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {
+    const envThreshold = this.configService.get<number>('AUTO_FIX_THRESHOLD')
+    this.config = {
+      ...DEFAULT_CONFIG,
+      minorDiffThreshold: typeof envThreshold === 'number' ? envThreshold : DEFAULT_CONFIG.minorDiffThreshold,
+    }
+  }
 
   /**
    * 更新配置

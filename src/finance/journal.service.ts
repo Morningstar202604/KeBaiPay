@@ -1,7 +1,9 @@
-import { Injectable, OnModuleInit } from '@nestjs/common'
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { KBErrorCodes, kbError } from '../common/error-codes'
+
+const logger = new Logger('JournalService')
 
 export interface JournalEntryInput {
   journalId: string
@@ -16,8 +18,11 @@ export class JournalService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
-    // 应用启动时初始化默认平台账户
-    await this.seedPlatformAccounts()
+    try {
+      await this.seedPlatformAccounts()
+    } catch (e) {
+      logger.warn(`[JournalService] 平台账户初始化跳过（数据库未就绪）: ${(e as Error).message}`)
+    }
   }
 
   // 在事务内创建一组借贷平衡的分录

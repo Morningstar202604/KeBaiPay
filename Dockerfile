@@ -88,11 +88,11 @@ COPY --from=builder /app/public ./public
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-EXPOSE 3000
+EXPOSE 3001
 
 # 健康检查（用 wget，已在上面 apk add；grep "ok" 确保拿到正确响应）
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget -qO- --timeout=3 http://localhost:3000/health/ready | grep -q "ok" || exit 1
+  CMD wget -qO- --timeout=3 http://localhost:3001/health/ready | grep -q "ok" || exit 1
 
 # 非 root 用户
 RUN addgroup -g 1001 -S nodejs \

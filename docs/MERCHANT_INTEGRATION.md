@@ -1,4 +1,4 @@
-# 科佰支付 - 商户接入指南
+﻿# 科佰支付 - 商户接入指南
 
 > 本指南帮助商户快速接入科佰支付系统，实现网站/APP的支付功能。
 
@@ -32,7 +32,7 @@
 
 ```bash
 # 1. 登录商户后台
-访问: http://your-domain:3000/#merchantLogin
+访问: http://your-domain:3001/#merchantLogin
 账号: 您的手机号
 密码: 您的登录密码
 
@@ -53,7 +53,7 @@ const { KeBaiPay } = require('./path/to/kebaipay.js');
 const sdk = new KeBaiPay({
     appId: process.env.KEBAIPAY_APP_ID,
     appSecret: process.env.KEBAIPAY_APP_SECRET,  // 从环境变量读取
-    baseUrl: 'http://your-domain:3000'
+    baseUrl: 'http://your-domain:3001'
 });
 ```
 
@@ -64,7 +64,7 @@ const sdk = new KeBaiPay({
 ### 1. 访问注册页面
 
 ```
-http://your-domain:3000/#register
+http://your-domain:3001/#register
 ```
 
 ### 2. 填写注册信息
@@ -94,7 +94,7 @@ http://your-domain:3000/#register
 ### 1. 登录商户后台
 
 ```
-http://your-domain:3000/#merchantLogin
+http://your-domain:3001/#merchantLogin
 ```
 
 ### 2. 创建应用
@@ -206,7 +206,7 @@ const { KeBaiPay } = require('./lib/kebaipay.js');
 const sdk = new KeBaiPay({
     appId: process.env.KEBAIPAY_APP_ID,
     appSecret: process.env.KEBAIPAY_APP_SECRET,  // 从环境变量读取，禁止硬编码
-    baseUrl: 'http://your-domain:3000'
+    baseUrl: 'http://your-domain:3001'
 });
 ```
 
@@ -295,7 +295,7 @@ if (isValid) {
 ### 1. 测试环境
 
 ```
-测试地址: http://your-domain:3000
+测试地址: http://your-domain:3001
 测试账号: 请联系管理员创建
 测试密码: 需要管理员设置
 ```
@@ -420,7 +420,7 @@ if (order.data.status === 'PENDING') {
 // 测试环境
 const testSdk = new KeBaiPay({
     appId: 'test_xxx',
-    baseUrl: 'http://localhost:3000'
+    baseUrl: 'http://localhost:3001'
 });
 
 // 生产环境
@@ -441,7 +441,7 @@ const prodSdk = new KeBaiPay({
 
 ## 技术支持
 
-- **文档**: http://your-domain:3000/api/docs
+- **文档**: http://your-domain:3001/api/docs
 - **邮箱**: support@kebaipay.com
 - **电话**: 400-xxx-xxxx
 - **工作时间**: 周一至周五 9:00-18:00

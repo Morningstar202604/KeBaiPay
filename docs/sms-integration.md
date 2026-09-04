@@ -1,4 +1,4 @@
-# 短信服务接入指南
+﻿# 短信服务接入指南
 
 本系统支持 4 个短信服务商：阿里云、腾讯云、华为云、mock（仅开发环境）。切换服务商只需修改 `.env` 中的 `SMS_PROVIDER`，无需改代码。
 
@@ -168,12 +168,12 @@ SMS_PROVIDER="mock"
 
 ```bash
 # 发送验证码
-curl -X POST http://localhost:3000/sms/send \
+curl -X POST http://localhost:3001/sms/send \
   -H "Content-Type: application/json" \
   -d '{"phone":"13800138000","scene":"login"}'
 
 # 验证
-curl -X POST http://localhost:3000/sms/verify \
+curl -X POST http://localhost:3001/sms/verify \
   -H "Content-Type: application/json" \
   -d '{"phone":"13800138000","scene":"login","code":"123456"}'
 ```

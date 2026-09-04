@@ -107,8 +107,8 @@ export class WechatPayConnector implements Connector {
   async healthCheck(): Promise<ConnectorHealth> {
     const startTime = Date.now()
     try {
-      // 连通性检查：通过查询远端服务确认
-      // 微信支付没有专用的 ping 接口，通过配置完整性做基本检查
+      // 通过查询一个不存在的订单做连通性验证（微信支付 V3 API 正常响应返回 400+ 错误码即表示可达）
+      const result = await this.channel.queryOrder(`__healthcheck_${Date.now()}__`, {})
       const latency = Date.now() - startTime
       return {
         status: 'ACTIVE',

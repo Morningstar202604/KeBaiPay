@@ -39,7 +39,7 @@
 ```bash
 # 1. 克隆项目（任选其一，国内推荐 gitcode 镜像）
 # GitHub（国际）：
-git clone https://github.com/weed33834/KeBaiPay.git
+git clone https://github.com/Morningstar202604/KeBaiPay.git
 # gitcode（国内）：
 git clone https://gitcode.com/badhope/KeBaiPay.git
 cd KeBaiPay
@@ -59,8 +59,8 @@ npm run start:dev
 ```
 
 服务启动后：
-- API 服务：`http://localhost:3000`
-- Swagger 文档：`http://localhost:3000/api/docs`（仅开发环境）
+- API 服务：`http://localhost:3001`
+- Swagger 文档：`http://localhost:3001/api/docs`（仅开发环境）
 
 ### 常用命令
 
