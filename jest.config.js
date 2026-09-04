@@ -27,4 +27,22 @@ module.exports = {
   // 统一放宽到 15s；maxWorkers 上限避免高并发下机器过载放大超时
   testTimeout: 15000,
   maxWorkers: '50%',
+  // 覆盖率配置
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.d.ts',
+    '!src/main.ts',
+    '!src/**/*.spec.ts',
+    '!src/**/index.ts',
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 75,
+      lines: 80,
+      statements: 80,
+    },
+  },
 }

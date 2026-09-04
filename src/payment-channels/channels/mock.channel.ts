@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common'
 import { createHmac, timingSafeEqual } from 'crypto'
 import {
   PaymentChannel,
@@ -28,14 +28,28 @@ import { KBErrorCodes, kbError } from '../../common/error-codes'
  * - refund 支持退款流程模拟
  */
 @Injectable()
-export class MockChannel implements PaymentChannel {
+export class MockChannel implements PaymentChannel, OnApplicationBootstrap {
   readonly code = 'mock'
   readonly name = '模拟渠道'
+  private readonly logger = new Logger(MockChannel.name)
 
   // 从环境变量读取：避免源码硬编码 secret 导致测试环境与生产环境共用同一密钥
   // 未配置时使用 dev 专用默认值。生产环境通过 PaymentChannelRegistry.getChannel
   // 拦截 mock 渠道调用（isProduction && code === 'mock' 时抛 NotFoundException）
   private readonly secret = process.env.MOCK_CHANNEL_SECRET || 'mock-channel-secret-dev-only'
+
+  onApplicationBootstrap(): void {
+    if (!process.env.MOCK_CHANNEL_SECRET) {
+      this.logger.warn(
+        'MOCK_CHANNEL_SECRET 未配置，使用默认 dev secret；生产环境必须设置该环境变量',
+      )
+    }
+    if (process.env.NODE_ENV === 'production' && !process.env.MOCK_CHANNEL_SECRET) {
+      this.logger.warn(
+        '生产环境检测到 mock channel 可能可用（MOCK_CHANNEL_SECRET 未设置），请确保 PaymentChannelRegistry 会拦截',
+      )
+    }
+  }
 
   sign(data: string): string {
     return createHmac('sha256', this.secret).update(data).digest('hex')

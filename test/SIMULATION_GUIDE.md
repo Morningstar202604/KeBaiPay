@@ -1,4 +1,4 @@
-# KeBaiPay 端到端场景模拟测试指南
+﻿# KeBaiPay 端到端场景模拟测试指南
 
 ## 概述
 
@@ -128,7 +128,7 @@ signature = HMAC-SHA256(secret, `${orderNo}${channelOrderNo}${amount}`)
 
 ### 环境变量
 ```
-{{BASE_URL}} = http://localhost:3000
+{{BASE_URL}} = http://localhost:3001
 {{USER_ID}} = <创建用户后获取>
 {{ORDER_NO}} = <创建订单后获取>
 ```

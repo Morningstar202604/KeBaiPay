@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, '..')
 const SHOT = path.join(root, 'demo', 'screenshots')
 const VID = path.join(root, 'demo', 'videos')
 fs.mkdirSync(SHOT, { recursive: true }); fs.mkdirSync(VID, { recursive: true })
-const BASE = process.env.DEMO_BASE || 'http://localhost:3000'
+const BASE = process.env.DEMO_BASE || 'http://localhost:3001'
 const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 async function shot(page, name){ await sleep(700); await page.screenshot({ path: path.join(SHOT, name + '.png') }); console.log('📸', name) }
 

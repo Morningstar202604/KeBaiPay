@@ -8,10 +8,10 @@
 
 `NestJS 11` `TypeScript 6` `Prisma 7` `PostgreSQL 16` `Redis 7` `Vercel AI SDK` `MCP`
 
-[![CI](https://github.com/Morningstar202604/KeBaiPay/actions/workflows/ci.yml/badge.svg)](https://github.com/Morningstar202604/KeBaiPay/actions/workflows/ci.yml)
+[![CI](https://github.com/weed33834/KeBaiPay/actions/workflows/ci.yml/badge.svg)](https://github.com/weed33834/KeBaiPay/actions/workflows/ci.yml)
 [![version](https://img.shields.io/badge/version-2.2.1-0FA968)](docs/CHANGELOG.md)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](package.json)
-[![tests](https://img.shields.io/badge/tests-1177%20passing-0FA968)](../-/blob/main/docs/CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-1177%20passing-0FA968)](docs/CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-PolyForm%20NC%201.0-E0533D)](LICENSE)
 [![platforms](https://img.shields.io/badge/%E2%AD%90-Gitee%20%C2%B7%20GitCode%20%C2%B7%20GitHub-C71D23)](#-三平台同步)
 
@@ -54,14 +54,14 @@ KeBaiPay 是一套**可私有化部署**的支付中台参考实现：把「C �
 ## 🚀 快速开始
 
 ```bash
-git clone https://github.com/Morningstar202604/KeBaiPay.git && cd KeBaiPay
+git clone https://github.com/weed33834/KeBaiPay.git && cd KeBaiPay
 npm install
 
 cp .env.example .env                          # 开发模式默认 mock 渠道/短信
 docker compose -f docker-compose.dev.yml up -d # PostgreSQL 16 + Redis 7
 
 npx prisma migrate deploy && npx prisma db seed
-npm run start:dev                              # http://localhost:3000
+npm run start:dev                              # http://localhost:3001
 ```
 
 **测试账号**（seed 预置）：用户 `13800000001` / `Abc12345`（支付密码 `123456`）· 管理员 `admin` / `Admin2026`
@@ -123,6 +123,7 @@ const order = await kb.createOrder({ merchantOrderNo: 'MO_001', amount: 9.9, sub
 | [API_REFERENCE](docs/API_REFERENCE.md) | API + 错误码 KBxxx | [PRODUCTION_READINESS](docs/PRODUCTION_READINESS.md) | 上线清单与红线 |
 | [SDK_GUIDE](docs/SDK_GUIDE.md) | Node/Py/Java/PHP 示例 | [DEVELOPER_GUIDE](docs/DEVELOPER_GUIDE.md) | 架构与规范 |
 | [VERSIONING](docs/VERSIONING.md) | SemVer 发版纪律 | [EXPERT_PANEL_ASSESSMENT](docs/EXPERT_PANEL_ASSESSMENT.md) | 专家评审与路线图 |
+| [LAUNCH](docs/LAUNCH.md) | 开源发布准备清单 | [CHANGELOG](docs/CHANGELOG.md) | 版本更新记录 |
 
 ## 🗺 路线图
 
@@ -142,7 +143,7 @@ PR 前 `npm run lint && npm test` 必须全绿；发版遵循 [SemVer 纪律](do
 
 | 平台 | 仓库 |
 |---|---|
-| GitHub | [Morningstar202604/KeBaiPay](https://github.com/Morningstar202604/KeBaiPay) |
+| GitHub | [weed33834/KeBaiPay](https://github.com/weed33834/KeBaiPay) |
 | Gitee | [badhope/kebaipay](https://gitee.com/badhope/kebaipay) |
 | GitCode | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) |
 

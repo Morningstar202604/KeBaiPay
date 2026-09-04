@@ -1,4 +1,4 @@
-# KeBaiPay 用户使用指南
+﻿# KeBaiPay 用户使用指南
 
 > 个人钱包用户完整使用手册 · 版本 2.0.0
 > 适用对象：注册并使用 KeBaiPay 钱包的 C 端用户
@@ -58,7 +58,7 @@
 
 ### 2.1 注册步骤（手机号 / 邮箱）
 
-1. 打开 KeBaiPay 应用首页 `http://你的服务器地址:3000/`
+1. 打开 KeBaiPay 应用首页 `http://你的服务器地址:3001/`
 2. 点击右上角「注册」
 3. 填写以下信息：
    - **昵称**（1-32 字符，必填）
@@ -1431,7 +1431,7 @@ Content-Type: application/json
 | 消息中心 | `GET /messages`、`GET /messages/unread/count`、`POST /messages/:messageNo/read`、`POST /messages/read/all` |
 | 发票 | `POST /invoices`、`GET /invoices`、`GET /invoices/:invoiceNo`、`POST /invoices/:invoiceNo/cancel` |
 
-> 📖 完整接口文档（请求体/响应/错误码）：开发环境访问 `http://你的服务器地址:3000/api/docs`
+> 📖 完整接口文档（请求体/响应/错误码）：开发环境访问 `http://你的服务器地址:3001/api/docs`
 
 ## 联系客服
 

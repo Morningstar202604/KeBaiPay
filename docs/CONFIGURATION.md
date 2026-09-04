@@ -1,4 +1,4 @@
-# 配置参考（Configuration Reference）
+﻿# 配置参考（Configuration Reference）
 
 > 全部环境变量集中在根目录 `.env`（模板见 [`.env.example`](../.env.example)）。
 > 部署形态差异见 [`DEPLOYMENT.md`](DEPLOYMENT.md)。生产环境由 `SecurityValidatorService`
@@ -18,7 +18,7 @@
 | | `DATABASE_STATEMENT_TIMEOUT_MS` / `DATABASE_POOL_TIMEOUT_SEC` | – | SQL/取连接超时（默认 30s/10s） |
 | **Redis** | `REDIS_URL` | ✅* | `redis://[:password@]host:6379`；资金操作依赖分布式锁，生产必须可用（fail-closed） |
 | | `REDIS_PASSWORD` | 生产 | compose 模式注入 |
-| **服务** | `PORT` | – | 默认 3000 |
+| **服务** | `PORT` | – | 默认 3001 |
 | | `NODE_ENV` | – | `production` 时启用全部安全强校验 |
 | | `CORS_ORIGINS` | 生产 | 逗号分隔白名单（前端三端 dev 端口 5173-5175） |
 | **支付回调** | `RECHARGE_NOTIFY_URL` | ✅ | 充值回调完整外网 URL，缺省时充值下单直接报错 |

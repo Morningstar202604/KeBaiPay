@@ -1,4 +1,4 @@
-# KeBaiPay 商户接入指南
+﻿# KeBaiPay 商户接入指南
 
 > 面向商户开发者与运营人员的完整接入手册（v2.0.0）
 > 涵盖商户入驻、收银台支付、担保交易、批量转账、订阅、分账、对账、Webhook 等全功能
@@ -1629,6 +1629,6 @@ KeBaiPay 内置 `mock` 渠道用于开发与测试环境，**生产环境会自�
 | [TROUBLESHOOT.md](./TROUBLESHOOT.md) | 常见问题排查指南 | 所有接入者 |
 
 > 更多帮助：
-> - Swagger 文档：`http://your-domain:3000/api/docs`（仅开发环境）
+> - Swagger 文档：`http://your-domain:3001/api/docs`（仅开发环境）
 > - 技术支持邮箱：`support@kebaipay.com`
 > - 工作时间：周一至周五 9:00-18:00

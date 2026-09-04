@@ -1,0 +1,57 @@
+# KeBaiPay 代码所有权规则
+# 格式: <路径> <维护者>
+
+# 根目录核心
+* @weed33834 @Morningstar202604
+
+# 后端核心
+src/main.ts @weed33834
+src/app.module.ts @weed33834
+src/common/** @weed33834
+src/config/** @weed33834
+src/prisma/** @weed33834
+
+# 支付渠道
+src/channels/** @weed33834
+
+# 支付核心
+src/payment/** @Morningstar202604
+
+# 商户与钱包
+src/merchant/** @weed33834
+src/wallet/** @Morningstar202604
+
+# AI Agent 层
+src/agent/** @weed33834
+src/mcp/** @weed33834
+
+# 对账
+src/reconciliation/** @Morningstar202604
+
+# 风控
+src/risk-control/** @weed33834
+
+# 网关/API
+src/gateway/** @Morningstar202604
+
+# 前端 web (管理后台)
+web/** @weed33834
+
+# 前端 web-h5 (H5 收银台)
+web-h5/** @Morningstar202604
+
+# 文档
+docs/** @weed33834
+
+# GitHub Actions 工作流
+.github/workflows/** @weed33834
+
+# 测试
+test/** @Morningstar202604
+jest.config.js @Morningstar202604
+
+# 配置与工具
+.eslintrc.js @weed33834
+.prettierrc @weed33834
+tsconfig*.json @weed33834
+scripts/** @weed33834

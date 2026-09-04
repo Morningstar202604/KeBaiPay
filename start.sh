@@ -61,9 +61,9 @@ echo "========================================"
 echo "  构建完成！"
 echo "========================================"
 echo
-echo "访问地址: http://localhost:3000"
-echo "管理后台: http://localhost:3000/#adminLogin"
-echo "API文档: http://localhost:3000/api/docs"
+echo "访问地址: http://localhost:3001"
+echo "管理后台: http://localhost:3001/#adminLogin"
+echo "API文档: http://localhost:3001/api/docs"
 echo
 echo "管理员账号: admin"
 echo "管理员密码: 见 .env 中的 ADMIN_DEFAULT_PASSWORD"

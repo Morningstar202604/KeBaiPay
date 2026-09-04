@@ -1,4 +1,4 @@
-# KeBaiPay 开发者指南
+﻿# KeBaiPay 开发者指南
 
 > 科佰支付 - 个人钱包 + 商户收款平台
 
@@ -59,8 +59,8 @@ npm run start:dev
 ```
 
 服务启动后：
-- API 服务：`http://localhost:3000`
-- Swagger 文档：`http://localhost:3000/api/docs`（仅开发环境）
+- API 服务：`http://localhost:3001`
+- Swagger 文档：`http://localhost:3001/api/docs`（仅开发环境）
 
 ### 常用命令
 

@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common'
+import { Module, OnModuleInit, Logger } from '@nestjs/common'
 import { JwtModule, type JwtModuleOptions } from '@nestjs/jwt'
 import { PassportModule } from '@nestjs/passport'
 import { ConfigModule, ConfigService } from '@nestjs/config'
@@ -42,9 +42,14 @@ import { MerchantsModule } from '../merchants/merchants.module'
   ],
 })
 export class AdminModule implements OnModuleInit {
+  private readonly logger = new Logger(AdminModule.name)
   constructor(private readonly adminAuthService: AdminAuthService) {}
 
   async onModuleInit() {
-    await this.adminAuthService.seedAdmin()
+    try {
+      await this.adminAuthService.seedAdmin()
+    } catch (e) {
+      this.logger.warn(`[AdminModule] 管理员初始化跳过（数据库未就绪）: ${(e as Error).message}`)
+    }
   }
 }

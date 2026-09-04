@@ -1,4 +1,4 @@
-# KeBaiPay Web Admin — 管理后台 Vue 3 SPA
+﻿# KeBaiPay Web Admin — 管理后台 Vue 3 SPA
 
 KeBaiPay 管理后台前端，使用 **Vue 3 + TypeScript + Vite + Pinia + Vue Router + Element Plus + ECharts** 构建。
 
@@ -21,7 +21,7 @@ KeBaiPay 管理后台前端，使用 **Vue 3 + TypeScript + Vite + Pinia + Vue R
 
 | 变量 | 说明 |
 |---|---|
-| `VITE_API_BASE` | 后端 API 地址。开发默认 `http://localhost:3000`；生产留空（同源） |
+| `VITE_API_BASE` | 后端 API 地址。开发默认 `http://localhost:3001`；生产留空（同源） |
 
 ## 开发 / 构建
 

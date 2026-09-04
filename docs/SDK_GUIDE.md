@@ -1072,7 +1072,7 @@ KeBaiPay 内置 `mock` 渠道用于开发与测试环境，模拟真实支付流
 ```bash
 # .env.dev
 MOCK_CHANNEL_SECRET=dev_mock_secret_change_me
-KEBAIPAY_BASE_URL=http://localhost:3000
+KEBAIPAY_BASE_URL=http://localhost:3001
 ```
 
 **1 分钱测试订单：**
@@ -1400,4 +1400,4 @@ if (order.status === 'REFUNDED') {
 | [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) | 项目架构、模块概览、数据库与复式记账、权限系统、认证方式 |
 | [TROUBLESHOOT.md](./TROUBLESHOOT.md) | 常见问题排查手册 |
 
-> 更多帮助：Swagger 文档 `http://your-domain:3000/api/docs`（仅开发环境） | 技术支持 `support@kebaipay.com` | 工作时间 周一至周五 9:00-18:00
+> 更多帮助：Swagger 文档 `http://your-domain:3001/api/docs`（仅开发环境） | 技术支持 `support@kebaipay.com` | 工作时间 周一至周五 9:00-18:00

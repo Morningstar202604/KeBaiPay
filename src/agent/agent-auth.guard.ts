@@ -68,7 +68,7 @@ export class AgentAuthGuard implements CanActivate {
     }
 
     // 校验 scenario 合法
-    if (!payload.scenario || !AGENT_SCENARIOS.includes(payload.scenario as any)) {
+    if (!payload.scenario || !AGENT_SCENARIOS.includes(payload.scenario as 'wallet' | 'merchant' | 'risk' | 'support')) {
       throw new UnauthorizedException(
         kbError(KBErrorCodes.AUTHENTICATION_FAILED, '智能体场景类型无效'),
       )

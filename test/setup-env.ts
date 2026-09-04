@@ -24,7 +24,7 @@ const TEST_ENV = {
   ADMIN_DEFAULT_PASSWORD: 'TestAdmin2026',
   SMS_PROVIDER: 'mock',
   RECHARGE_NOTIFY_URL: 'http://localhost:3001/webhooks/recharge/mock',
-  CORS_ORIGINS: 'http://localhost:3000',
+  CORS_ORIGINS: 'http://localhost:3001',
   // Agent v2.1.0：LLM 走 mock 降级模式，无需真实 LLM API Key
   LLM_PROVIDER: 'mock',
   LLM_API_KEY: '',

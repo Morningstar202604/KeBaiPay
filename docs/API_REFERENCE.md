@@ -1,4 +1,4 @@
-# KeBaiPay API 参考文档
+﻿# KeBaiPay API 参考文档
 
 > 完整的 REST API 端点列表、请求/响应格式及认证详情
 > 版本 2.0.0 | 共 204 个端点，覆盖 35 个模块
@@ -53,8 +53,8 @@
 
 | 项目 | 值 |
 |------|-----|
-| Base URL | `http://localhost:3000` |
-| Swagger 文档 | `http://localhost:3000/api/docs`（仅开发环境） |
+| Base URL | `http://localhost:3001` |
+| Swagger 文档 | `http://localhost:3001/api/docs`（仅开发环境） |
 | Content-Type | `application/json` |
 | 金额单位 | 接口入参/出参：元（Yuan），数据库存储：分（Fen） |
 | 时间格式 | ISO 8601（`2025-01-01T00:00:00.000Z`）或 Unix 毫秒时间戳 |
