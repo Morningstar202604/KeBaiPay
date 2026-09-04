@@ -8,6 +8,8 @@ module.exports = {
   testMatch: ['**/*.spec.ts'],
   moduleNameMapper: {
     '^src/(.*)$': '<rootDir>/src/$1',
+    // @nestjs/axios@12 是 ESM-only，jest 无法加载，映射到 CJS mock
+    '^@nestjs/axios$': '<rootDir>/test/mocks/nestjs-axios.mock.ts',
   },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
@@ -23,6 +25,8 @@ module.exports = {
     }],
   },
   clearMocks: true,
+  // @nestjs/axios 是 ESM-only 包，须放行让 ts-jest 转换（Stripe connector 依赖 HttpService）
+  transformIgnorePatterns: ['node_modules/(?!@nestjs/axios)'],
   // 弱机/CI 2 核 runner 下 supertest 控制器用例偶发超过默认 5s 超时（评审实测 5 例失败），
   // 统一放宽到 15s；maxWorkers 上限避免高并发下机器过载放大超时
   testTimeout: 15000,
