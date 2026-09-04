@@ -90,8 +90,5 @@ web/.vite/
 web-h5/.vite/
 web-admin/.vite/
 
-# Package lock snapshots (regenerate on clone)
-package-lock.json
-web/package-lock.json
-web-h5/package-lock.json
-web-admin/package-lock.json
+# Lock 文件必须提交（CI 使用 npm ci + setup-node cache 依赖 lock 文件保证可重现构建）
+# 注意：升级依赖后请同步更新 package-lock.json 并提交
