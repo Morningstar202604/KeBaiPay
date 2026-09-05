@@ -248,8 +248,6 @@ export class UnionPaySignUtil {
     signature: string,
     publicKey: string,
   ): boolean {
-    // 模拟签名不需要真实验证
-    if (signature.startsWith('MOCK_SIGN_')) return true
     const signStr = this.buildSignString(data)
     try {
       const verifier = crypto.createVerify('RSA-SHA256')
@@ -543,10 +541,8 @@ export class UnionPayConnector implements Connector {
    */
   verifyWebhook(payload: string, headers: Record<string, string>): boolean {
     try {
-      // 沙箱/开发环境下放宽验签要求
-      if (this.credentials?.sandbox) {
-        return true
-      }
+      // 沙箱也必须验签（沙箱同样有测试密钥）：验签可被配置静默关闭是高危模式，
+      // 渠道凭据可经管理端热更新，误配 sandbox 不应导致回调零验签
 
       // 银联通知为 form-urlencoded 格式，需解析后验签
       const params = this.parseQueryString(payload)

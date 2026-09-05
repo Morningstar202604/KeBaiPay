@@ -1413,6 +1413,12 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
     })
 
     it('自动修正小额对账差异', async () => {
+      // 预置一个用户：RiskEvent.userId 外键要求归属真实用户（v0.2.2 起
+      // auto-fix 采用 anchor 用户模式，不再写不存在的 SYSTEM 用户）
+      await freshPrisma6.user.create({
+        data: { id: 'anchor-u1', nickname: '锚点用户', status: 'ACTIVE' },
+      })
+
       // 创建对账差异项（小额，≤50分）
       const diff = await freshPrisma6.reconciliationDifferenceItem.create({
         data: {

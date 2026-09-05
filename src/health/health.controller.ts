@@ -4,12 +4,14 @@ import {
   HttpCode,
   HttpStatus,
   ServiceUnavailableException,
+  UseGuards,
 } from '@nestjs/common'
 import { SkipThrottle } from '@nestjs/throttler'
-import { ApiTags, ApiOperation } from '@nestjs/swagger'
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger'
 import { HealthService } from './health.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 import { ChannelHealthService } from '../payment-channels/channel-health.service'
+import { AdminJwtAuthGuard } from '../admin/admin-jwt-auth.guard'
 
 /**
  * 健康检查端点。
@@ -17,6 +19,9 @@ import { ChannelHealthService } from '../payment-channels/channel-health.service
  * @SkipThrottler：探针端点不受全局限流，避免 k8s 高频 probe 触发 429 影响真实请求。
  * 探针返回原始结构，不走 ResponseTransformInterceptor 包装（见 interceptor 的跳过逻辑），
  * 确保 k8s/docker 按状态码与 status 字段判断存活。
+ *
+ * /health 与 /health/ready 保持公开（k8s probe）；
+ * schedules/channels 诊断端点会暴露内部任务名与 lastError 原文，须管理员认证。
  */
 @ApiTags('健康检查')
 @Controller('health')
@@ -48,19 +53,25 @@ export class HealthController {
   }
 
   @Get('schedules')
-  @ApiOperation({ summary: '调度任务健康状态' })
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth('user-auth')
+  @ApiOperation({ summary: '调度任务健康状态（管理员）' })
   getSchedules() {
     return this.scheduleHealthService.getScheduleStatus()
   }
 
   @Get('channels')
-  @ApiOperation({ summary: '支付渠道健康状态' })
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth('user-auth')
+  @ApiOperation({ summary: '支付渠道健康状态（管理员）' })
   getChannelHealth() {
     return this.channelHealthService.getAllChannelHealth()
   }
 
   @Get('channels/summary')
-  @ApiOperation({ summary: '支付渠道健康摘要' })
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth('user-auth')
+  @ApiOperation({ summary: '支付渠道健康摘要（管理员）' })
   getChannelHealthSummary() {
     return this.channelHealthService.getHealthSummary()
   }
