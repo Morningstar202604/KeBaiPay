@@ -34,6 +34,12 @@ export async function setUserStatus(id: string, body: { status: string }): Promi
   return data
 }
 
+// 用户详情（含实名/账户/最近账单，密码哈希已由后端剔除）
+export async function fetchUserDetail(id: string): Promise<Record<string, any>> {
+  const { data } = await http.get(`/admin/users/${id}`)
+  return data
+}
+
 // ---------- 商户 ----------
 export async function fetchMerchants(params: { status?: string; page?: number; limit?: number }): Promise<Paged<AdminMerchant>> {
   const { data } = await http.get<Paged<AdminMerchant>>('/admin/merchants', { params })

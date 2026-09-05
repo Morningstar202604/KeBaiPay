@@ -38,3 +38,9 @@ router.beforeEach((to) => {
 })
 
 export default router
+
+// 浏览器标签页标题随路由更新（P2-7）
+router.afterEach((to) => {
+  const t = (to.meta?.title as string | undefined) || ''
+  document.title = t ? '科佰支付' + ' · ' + t : '科佰支付 · 管理后台'
+})

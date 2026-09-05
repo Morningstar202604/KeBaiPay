@@ -21,7 +21,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { transfer } from '@/api/modules'
 import { extractError } from '@/api/http'
 
@@ -35,6 +35,14 @@ async function submit() {
   if (!toUserId.value) return ElMessage.warning('请输入收款用户 ID')
   if (!amount.value || amount.value <= 0) return ElMessage.warning('请输入转账金额')
   if (!payPassword.value) return ElMessage.warning('请输入支付密码')
+  // 二次确认：转账不可逆，弹出收款人+金额核对（P1-17）
+  try {
+    await ElMessageBox.confirm(
+      '向用户 ' + toUserId.value.trim() + ' 转账 ¥' + amount.value.toFixed(2) + '，确认无误？',
+      '确认转账',
+      { confirmButtonText: '确认转账', cancelButtonText: '再想想', type: 'warning' },
+    )
+  } catch { return }
   loading.value = true
   try {
     await transfer({
