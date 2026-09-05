@@ -150,6 +150,7 @@ describe('TransactionsService', () => {
         status: 'PENDING',
         amount: 1000,
         idempotencyKey: 'idem-1',
+        toUserId: 'u1', // 幂等命中需归属一致（v0.2.2 修复）
       }
       prisma.transactionOrder.findUnique.mockResolvedValue(existingOrder)
       usersService.verifyPayPassword.mockResolvedValue(true)

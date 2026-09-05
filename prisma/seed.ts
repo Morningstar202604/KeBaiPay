@@ -173,6 +173,26 @@ async function main() {
   })
   console.log(`  Mock 支付渠道配置已就绪: ${mockChannel.code} (enabled=${mockChannel.enabled})`)
 
+  // 默认智能体（开箱即用）：用户在 H5「AI 助手」页授权后即可对话。
+  // LLM_PROVIDER=mock 时为模板回复，配置真实 LLM Key 后自动升级为智能对话。
+  const defaultAgentNo = 'AGTDEFAULT00000001'
+  const existingAgent = await prisma.agent.findUnique({ where: { agentNo: defaultAgentNo } })
+  if (!existingAgent) {
+    await prisma.agent.create({
+      data: {
+        agentNo: defaultAgentNo,
+        name: '科佰钱包管家',
+        appSecret: createHash('sha256').update('agent-' + randomBytes(24).toString('hex')).digest('hex'),
+        status: 'ACTIVE',
+        scopes: JSON.stringify(['wallet']),
+        scenario: 'wallet',
+        version: '1.0.0',
+        description: '默认钱包管家智能体：查余额、查账单、领优惠券等（资金类操作需用户二次确认）',
+      },
+    })
+    console.log('  默认智能体已创建: 科佰钱包管家 (scenario=wallet, LLM_PROVIDER=mock 模板回复)')
+  }
+
   console.log('seed 完成')
 }
 

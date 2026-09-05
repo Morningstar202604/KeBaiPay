@@ -67,7 +67,14 @@ async function load() {
       page: query.page,
       limit: query.limit,
     })
-    list.value = res.data
+    // HIGH 级别优先展示（P1-10）：同级内未处理在前、时间倒序
+    const weight: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 }
+    list.value = [...res.data].sort((a, b) => {
+      const w = (weight[a.level] ?? 3) - (weight[b.level] ?? 3)
+      if (w !== 0) return w
+      if (a.handled !== b.handled) return a.handled ? 1 : -1
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    })
     total.value = res.total
   } catch (e) { ElMessage.error(extractError(e)) } finally { loading.value = false }
 }

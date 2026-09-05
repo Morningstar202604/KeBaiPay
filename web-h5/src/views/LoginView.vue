@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="brand">
-      <div class="brand-mark">佰</div>
+      <img class="brand-mark" src="/logo.svg" alt="KeBaiPay" />
       <h1>科佰钱包</h1>
       <p>KeBaiPay 用户端</p>
     </div>
@@ -70,7 +70,7 @@ async function submit() {
     linear-gradient(160deg, #0b1220, #0f1a2e 60%, #12253a);
 }
 .brand { text-align: center; color: #fff; margin-bottom: 30px; }
-.brand-mark { width: 60px; height: 60px; margin: 0 auto 12px; border-radius: 16px; background: linear-gradient(135deg,#0fa968,#0ea5e9); color:#fff; font-size:26px; font-weight:700; display:flex; align-items:center; justify-content:center; box-shadow: 0 12px 28px rgba(15,169,104,.4); }
+.brand-mark { width: 60px; height: 60px; margin: 0 auto 12px; border-radius: 16px; display: block; object-fit: cover; box-shadow: 0 12px 28px rgba(15,169,104,.4); }
 .brand h1 { margin: 0; font-size: 24px; }
 .brand p { margin: 5px 0 0; font-size: 13px; opacity: 0.8; }
 .login-card { background: rgba(255,255,255,0.97); border-radius: 18px; padding: 24px 18px 18px; box-shadow: 0 20px 50px rgba(0,0,0,0.35); }

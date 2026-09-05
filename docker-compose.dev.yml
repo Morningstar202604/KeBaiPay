@@ -6,7 +6,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      # 与 .env 的 POSTGRES_PASSWORD/DATABASE_URL 共用同一变量，避免 cp .env.example .env 后两端密码脱节；
+      # 不建 .env 直接 up 时回退 postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: kebaipay
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data

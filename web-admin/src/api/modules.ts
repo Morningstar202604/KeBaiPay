@@ -34,6 +34,12 @@ export async function setUserStatus(id: string, body: { status: string }): Promi
   return data
 }
 
+// 用户详情（含实名/账户/最近账单，密码哈希已由后端剔除）
+export async function fetchUserDetail(id: string): Promise<Record<string, any>> {
+  const { data } = await http.get(`/admin/users/${id}`)
+  return data
+}
+
 // ---------- 商户 ----------
 export async function fetchMerchants(params: { status?: string; page?: number; limit?: number }): Promise<Paged<AdminMerchant>> {
   const { data } = await http.get<Paged<AdminMerchant>>('/admin/merchants', { params })
@@ -79,6 +85,19 @@ export async function handleRiskEvent(id: string, body: { note?: string }): Prom
 }
 
 // ---------- 财务 ----------
+
+export interface DailySummaryItem {
+  date: string
+  totalIncomeYuan: string
+  totalExpenseYuan: string
+  totalFeeYuan: string
+  transactionCount: number
+}
+
+export async function fetchDailySummary(params: { startDate?: string; endDate?: string }): Promise<{ data: DailySummaryItem[] }> {
+  const { data } = await http.get('/admin/finance/daily-summary', { params })
+  return data
+}
 export async function fetchFinanceOverview(): Promise<FinanceOverview> {
   const { data } = await http.get<FinanceOverview>('/admin/finance/overview')
   return data

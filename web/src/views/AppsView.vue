@@ -43,10 +43,11 @@
 
     <el-dialog v-model="secretVisible" title="应用密钥" width="440px">
       <el-alert title="请立即妥善保存，AppSecret 仅此一次完整显示。" type="warning" :closable="false" style="margin-bottom: 12px" />
-      <el-input v-model="secret" readonly type="textarea" :rows="3" />
-      <template #footer>
+      <el-input v-model="secret" readonly type="textarea" :rows="3" class="num" />
+      <div class="secret-actions">
+        <el-button @click="copySecret">{{ copied ? '已复制' : '复制密钥' }}</el-button>
         <el-button type="primary" @click="secretVisible = false">我已保存</el-button>
-      </template>
+      </div>
     </el-dialog>
   </el-card>
 </template>
@@ -67,6 +68,17 @@ const saving = ref(false)
 const createVisible = ref(false)
 const secretVisible = ref(false)
 const secret = ref('')
+const copied = ref(false)
+
+async function copySecret() {
+  try {
+    await navigator.clipboard.writeText(secret.value)
+    copied.value = true
+    setTimeout(() => (copied.value = false), 2000)
+  } catch {
+    ElMessage.error('复制失败，请手动选择复制')
+  }
+}
 const editTarget = ref<MerchantApp | null>(null)
 const form = reactive({ name: '', callbackUrl: '' })
 
@@ -140,4 +152,5 @@ onMounted(load)
 .toolbar {
   margin-bottom: 16px;
 }
+.secret-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 </style>

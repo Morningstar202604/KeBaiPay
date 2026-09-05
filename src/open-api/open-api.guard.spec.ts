@@ -16,7 +16,7 @@ describe('OpenApiGuard', () => {
 
   const appId = 'app_123'
   const appSecret = 'secret_123'
-  // DB 仅存 SHA-256 哈希；客户端需先对明文取哈希再作为 HMAC 密钥
+  // 服务端（DB）只存 SHA-256 hex 摘要
   const appSecretHash = createHash('sha256').update(appSecret).digest('hex')
 
   function buildSignString(
@@ -36,7 +36,9 @@ describe('OpenApiGuard', () => {
     timestamp: string,
     nonce: string,
   ) {
-    return createHmac('sha256', appSecretHash)
+    // 模拟真实客户端（public/sdk/kebaipay.js 与 SDK_GUIDE 四语言示例）：只有明文 appSecret，
+    // 以 sha256(appSecret) 的 32 字节原始摘要为 HMAC 密钥——与服务端 Buffer.from(hex, 'hex') 同一字节序列
+    return createHmac('sha256', createHash('sha256').update(appSecret).digest())
       .update(buildSignString(method, path, rawBody, timestamp, nonce))
       .digest('hex')
   }
@@ -158,7 +160,7 @@ describe('OpenApiGuard', () => {
     prisma.merchantApp.findUnique.mockResolvedValue({ appId, appSecret: appSecretHash, status: 'ACTIVE' })
     const ts = String(Date.now())
     const nonce = 'n1'
-    // 客户端错误地用明文而非其哈希作为 HMAC 密钥，服务端用 DB 哈希校验应不匹配
+    // 客户端错误地直接用明文作 HMAC 密钥（跳过 sha256 预哈希），应与服务端期望不匹配
     const wrongSig = createHmac('sha256', appSecret)
       .update(buildSignString('POST', '/open-api/pay', '{}', ts, nonce))
       .digest('hex')

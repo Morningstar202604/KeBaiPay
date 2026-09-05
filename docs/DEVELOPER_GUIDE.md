@@ -351,7 +351,7 @@ Prisma schema 中通过 `@@index` 声明索引，遵循以下原则：
 
 权限系统由 `src/admin/permissions.decorator.ts` 与 `src/admin/permissions.guard.ts` 实现，基于「角色 → 权限码」映射，通过装饰器声明端点所需权限，Guard 在运行时校验 JWT 中的 `role`。
 
-### 11 种权限码
+### 12 种权限码
 
 | 权限码 | 说明 |
 |--------|------|
@@ -366,6 +366,7 @@ Prisma schema 中通过 `@@index` 声明索引，遵循以下原则：
 | `risk:config` | 风控规则配置、自定义规则 CRUD |
 | `risk:event:handle` | 风控事件处理 |
 | `admin:view` | 通用查询权限，所有后台角色均可读管理后台基础数据 |
+| `admin:manage` | 管理员账号增删改与密码重置，仅 SUPER_ADMIN 持有（v0.2.2：此前误用 user:status，客服角色可借此创建超级管理员接管后台） |
 
 ### 4 种角色
 
@@ -524,11 +525,8 @@ Content-Type: application/json
 **响应：**
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIs...",
-  "user": {
-    "id": "uuid",
-    "nickname": "用户昵称"
-  }
+  "userId": "uuid",
+  "token": "eyJhbGciOiJIUzI1NiIs..."
 }
 ```
 
@@ -548,20 +546,26 @@ Content-Type: application/json
 
 {
   "username": "admin",
-  "password": "admin123456"
+  "password": "<ADMIN_DEFAULT_PASSWORD>"
 }
 ```
+
+> 初始密码来自 `.env` 的 `ADMIN_DEFAULT_PASSWORD`（`.env.example` 默认 `ChangeAdmin2026`），
+> 首次登录后请立即修改；生产环境使用默认值会被 `SecurityValidatorService` 拒绝启动。
 
 ### 商户 HMAC 签名认证
 
 用于商户开放 API 调用（创建订单、退款、转账等）。
 
-**签名算法：HMAC-SHA256**
+**签名算法：HMAC-SHA256（密钥预哈希）**
 
 签名字符串格式：
 ```
 {HTTP方法}\n{请求路径}\n{请求体}\n{时间戳}\n{随机数}\n{应用ID}
 ```
+
+HMAC 密钥不是 appSecret 明文，而是 `sha256(appSecret)` 的 **32 字节原始摘要**
+（Node 中 `digest()` 不带参数），详见 [API_REFERENCE.md](./API_REFERENCE.md)。
 
 **必需请求头：**
 
@@ -589,8 +593,11 @@ const appId = 'your_app_id'
 const appSecret = 'your_app_secret'
 
 const signString = `${method}\n${path}\n${rawBody}\n${timestamp}\n${nonce}\n${appId}`
+// 先对 appSecret 做 SHA-256 取 32 字节原始摘要（digest() 不带参数），
+// 再以其为 HMAC 密钥；直接用明文或 hex 字符串作密钥都会验签失败
+const hmacKey = crypto.createHash('sha256').update(appSecret, 'utf8').digest()
 const signature = crypto
-  .createHmac('sha256', appSecret)
+  .createHmac('sha256', hmacKey)
   .update(signString)
   .digest('hex')
 ```

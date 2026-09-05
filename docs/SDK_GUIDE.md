@@ -659,29 +659,56 @@ class KeBaiPay {
 
 ## 3. Webhook 签名验证
 
-KeBaiPay 在订单状态变更时会向商户 `callbackUrl` 发起 POST 回调，**必须验签后才能信任**，否则可被伪造。
+KeBaiPay 在收银台订单支付成功（`PAID`）后，会向商户应用配置的 `callbackUrl` 发起 POST 回调，
+**必须验签后才能信任**，否则可被伪造。
 
-### 3.1 Webhook 事件类型
+> 实现参考：`src/cashier/cashier.service.ts` 的 `notifyMerchant()`。
 
-| 事件类型 | 触发时机 | 关键字段 |
-|---------|---------|---------|
-| `PAYMENT_SUCCESS` | 用户支付成功 | `orderNo`, `amount`, `paidAt` |
-| `PAYMENT_FAILED` | 支付失败 | `orderNo`, `reason` |
-| `REFUND_SUCCESS` | 退款成功 | `orderNo`, `refundNo`, `refundAmount` |
-| `REFUND_FAILED` | 退款失败 | `orderNo`, `refundNo`, `reason` |
-| `TRANSFER_SUCCESS` | 商户转账成功 | `transferNo`, `toUserId`, `amount` |
-| `TRANSFER_FAILED` | 商户转账失败 | `transferNo`, `reason` |
+### 3.1 回调报文
 
-**Webhook 请求头：**
+**请求头：**
 
 | Header | 说明 |
 |--------|------|
-| `X-App-Id` | 触发回调的应用 ID（可校验是否为本商户应用） |
-| `X-Timestamp` | 时间戳（毫秒） |
-| `X-Nonce` | 随机字符串（同一回调重试时 nonce 相同，用于幂等） |
-| `X-Signature` | HMAC-SHA256 签名（hex 小写） |
+| `Content-Type` | `application/json` |
+| `X-KB-Signature` | HMAC-SHA256 签名（小写 hex），算法见 3.2 |
 
-### 3.2 验签算法（Node.js 完整示例）
+**请求体（JSON）：**
+
+```json
+{
+  "orderNo": "P20260905ABCDEF1234",
+  "merchantOrderNo": "MO_001",
+  "amount": 990,
+  "amountYuan": "9.90",
+  "status": "PAID",
+  "paidAt": "2026-09-05T12:00:00.000Z"
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `orderNo` | 收银台订单号 |
+| `merchantOrderNo` | 商户下单时传入的订单号 |
+| `amount` | 订单金额，单位「分」 |
+| `amountYuan` | 订单金额，单位「元」（字符串，避免浮点误差） |
+| `status` | 订单状态，回调固定为 `PAID`（支付成功） |
+| `paidAt` | 支付完成时间（ISO8601） |
+
+> ⚠️ 报文不含 `eventType` 字段，以 `status` 判断状态。早期文档描述的
+> `X-App-Id / X-Timestamp / X-Nonce / X-Signature` 四头协议从未实现，请以本节为准。
+
+### 3.2 验签算法
+
+与开放 API 请求签名同一密钥约定：**HMAC 密钥为 `sha256(appSecret)` 的 32 字节原始摘要**
+（不是明文，也不是 hex 字符串）：
+
+```text
+hmac_key    = SHA256_RAW(app_secret)               # sha256 摘要的 32 字节原始字节
+signature   = HMAC-SHA256(hmac_key, raw_body)      # 对原始 body 字节签名，输出小写 hex
+```
+
+**Node.js 完整示例：**
 
 ```javascript
 const crypto = require('crypto');
@@ -690,30 +717,21 @@ const crypto = require('crypto');
  * 验证 KeBaiPay Webhook 签名
  * @param {Object} headers   请求头（小写键）
  * @param {string} rawBody   原始 body 字符串（不能用 JSON.stringify 重新生成）
- * @param {string} appSecret 商户应用密钥
+ * @param {string} appSecret 商户应用密钥（明文）
  * @returns {boolean}
  */
 function verifyWebhook(headers, rawBody, appSecret) {
-  const appId = headers['x-app-id'];
-  const timestamp = headers['x-timestamp'];
-  const nonce = headers['x-nonce'];
-  const signature = headers['x-signature'];
+  const signature = headers['x-kb-signature'];
+  if (!signature) return false;
 
-  // 1. 缺少必要头
-  if (!appId || !timestamp || !nonce || !signature) return false;
-
-  // 2. 时间戳防重放（建议 5 分钟内）
-  const now = Date.now();
-  if (Math.abs(now - Number(timestamp)) > 5 * 60 * 1000) return false;
-
-  // 3. 重新构造签名串：{timestamp}\n{nonce}\n{rawBody}
-  const signString = `${timestamp}\n${nonce}\n${rawBody}`;
+  // 1. 重算签名：密钥 = sha256(appSecret) 的 32 字节原始摘要（digest() 无参输出）
+  const hmacKey = crypto.createHash('sha256').update(appSecret, 'utf8').digest();
   const expected = crypto
-    .createHmac('sha256', appSecret)
-    .update(signString, 'utf8')
+    .createHmac('sha256', hmacKey)
+    .update(rawBody, 'utf8')
     .digest('hex');
 
-  // 4. 用 timingSafeEqual 恒定时间比较，防时序攻击
+  // 2. timingSafeEqual 恒定时间比较，防时序攻击
   const a = Buffer.from(signature);
   const b = Buffer.from(expected);
   if (a.length !== b.length) return false;
@@ -723,6 +741,7 @@ function verifyWebhook(headers, rawBody, appSecret) {
 
 > **关键点**：
 > - `rawBody` 必须是原始字节序列，**不能用 `JSON.stringify(req.body)` 重新生成**（键顺序、空格、Unicode 转义都可能不同）。
+> - 密钥是 `sha256(appSecret)` 的**32 字节原始摘要**（Node 中 `digest()` 不带参数），不是 hex 字符串本身。
 > - 必须使用 `timingSafeEqual` 恒定时间比较，防止时序侧信道攻击。
 
 ### 3.3 验签示例（Express 中间件）
@@ -753,30 +772,13 @@ app.post('/webhooks/kebaipay', webhookAuth, async (req, res) => {
   // 1. 先返回 200，避免触发重试
   res.status(200).json({ success: true });
 
-  // 2. 异步处理业务逻辑（同一 nonce 可能因重试被多次投递，需做幂等）
-  const { eventType, orderNo, amount, paidAt } = req.body;
+  // 2. 异步处理业务逻辑（平台重试会重复投递同一报文，需按 orderNo 幂等）
+  const { orderNo, merchantOrderNo, amount, amountYuan, status, paidAt } = req.body;
   try {
-    switch (eventType) {
-      case 'PAYMENT_SUCCESS':
-        await markOrderPaid(orderNo, amount, paidAt);
-        break;
-      case 'PAYMENT_FAILED':
-        await markOrderFailed(orderNo);
-        break;
-      case 'REFUND_SUCCESS':
-        await markRefundSuccess(orderNo, req.body.refundNo);
-        break;
-      case 'REFUND_FAILED':
-        await markRefundFailed(orderNo, req.body.refundNo, req.body.reason);
-        break;
-      case 'TRANSFER_SUCCESS':
-        await markTransferSuccess(req.body.transferNo);
-        break;
-      case 'TRANSFER_FAILED':
-        await markTransferFailed(req.body.transferNo, req.body.reason);
-        break;
-      default:
-        console.warn('未知事件类型:', eventType);
+    if (status === 'PAID') {
+      await markOrderPaid(orderNo, merchantOrderNo, amountYuan, paidAt);
+    } else {
+      console.warn('未知订单状态:', status);
     }
   } catch (err) {
     console.error('Webhook 处理失败:', err);
@@ -796,25 +798,16 @@ import hashlib
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
-APP_SECRET = os.environ['KEBAIPAY_APP_SECRET'].encode('utf-8')
+APP_SECRET = os.environ['KEBAIPAY_APP_SECRET']
 
 
-def verify_webhook(headers, raw_body: bytes, app_secret: bytes) -> bool:
-    app_id = headers.get('X-App-Id')
-    timestamp = headers.get('X-Timestamp')
-    nonce = headers.get('X-Nonce')
-    signature = headers.get('X-Signature')
-    if not all([app_id, timestamp, nonce, signature]):
+def verify_webhook(headers, raw_body: bytes, app_secret: str) -> bool:
+    signature = headers.get('X-KB-Signature')
+    if not signature:
         return False
-    # 时间戳校验（5 分钟内）
-    import time
-    try:
-        if abs(int(time.time() * 1000) - int(timestamp)) > 5 * 60 * 1000:
-            return False
-    except ValueError:
-        return False
-    sign_string = f'{timestamp}\n{nonce}\n'.encode('utf-8') + raw_body
-    expected = hmac.new(app_secret, sign_string, hashlib.sha256).hexdigest()
+    # 密钥 = sha256(明文 appSecret) 的 32 字节原始摘要（digest() 而非 hexdigest()）
+    hmac_key = hashlib.sha256(app_secret.encode('utf-8')).digest()
+    expected = hmac.new(hmac_key, raw_body, hashlib.sha256).hexdigest()
     # compare_digest 恒定时间比较
     return hmac.compare_digest(expected, signature)
 
@@ -826,19 +819,12 @@ def webhook():
         return jsonify(success=False, error='Invalid signature'), 401
 
     payload = request.get_json(force=True, silent=True) or {}
-    event_type = payload.get('eventType')
-    order_no = payload.get('orderNo')
-
-    # 先返回 200，业务异步处理
-    # 实际生产建议把 payload 丢到 Celery / RQ / 后台线程处理
+    # 先返回 200，业务异步处理（生产建议丢到后台队列）
     try:
-        if event_type == 'PAYMENT_SUCCESS':
-            print(f'订单 {order_no} 支付成功，金额 {payload.get("amount")}')
-        elif event_type == 'REFUND_SUCCESS':
-            print(f'订单 {order_no} 退款成功 {payload.get("refundNo")}')
-        elif event_type == 'TRANSFER_SUCCESS':
-            print(f'转账 {payload.get("transferNo")} 成功')
-        # ... 其他事件
+        if payload.get('status') == 'PAID':
+            print(f"订单 {payload.get('orderNo')} 支付成功，金额 {payload.get('amountYuan')} 元")
+        else:
+            print('未知订单状态:', payload.get('status'))
     except Exception as e:
         print('Webhook 处理失败:', e)
 
@@ -849,7 +835,12 @@ if __name__ == '__main__':
     app.run(port=5000)
 ```
 
----
+### 3.5 重试与幂等
+
+- 平台在回调失败（非 2xx / 超时）时按指数退避自动重试，最多 5 次（间隔 1s/2s/4s/8s/16s）；
+- 仍失败后订单 `notifyStatus` 标记为 `FAILED`，商户可在商户后台手动重发
+  （`POST /cashier/orders/:orderNo/notify`）；
+- 同一订单重复投递的报文完全一致，商户侧务必按 `orderNo` 做幂等处理。
 
 ## 4. 错误处理
 

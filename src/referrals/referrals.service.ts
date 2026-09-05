@@ -264,7 +264,9 @@ export class ReferralsService {
             throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权触发该邀请奖励'))
           }
 
-          const txAmount = dto.amount ?? order.amount
+          // 交易金额一律以订单实际金额为准：dto.amount 可由客户端自报，
+          // 此前可传任意大金额绕过 REFERRAL_TRIGGER_MIN_AMOUNT_CENTS 门槛
+          const txAmount = order.amount
           if (txAmount < REFERRAL_TRIGGER_MIN_AMOUNT_CENTS) {
             throw new BadRequestException(
               kbError(KBErrorCodes.REFERRAL_TRIGGER_INVALID, '交易金额不满足奖励触发门槛'),

@@ -78,21 +78,23 @@ describe('ChannelConfigController', () => {
     expect(controller).toBeDefined()
   })
 
-  it('listChannels 脱敏超过 20 位的字符串字段', async () => {
+  it('listChannels 白名单外字段一律脱敏（v0.2.2 收紧）', async () => {
     mockPrisma.paymentChannelConfig.findMany.mockResolvedValue([
       {
         code: 'alipay',
         name: '支付宝',
-        config: JSON.stringify({ apiKey: 'short', secret: 'verylongsecretvalue123456' }),
+        config: JSON.stringify({ apiKey: 'short', secret: 'verylongsecretvalue123456', appId: 'app123' }),
         priority: 10,
       },
     ])
     const result = await controller.listChannels()
     const parsed = JSON.parse(result[0].config)
-    // 短字段原样保留
-    expect(parsed.apiKey).toBe('short')
+    // 白名单外短字段也脱敏（此前长度阈值会把短密钥原样漏出）
+    expect(parsed.apiKey).toBe('****')
     // 长字段截断脱敏
     expect(parsed.secret).toBe('verylong****')
+    // 白名单内标识字段原样保留
+    expect(parsed.appId).toBe('app123')
     expect(mockPrisma.paymentChannelConfig.findMany).toHaveBeenCalledWith({
       orderBy: { priority: 'desc' },
     })

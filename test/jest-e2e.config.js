@@ -4,7 +4,8 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   rootDir: path.resolve(__dirname, '..'),
-  testMatch: ['<rootDir>/**/*.e2e-spec.ts'],
+  // 相对 glob：'<rootDir>/**' 形式的绝对 glob 在 Windows（路径分隔符为 \）下匹配不到任何文件
+  testMatch: ['**/*.e2e-spec.ts'],
   // 在所有测试启动前预设完整 mock env，让需要导入 AppModule 的 e2e 测试能通过 validateEnv
   setupFiles: ['<rootDir>/test/setup-env.ts'],
   moduleNameMapper: {

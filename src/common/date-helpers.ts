@@ -60,3 +60,18 @@ export function businessDayKey(date: Date = new Date()): string {
   // en-CA 区域的 ISO 风格格式恰好是 YYYY-MM-DD
   return new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TIMEZONE }).format(date)
 }
+
+/**
+ * 业务日键对应的业务时区日界（绝对时刻）：
+ * 北京时间 [D 00:00:00.000, D 23:59:59.999]，即 UTC [D-1 16:00, D 16:00)。
+ * Asia/Shanghai 无夏令时，固定 +08:00。
+ *
+ * 用于按 businessDayKey 聚合带时间的字段（如 completedAt）：
+ * 直接 `${dateStr}T00:00:00.000Z` 拼接得到的是 UTC 日界，北京时间 0:00-8:00
+ * 的交易会落在任何一天的窗口之外——限额聚合被绕过 8 小时。
+ */
+export function businessDayRange(dateKey: string): { start: Date; end: Date } {
+  const start = new Date(`${dateKey}T00:00:00+08:00`)
+  const end = new Date(`${dateKey}T23:59:59.999+08:00`)
+  return { start, end }
+}

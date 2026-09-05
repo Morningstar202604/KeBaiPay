@@ -75,7 +75,11 @@ export class OpenApiGuard implements CanActivate {
     const rawBody = this.getRawBody(request)
 
     const signString = `${method}\n${path}\n${rawBody}\n${timestamp}\n${nonce}\n${appId}`
-    const expectedSignature = createHmac('sha256', app.appSecret)
+    // 库中存的是 appSecret 的 SHA-256 hex 摘要；客户端（见 public/sdk/kebaipay.js 与 SDK_GUIDE）
+    // 以 sha256(appSecret) 的 32 字节原始摘要为 HMAC 密钥，此处必须用同一字节序列，
+    // 而非 hex 字符串本身——密钥口径不一致会导致真实商户验签恒为 401。
+    const hmacKey = Buffer.from(app.appSecret, 'hex')
+    const expectedSignature = createHmac('sha256', hmacKey)
       .update(signString)
       .digest('hex')
 

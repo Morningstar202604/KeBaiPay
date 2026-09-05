@@ -106,6 +106,10 @@ export class BatchTransfersService {
       throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '高风险用户无法发起批量转账'))
     }
 
+    // 支付密码校验：此前 DTO 收集了 payPassword 但从未验密，
+    // 批量转账是单笔上限最高的资金流出接口，必须与单笔转账同口径验密
+    await this.usersService.verifyPayPassword(senderId, dto.payPassword)
+
     // 计算总金额（分）
     const totalAmount = dto.items.reduce(
       (sum, item) => sum + yuanToFen(item.amount),
@@ -402,8 +406,12 @@ export class BatchTransfersService {
       include: { items: true },
     })
     if (!batch || batch.status !== BatchTransferStatus.PROCESSING) return false
+
+    // 崩溃恢复盲区修复：全部明细已终态但收尾事务未提交时（最后一个 processItem
+    // 提交后、退款+COMPLETED 提交前崩溃），批次停在 PROCESSING 且无 PENDING 明细。
+    // 此时也必须走到收尾：退款有确定性幂等键（BT-REFUND:{batchNo} + 唯一约束），
+    // 状态迁移有 PROCESSING 条件守卫，重复进入均幂等。
     const pending = batch.items.filter((i) => i.status === BatchItemStatus.PENDING)
-    if (pending.length === 0) return false
 
     for (const item of pending) {
       await this.processItem(batch.id, item.id, batch.senderId)
@@ -785,14 +793,19 @@ export class BatchTransfersService {
           )
           let refundAmount = 0
           for (const item of pendingItems) {
-            await tx.batchTransferItem.updateMany({
+            // 退款额只累计真正置 FAILED 的明细：processItem 可能已在本事务快照
+            // 之后把明细认领为 PROCESSING（count=0），此时钱已随 processItem 划转，
+            // 若仍累加会造成同一笔冻结双重释放（双花）
+            const claimed = await tx.batchTransferItem.updateMany({
               where: { id: item.id, status: BatchItemStatus.PENDING },
               data: {
                 status: BatchItemStatus.FAILED,
                 failureReason: '批次已取消',
               },
             })
-            refundAmount += item.amount
+            if (claimed.count === 1) {
+              refundAmount += item.amount
+            }
           }
 
           // 退回未处理明细对应的冻结资金

@@ -266,7 +266,35 @@ export class RedPacketsService {
     return this.redis.withLock(
       `redpacket:receive:${packetNo}`,
       REDIS_LOCK_TTL_SECONDS,
-      async () => this.prisma.$transaction(async (tx) => {
+      async () => {
+      // 风控检查移到事务外：riskEngine.check 含 Redis 窗口统计与非事务 DB 读，
+      // 放在已持行锁的事务内会拉长事务，且 Redis 故障会回滚整个领取。
+      // 金额用保守上界（剩余总额与单领上限取小），事务内的金额守卫保持不变
+      const prePacket = await this.prisma.redPacket.findUnique({
+        where: { packetNo },
+        select: { amount: true, receivedAmount: true },
+      })
+      if (prePacket) {
+        const riskBound = Math.min(
+          prePacket.amount - prePacket.receivedAmount,
+          RedPacketsService.MAX_PER_CLAIM_CENTS,
+        )
+        const preRisk = await this.riskEngine.check({
+          userId: receiverId,
+          type: 'RED_PACKET',
+          amount: riskBound,
+        })
+        if (preRisk.blocked) {
+          throw new ForbiddenException(
+            kbError(
+              KBErrorCodes.FORBIDDEN,
+              `领取红包被风控拦截：${preRisk.rules.filter(r => r.action === 'BLOCK').map(r => r.name).join('、')}`,
+            ),
+          )
+        }
+      }
+
+      return this.prisma.$transaction(async (tx) => {
       const packet = await tx.redPacket.findUnique({
         where: { packetNo },
         include: { sender: { select: { nickname: true } } },
@@ -322,20 +350,6 @@ export class RedPacketsService {
       // 计算本次领取金额
       const claimAmount = this.calculateClaimAmount(packet)
 
-      // 风控检查
-      const riskResult = await this.riskEngine.check({
-        userId: receiverId,
-        type: 'RED_PACKET',
-        amount: claimAmount,
-      })
-      if (riskResult.blocked) {
-        throw new ForbiddenException(
-          kbError(
-            KBErrorCodes.FORBIDDEN,
-            `领取红包被风控拦截：${riskResult.rules.filter(r => r.action === 'BLOCK').map(r => r.name).join('、')}`,
-          ),
-        )
-      }
 
       // 乐观锁：使用条件更新扣减 remainingCount
       // 仅当 remainingCount 仍 >0 时才能扣减
@@ -459,7 +473,8 @@ export class RedPacketsService {
         receivedAmount: packet.receivedAmount + claimAmount,
         status: packet.remainingCount === 1 ? RedPacketStatus.RECEIVED : RedPacketStatus.PARTIALLY_RECEIVED,
       }
-      }),
+      })
+      },
     ).then((result) => {
       this.riskEngine.recordTransaction({
         userId: receiverId,

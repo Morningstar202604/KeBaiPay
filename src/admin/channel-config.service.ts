@@ -24,19 +24,37 @@ export class ChannelConfigService {
     private readonly connectorRegistry: ConnectorRegistry,
   ) {}
 
+  /** 列表脱敏时可明文展示的字段名白名单（标识/地址类，非凭据） */
+  private static readonly PLAINTEXT_CONFIG_KEYS = new Set([
+    'appId',
+    'appid',
+    'app_id',
+    'mchid',
+    'mchId',
+    'mch_id',
+    'sellerId',
+    'gatewayUrl',
+    'notifyUrl',
+    'sandbox',
+  ])
+
   async listChannels() {
     const channels = await this.prisma.paymentChannelConfig.findMany({
       orderBy: { priority: 'desc' },
     })
     return channels.map((ch) => {
-      // H1 安全修复：库内字符串值为密文（enc:v1: 前缀），展示前先解密再脱敏
+      // H1 安全修复：库内字符串值为密文（enc:v1: 前缀），展示前先解密再脱敏；
+      // 脱敏按字段名白名单判定（长度阈值会把短密钥原样漏出）
       const parsed = this.decryptConfigJson(ch.config)
       const safeFields: Record<string, string> = {}
       for (const key of Object.keys(parsed)) {
-        if (typeof parsed[key] === 'string' && parsed[key].length > 20) {
-          safeFields[key] = (parsed[key] as string).slice(0, 8) + '****'
+        const value = parsed[key]
+        if (ChannelConfigService.PLAINTEXT_CONFIG_KEYS.has(key)) {
+          safeFields[key] = String(value)
+        } else if (typeof value === 'string') {
+          safeFields[key] = value.length > 8 ? value.slice(0, 8) + '****' : '****'
         } else {
-          safeFields[key] = parsed[key] as string
+          safeFields[key] = '****'
         }
       }
       return { ...ch, config: JSON.stringify(safeFields) }
@@ -127,7 +145,15 @@ export class ChannelConfigService {
           adminId: ctx.admin.sub,
           action: 'CHANNEL_CONFIG_UPDATE',
           target: code,
-          detail: dto,
+          // detail 不落 dto 原文：dto.config 是提交时的明文凭据（apiV3Key/私钥等），
+          // 审计日志无加密，原样入链等于把渠道凭据明文持久化给所有 admin:view 可读
+          detail: {
+            name: dto.name,
+            type: dto.type,
+            enabled: dto.enabled,
+            priority: dto.priority,
+            configUpdated: dto.config !== undefined,
+          },
           ip: ctx.ip,
           userAgent: ctx.userAgent,
         },

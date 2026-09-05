@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import {
   ReconciliationDiffStatus,
   ReconciliationDiffType,
+  RiskEventType,
   RiskLevel,
 } from '../common/enums'
 
@@ -119,18 +120,29 @@ export class AutoFixService {
           },
         })
 
-        // 写入风险事件（LOW 级别）
-        await this.prisma.riskEvent.create({
-          data: {
-            userId: 'SYSTEM',
-            type: 'STATUS_CHANGED',
-            level: RiskLevel.LOW,
-            description: `自动修正对账差异：差异项 ${diff.id}，金额 ${diff.amount}分，类型 ${diff.diffType}，已自动标记为 IGNORED`,
-            handled: true,
-            handledBy: 'AUTO_FIX',
-            handledAt: new Date(),
-          },
+        // 写入风险事件（LOW 级别）。RiskEvent.userId 关联 User 表：
+        // 此前写 userId='SYSTEM' 必然违反外键并被外层 catch 吞掉，事件从未落库。
+        // 对齐 audit.schedule 的 anchor 模式：取系统内最早创建的用户作归属，
+        // 系统无用户时跳过（仅日志），不再让审计事件静默丢失
+        const anchorUser = await this.prisma.user.findFirst({
+          orderBy: { createdAt: 'asc' },
+          select: { id: true },
         })
+        if (anchorUser) {
+          await this.prisma.riskEvent.create({
+            data: {
+              userId: anchorUser.id,
+              type: RiskEventType.STATUS_CHANGED,
+              level: RiskLevel.LOW,
+              description: `自动修正对账差异：差异项 ${diff.id}，金额 ${diff.amount}分，类型 ${diff.diffType}，已自动标记为 IGNORED`,
+              handled: true,
+              handledBy: 'AUTO_FIX',
+              handledAt: new Date(),
+            },
+          })
+        } else {
+          this.logger.warn(`自动修正差异 ${diff.id} 的 RiskEvent 未创建：系统内尚无用户`)
+        }
 
         const record: AutoFixRecord = {
           id: `auto-fix-${diff.id}`,

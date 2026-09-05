@@ -41,7 +41,7 @@ export class AdminUserController {
   }
 
   @Get()
-  @RequirePermissions('user:status')
+  @RequirePermissions('admin:manage')
   @ApiOperation({ summary: '管理员列表' })
   @ApiResponse({ status: 200, description: '返回管理员列表' })
   list(@Query() query: ListAdminUsersQueryDto) {
@@ -49,7 +49,7 @@ export class AdminUserController {
   }
 
   @Post()
-  @RequirePermissions('user:status')
+  @RequirePermissions('admin:manage')
   @ApiOperation({ summary: '创建管理员' })
   @ApiResponse({ status: 201, description: '管理员创建成功' })
   @ApiResponse({ status: 400, description: 'KB911 用户名已存在' })
@@ -70,7 +70,7 @@ export class AdminUserController {
   }
 
   @Put(':id')
-  @RequirePermissions('user:status')
+  @RequirePermissions('admin:manage')
   @ApiOperation({ summary: '更新管理员信息' })
   @ApiResponse({ status: 200, description: '更新成功' })
   update(
@@ -88,7 +88,7 @@ export class AdminUserController {
   }
 
   @Delete(':id')
-  @RequirePermissions('user:status')
+  @RequirePermissions('admin:manage')
   @ApiOperation({ summary: '删除管理员' })
   @ApiResponse({ status: 200, description: '删除成功' })
   @ApiResponse({ status: 400, description: 'KB912 不能删除自己' })
@@ -105,7 +105,7 @@ export class AdminUserController {
   }
 
   @Post(':id/reset-password')
-  @RequirePermissions('user:status')
+  @RequirePermissions('admin:manage')
   @ApiOperation({ summary: '重置管理员密码' })
   @ApiResponse({ status: 200, description: '密码已重置' })
   resetPassword(

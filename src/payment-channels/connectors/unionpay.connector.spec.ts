@@ -106,10 +106,9 @@ describe('UnionPayConnector', () => {
   })
 
   describe('verifyWebhook', () => {
-    it('沙箱下应返回 true', () => {
-      // 沙箱模式放宽验签
+    it('沙箱下仍执行验签，伪造签名返回 false（v0.2.2 移除沙箱直通）', () => {
       const payload = 'respCode=00&orderId=ORDER001&txnAmt=100&signature=abc'
-      expect(connector.verifyWebhook(payload, {})).toBe(true)
+      expect(connector.verifyWebhook(payload, {})).toBe(false)
     })
 
     it('缺少 signature 应返回 false', () => {

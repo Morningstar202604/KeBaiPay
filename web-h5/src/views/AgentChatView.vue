@@ -7,7 +7,8 @@
         <h3>AI 智能助手</h3>
         <p>选择智能体，授权后即可通过对话管理钱包、查账单等</p>
       </div>
-      <div v-if="agents.length === 0" class="empty">暂无可用智能体（请在管理后台创建）</div>
+      <div v-if="agents.length === 0" class="empty">暂无可用智能体
+① 管理后台「智能体管理」创建 ② 本页选择并授权 ③ 开始对话</div>
       <div v-else class="agent-list">
         <div
           v-for="a in agents"

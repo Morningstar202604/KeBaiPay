@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron, CronExpression } from '@nestjs/schedule'
 import { PrismaService } from '../prisma/prisma.service'
-import { BatchTransferStatus, BatchItemStatus } from '../common/enums'
+import { BatchTransferStatus } from '../common/enums'
 import { RedisService } from '../redis/redis.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 import { BatchTransfersService } from './batch-transfers.service'
@@ -35,10 +35,10 @@ export class BatchTransfersSchedule {
       const cutoff = new Date(Date.now() - RECOVERY_DELAY_MS)
       const stuck = await this.prisma.batchTransfer.findMany({
         where: { status: BatchTransferStatus.PROCESSING, updatedAt: { lt: cutoff } },
-        include: { items: { where: { status: BatchItemStatus.PENDING }, select: { id: true } } },
       })
       for (const batch of stuck) {
-        if (batch.items.length === 0) continue
+        // 不再跳过无 PENDING 明细的批次：明细全部终态但收尾未提交（崩溃窗口）的
+        // 批次也要进入 resumeProcessing 收尾，否则冻结资金永久滞留（详见 service 内注释）
         await this.redis.withLock(`batch:recover:${batch.id}`, 60, () =>
           this.batchTransfersService.resumeProcessing(batch.id),
         )

@@ -5,6 +5,7 @@
 ## 目录
 
 - [版本 0.2.1（2026-09-05）](#版本-0212026-09-05)
+- [版本 0.2.2（进行中）](#版本-022进行中)
 - [版本 0.3.0（进行中）](#版本-030进行中)
 - [版本 2.2.1（2026-08-26）](#版本-2212026-08-26)
 - [仓库体检与开源规范化](#仓库体检与开源规范化)
@@ -27,6 +28,129 @@
 
 - 版本基线收敛为 **0.2.1**（以根 `package.json` 的 0.2.1 为唯一版本源）。
 - 历史 2.x 条目（2.2.1 / 2.1.x / 2.0.0 等）作为历史记录归档保留，不再影响对外版本号。
+
+---
+
+## 版本 0.2.2（进行中）
+
+**版本类型：** Bug 修复 + 开发者体验修复
+
+
+### 全库遍历审查修复（v0.2.2 追加，逐条人工核实）
+
+对全部业务模块做自底向上代码遍历（基础层人工精读 + 业务层三路并行审查、逐条核实后修复）：
+
+- **【严重】管理员账号端点权限提升**：admin-users 全部端点此前误用 `user:status` 权限，CUSTOMER_SERVICE 角色可创建/删除管理员、重置任意管理员密码（含 SUPER_ADMIN）——直接接管后台。新增 `admin:manage` 权限（仅 SUPER_ADMIN 持有）并全部换用；`updateAdminUser` 角色变更校验此前误查「被编辑目标」而非「操作者」角色，形同虚设，已修正。
+- **【高】批量转账验密缺失**：DTO 强制收集 payPassword 但服务端从不验证（全仓验密点不含 batch-transfers），持有 JWT 会话即可无需支付密码转出最高 500 笔×5000 元。
+- **【高】批量转账取消双花**：cancel 对 PENDING 明细的 updateMany 不检查命中数即累加退款额，与 processItem 认领并发时同一笔冻结双重释放。现仅对真正置 FAILED 的明细累计退款。
+- **【高】订阅自动扣款重复扣款**：chargeOnce 锁内重读后不复查 nextChargeAt，并发/重叠调度下同一周期扣两次；且调度任务无分布式锁。已加到期复查 + 调度级 withLock。
+- **【高】订阅首扣失败当成功**：subscribe 不检查首期扣款状态即推进周期（未付款先享一期，totalCycles=1 时直接 EXPIRED）。现首扣失败整体回滚（新增错误码 KB659）。
+- **【高】订阅失败重试死循环**：SubscriptionCharge 唯一约束 (subscriptionId, cycleStart) 使失败重试永远无法落库，consecutiveFailures 恒为 1、永不暂停。executeCharge 现复用同周期槽位（SUCCESS 拒绝重扣），连续失败计数改由新增 Subscription.consecutiveFailures 字段维护（附迁移）。
+- **【高】订阅扣款复活已取消订阅**：chargeOnce 收尾为无条件 update，与 cancel 并发时把 CANCELLED 覆写回 ACTIVE 继续扣款。成功/失败/过期三处收尾均加 ACTIVE 条件守卫。
+- **【高】管理端响应泄露密码哈希**：listUsers/getUserDetail spread 全列，响应含 loginPassword/payPassword 哈希与 pendingPayPasswordHash。已剔除；全局响应脱敏名单补充 loginPassword/payPassword/idCardHash/cardNumberHash/phoneHash 等。
+- **【高】渠道凭据明文入审计链**：updateChannel 审计 detail 落 dto 原文（含新私钥/apiV3Key），而库内已加密——审计日志成为明文凭据出口。detail 改记元数据；顺带把列表脱敏由「长度>20」阈值改为字段名白名单。
+- **【高】银行卡明文卡号出网**：GET /bank-cards/default 返回 cardNumberPlain 明文卡号（无任何调用方需要，注释声称的提现用途不成立）。已移除；toDto 解密加容错防单条坏记录打挂列表。
+- **【高】Agent 授权限额被架空**：AgentAuthorization.maxAmount 只存不校验，用户授权设置的单笔上限无效。确认执行路径实时读取授权记录强制执行，并校验授权未撤销。
+- **【高】Agent 转账日限额 8 小时绕过窗口**：agentTransfer 日聚合窗口用 UTC 拼接 businessDayKey 的日期串，北京时间 0:00-8:00 的交易落在任何窗口之外，AGENT_MAX_AMOUNT_PER_DAY 可被反复绕过。新增 businessDayRange() 业务时区日界助手并修用。
+- **【中】幂等归属校验补漏**：recharge 预检与 P2002 兜底路径、qr-pay P2002 兜底路径命中幂等键时不校验归属（其余资金模块均有），可跨用户读回他人订单实体。已补齐。
+- **【中】事务内外呼治理**：红包领取的风控检查（Redis+非事务 DB 读）在已持行锁的事务内执行；提现创建与充值回调在事务内 fire-and-forget 风控频率写入（与提交竞跑）。红包预检移到事务外（金额取保守上界），频率记录统一移到事务提交后。
+- **【中】代付回调成功路径缺状态守卫**：PROCESSING→SUCCESS 用无守卫 update，与失败路径的条件 update 不对称，锁退化时可双写。补条件转移 + 冲突时幂等返回并告警。
+- **【中】调度任务加固**：红包过期调度补分布式锁；红包/充值超时/提现超时/担保过期/担保自动放款五个扫描补 take 限流；担保两个调度补 withLock。
+- **【中】提现日限额首建竞态**：并发首笔转账同时 create DailyLimitUsage 撞唯一约束抛未映射 P2002（500）。捕获后重读走 version 条件更新。
+- **【中】分账累计上限缺失**：对同一源订单 N 次分账可累计分出 N 倍源订单金额。现校验累计已分额（CANCELLED 除外）不超源订单。
+- **【中】邀请奖励门槛绕过**：triggerReward 接受客户端自报 amount（dto.amount ?? order.amount）绕过触发门槛，端点实际公开。一律以订单实际金额判定。
+- **【中】银联验签旁路移除**：verifyWebhook 沙箱直通 + MOCK_SIGN_ 前缀放行——验签可被配置静默关闭属高危模式。全部移除，沙箱同样强制验签。
+- **【中】健康诊断端点无认证**：/health/schedules、/health/channels 暴露内部任务名与 lastError 原文。补 AdminJwtAuthGuard（liveness/readiness 保持公开）。
+- **【中】对账自动修正事件丢失**：auto-fix 以 userId='SYSTEM' 写 RiskEvent 必然违反外键被吞，事件从未落库。改用 anchor 用户模式（对齐 audit.schedule）。
+### 安全修复
+
+- **开放 API HMAC 密钥口径修复（高危）**：2.2.1 的"签名口径统一"只对齐了签名串格式，未验证密钥字节序列——服务端（`open-api.guard`）此前直接把库存 hex 摘要字符串（64 字节 ASCII）作 HMAC 密钥，而官方 SDK 与四语言示例用的是 `sha256(appSecret)` 的 32 字节原始摘要，**两者签名恒不匹配，真实商户按 SDK 接入 100% 返回 KB401**。守卫单测用服务端口径自证、e2e 只覆盖失败路径，故未被发现。现服务端改为 `Buffer.from(hash, 'hex')` 还原与 SDK 相同的字节序列；`open-api.guard.spec` 签名助手改为真实客户端口径（仅持有明文），并新增 e2e 成功路径用例防回归。
+- **商户 Webhook 回调签名同口径修复**：`cashier.service.notifyMerchant` 同样误用 hex 字符串作密钥——商户手上只有明文 appSecret，永远无法验签通过。现与商户侧统一为 `HMAC-SHA256(SHA256_RAW(app_secret), raw_body)`；新增单测模拟"只有明文的商户"验证回调签名。
+
+### 修复
+
+- **E2E 测试在 Windows 下无法发现用例**：`test/jest-e2e.config.js` 的 `testMatch` 使用 `<rootDir>/**` 绝对 glob，Windows（路径分隔符 `\`）下匹配 0 个文件、`npm run test:e2e` 报 "No tests found"；CI（Linux）不受影响。改为相对 glob `**/*.e2e-spec.ts`。
+- **lockfile 版本漂移**：四个 `package-lock.json` 内嵌版本号仍停留在历史 2.2.1/2.3.0，与根 `package.json` 的 0.2.1 脱节（`version:sync` 此前只同步三前端 package.json）。`scripts/version-sync.mjs` 现同时校验/同步根与三前端 lockfile 的内嵌版本（`version:check` 不一致直接红）。
+- **快速开始第一步即失败（.env 与 dev compose 脱节）**：`.env.example` 的数据库密码与 `docker-compose.dev.yml` 硬编码的 `postgres` 不一致，照 README `cp .env.example .env` 后 `migrate deploy` 直接 P1000 认证失败。dev compose 改为引用 `${POSTGRES_PASSWORD:-postgres}`，与 `.env` 共用同一变量。
+- **照文档复制的 `.env` 服务无法启动**：`.env.example` 自带 `NODE_ENV="production"` + `SMS_PROVIDER="mock"`，生产环境禁止 mock 短信导致启动即被安全校验拒绝，与 README"开发模式默认 mock 渠道/短信"矛盾。`.env.example` 默认值改为 `development`（注释注明生产部署必须改回 production）。
+
+### 文档勘误
+
+- **DEVELOPER_GUIDE**：商户 HMAC 签名示例补齐"先对 appSecret 做 SHA-256 取 32 字节原始摘要"关键步骤（原文示例直接用明文作密钥，照抄必然验签失败）；用户登录响应示例修正为实际返回的 `{userId, token}`（原文写 `{access_token, user}`）；管理员登录示例密码改为说明取自 `ADMIN_DEFAULT_PASSWORD`（原文硬编码 `admin123456` 为错误值）。
+- **API_REFERENCE**：签名算法中 `hmac_key = SHA256_HEX(app_secret)` 澄清为 **32 字节原始摘要**（raw digest），明确"hex 字符串作密钥"为错误口径，并注明 v0.2.2 服务端口径修复。
+- **SDK_GUIDE 第 3 节重写**：Webhook 验签章节此前描述的 `X-App-Id/X-Timestamp/X-Nonce/X-Signature` 四头协议与 `eventType` 字段从未实现，与实际报文（单 `X-KB-Signature` 头 + `{orderNo, merchantOrderNo, amount, amountYuan, status, paidAt}` body）完全不符；现按实际实现重写报文结构、验签算法（预哈希密钥）、Node/Express/Python 示例，并新增重试与幂等说明。
+- **README**：测试数量徽章修正为实测 1178（原文 1186）；管理员测试账号密码说明改为取自 `ADMIN_DEFAULT_PASSWORD`（原文 `Admin2026` 与 `.env.example` 的 `ChangeAdmin2026` 不符）。
+- **CONTRIBUTING**：检查套件命令笔误 `pnpm test` 修正为本仓库实际使用的 `npm run lint && npm test`。
+
+
+### 逻辑链遍历追加修复（v0.2.2 续）：退款链资金闭环
+
+按资金流向建全链不变量清单逐环核对，在覆盖最薄弱的退款链发现并修复：
+
+- **【高】退款资金单边账**：退款成功仅扣回商户余额并记单边账本——资金既未原路退回的渠道侧分录、也无 Bill，去向不明且每笔退款必然触发对账 assets_balance 差异。现补复式记账双腿（借 USER:商户 / 贷 CHANNEL_FUND，渠道原路退回付款方）+ 商户 EXPENSE / 付款方 INCOME 双账单；对账公式 expectedAssetsChange 补减退款项。
+- **【高】退款三路径并发双扣窗口**：同步成功（createRefund）、查询确认（queryRefund）、异步回调（handleRefundCallback）各自持不同锁、各自实现扣款与幂等检查，渠道同步成功+异步回调并发时可同时通过幂等检查双倍扣回商户。现资金处理收敛为 processRefundSuccess 唯一入口（独立锁 + 账本键互见 + 条件状态迁移三重防护），回调/query 路径只做条件状态迁移后委托。
+- **【中】queryRefund 无锁无守卫**：状态迁移为无条件 update，与回调路径竞态。改条件迁移（PENDING/PROCESSING → 终态），仅抢到迁移权的一方处理资金。
+- e2e MockPrismaClient 修复潜在缺陷：where 匹配器 `in`/`notIn` 操作符误对整个条件对象调 includes（此前无查询使用 `in` 未暴露），已修正为对 `val.in`/`val.notIn`。
+
+
+### 全端 UI 走查与小版本打磨（v0.2.2 续）
+
+浏览器逐页真实点击/输入走查四端后修复：
+
+- **【高】管理后台全部列表页数据恒为空**：8 个页面（用户/商户/实名/提现/订单/财务/风控/智能体）把「全部状态」的空字符串筛选值直接传给后端，触发 KB400 校验失败。三前端 axios 请求拦截器统一剔除空参（空串/null/undefined），一处修复覆盖全部页面。
+- **品牌化**：新增可替换矢量 logo `public/logo.svg`（翡翠绿渐变 + KB 字标），接入管理后台/商户门户侧边栏、H5 顶栏、三端登录页与全站 favicon；企业换标只需替换该文件（三前端 public 目录各有一份构建副本）。
+- **视觉打磨**：design-system 三端增加文本选中色、表格/统计数字等宽（tabular-nums）、键盘焦点可见（focus-visible）。
+- **交付资料**：新增 `docs/HANDOVER.md`（企业交接说明：部署/必改环境变量/测试账号/验证状态/已知限制）与 `docs/openapi.json`（192 端点 OpenAPI 3.0 规范，可直接导入 Apifox/Postman）。
+
+
+### 交付资料与开箱体验（v0.2.2 续）
+
+- **开箱可用性**：seed 预置默认智能体「科佰钱包管家」（wallet 场景）——用户在 H5「AI 助手」页授权后即可对话，不再出现「暂无可用智能体」；已实测授权→连接→会话→消息收发全流程。
+- **用户使用手册**：新增 `docs/USER_MANUAL.md`——四端逐页逐按钮说明（登录/充值/转账/提现/红包/AI 助手/渠道配置/提现审核等 28 个页面），每页配截图引用与注意事项，含 FAQ。
+- **README 全端截图展示**：界面预览扩展为按端分组的完整图库（管理后台 10 页 / H5 7 页 / 门户 7 页），可折叠浏览。
+- **UI/UX 优化任务清单**：新增 `docs/UI_OPTIMIZATION_PLAN.md`——对标 Stripe Dashboard / Wise / Revolut，P0 设计基础 → P3 动效共 30+ 项逐页逐条任务，每项含现状/目标/验收标准/工作量估算。
+
+
+### UI 0.3.0 计划首批落地（P0 基础层，v0.2.2 续）
+
+按 `docs/UI_OPTIMIZATION_PLAN.md` 开始执行，首批完成：
+
+- **P0-4 响应式**：管理后台/商户门户侧边栏 <1280px 自动收起为图标模式，头部新增展开/收起开关；H5 在 ≥768px 平板宽度内容限宽 520px 居中（对齐支付宝小程序常见形态）
+- **P1-2 数据概览**：5 张指标卡可点击跳转对应列表页并带箭头反馈；数字千分位展示
+- **P1-18 充值页**：新增快捷金额 chips（¥100/500/1000/5000），点击即填入，选中态高亮
+- 危险操作确认复核：冻结用户/删除渠道均已有二次确认（P0-2 达标项确认）
+
+
+### UI 0.3.0 里程碑 2 完成（管理后台逐页深化，v0.2.2 续）
+
+- **用户详情抽屉**（P1-3）：用户管理新增「详情」——基本信息/账户余额/实名信息/商户关联/最近登录分节展示（后端详情接口已有，密码哈希已剔除）
+- **财务总览导出**（P1-9）：新增「导出每日汇总 CSV」「导出商户结算 CSV」按钮（带鉴权拉取 blob 下载，复用既有后端端点）
+- **风控事件 HIGH 置顶**（P1-10）：级别加权排序（HIGH→MEDIUM→LOW），同级未处理在前、时间倒序
+- **H5 转账二次确认**（P1-17 部分）：提交前弹窗核对收款人+金额，确认后执行（对齐 Wise 防转错模式）
+- **AI 助手空状态引导**（P1-21 部分）：三步引导文案（创建→授权→对话）
+- **浏览器标签页标题随路由更新**（P2-7）：三端 router.afterEach 统一注入
+
+
+### UI 0.3.0 里程碑 3 完成（商户门户深化，v0.2.2 续）
+
+- **P1-12 应用密钥安全 UX**：创建/重生成密钥弹窗增加「复制密钥」按钮（Clipboard API + 2 秒「已复制」反馈），密钥展示等宽字体
+- **P1-15 对账查询**：日期范围选择器增加「近7天 / 近30天」快捷选项（Element Plus 原生 shortcuts）
+
+
+### UI 0.3.0 里程碑 4 收尾（P2/P3 交错完成，v0.2.2 续）
+
+- **P1-22 H5 账单按日分组**：日期粘性头部 + 当日收/支小计，行时间简化为时分
+- **P1-17 转账限额进度条**：加载 `/users/daily-limit` 实时展示已用/剩余，超额禁用提交按钮并红字提示
+- **P1-9 财务 7 日柱图**：纯 SVG 无图表库依赖，收入/支出双柱 + 图例（复用 `/admin/finance/daily-summary`）
+- **P3 首页余额滚动动画**：600ms 缓动 count-up，页面不可见时直接显示终值（防 rAF 冻结）
+- **文档 review 修正**：`USER_CONFIGURATION_GUIDE.md` 管理后台演示账号密码修正为 `ADMIN_DEFAULT_PASSWORD` 口径（原文 `Admin2026` 为错误值）
+
+全量回归：tsc 三端 0 错误、构建通过、单测 1178 / E2E 49 全绿。
+### 验证
+
+- 全量单元测试 77 套件 / 1178 用例通过；E2E 5 套件 / 49 用例通过（Windows 本机实测）
+- `npm run lint`（tsc --noEmit）零错误；`npm run version:check` 全部对齐 0.2.1（lockfile 已同步）
+- 真实环境冒烟：mock 渠道充值 66.66 元 → 签名回调入账 → 余额/账本/账单核对一致 → 幂等键重复下单与回调重放均不重复入账
 
 ---
 

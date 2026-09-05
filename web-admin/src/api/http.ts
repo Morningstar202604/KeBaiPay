@@ -11,6 +11,14 @@ const http = axios.create({ baseURL: API_BASE, timeout: 15000 })
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem(TOKEN_KEY)
   if (token) config.headers.Authorization = `Bearer ${token}`
+  // 统一剔除空筛选参数：列表页「全部状态」以空串占位，传给后端会触发 KB400 校验失败
+  if (config.params && typeof config.params === 'object') {
+    config.params = Object.fromEntries(
+      Object.entries(config.params).filter(
+        ([, v]) => v !== '' && v !== null && v !== undefined,
+      ),
+    )
+  }
   return config
 })
 

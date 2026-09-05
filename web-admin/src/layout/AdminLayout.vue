@@ -1,14 +1,14 @@
 <template>
   <el-container class="admin">
-    <el-aside width="224px" class="admin-aside">
+    <el-aside :width="isCollapse ? '64px' : '224px'" class="admin-aside">
       <div class="brand">
-        <div class="brand-mark"><span>佰</span></div>
-        <div class="brand-text">
+        <img class="brand-logo" src="/logo.svg" alt="KeBaiPay" />
+        <div class="brand-text" v-show="!isCollapse">
           <span class="brand-name">科佰支付</span>
           <span class="brand-sub">管理后台</span>
         </div>
       </div>
-      <el-menu :default-active="activePath" router class="admin-menu" background-color="transparent" text-color="#94a3b8" active-text-color="#fff">
+      <el-menu :default-active="activePath" router :collapse="isCollapse" :collapse-transition="false" class="admin-menu" background-color="transparent" text-color="#94a3b8" active-text-color="#fff">
         <el-menu-item index="/dashboard"><el-icon><DataAnalysis /></el-icon><span>数据概览</span></el-menu-item>
         <el-menu-item index="/users"><el-icon><User /></el-icon><span>用户管理</span></el-menu-item>
         <el-menu-item index="/merchants"><el-icon><Shop /></el-icon><span>商户管理</span></el-menu-item>
@@ -25,9 +25,15 @@
 
     <el-container>
       <el-header class="admin-header">
-        <div>
-          <div class="header-title">{{ pageTitle }}</div>
-          <div class="header-sub">科佰支付 · 运营管理</div>
+        <div class="header-left">
+          <el-icon class="collapse-toggle" @click="toggleCollapse" :title="isCollapse ? '展开菜单' : '收起菜单'">
+            <Expand v-if="isCollapse" />
+            <Fold v-else />
+          </el-icon>
+          <div>
+            <div class="header-title">{{ pageTitle }}</div>
+            <div class="header-sub">科佰支付 · 运营管理</div>
+          </div>
         </div>
         <el-dropdown @command="onCommand">
           <span class="user-chip">
@@ -52,9 +58,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataAnalysis, User, Shop, Money, List, DataBoard, Warning, ArrowDown, MagicStick, Postcard, Connection } from '@element-plus/icons-vue'
+import { DataAnalysis, User, Shop, Money, List, DataBoard, Warning, ArrowDown, MagicStick, Postcard, Connection, Expand, Fold } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
@@ -63,6 +69,22 @@ const router = useRouter()
 const auth = useAuthStore()
 const activePath = computed(() => route.path)
 const pageTitle = computed(() => (route.meta.title as string) || '管理后台')
+
+// 响应式：窄屏自动收起侧边栏为图标模式，可手动切换（P0-4）
+const isCollapse = ref(false)
+function syncCollapse() {
+  isCollapse.value = window.innerWidth < 1280
+}
+function toggleCollapse() {
+  isCollapse.value = !isCollapse.value
+}
+let onResize: () => void
+onMounted(() => {
+  syncCollapse()
+  onResize = syncCollapse
+  window.addEventListener('resize', onResize)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
 async function onCommand(cmd: string) {
   if (cmd === 'logout') {
@@ -82,7 +104,7 @@ async function onCommand(cmd: string) {
   overflow-x: hidden;
 }
 .brand { display: flex; align-items: center; gap: 10px; padding: 20px 18px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-.brand-mark { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg,#0fa968,#0ea5e9); display: flex; align-items: center; justify-content: center; color:#fff; font-weight:700; box-shadow: 0 6px 16px rgba(15,169,104,0.35); }
+.brand-logo { width: 36px; height: 36px; border-radius: 10px; box-shadow: 0 6px 16px rgba(15,169,104,0.35); display: block; }
 .brand-text { display:flex; flex-direction:column; line-height:1.25; }
 .brand-name { color:#fff; font-weight:600; font-size:15px; }
 .brand-sub { font-size:11px; color:#64748b; }
@@ -93,6 +115,9 @@ async function onCommand(cmd: string) {
 .aside-foot { padding:14px 18px; font-size:11px; color:#475569; border-top:1px solid rgba(255,255,255,0.06); }
 
 .admin-header { display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,.85); backdrop-filter: blur(8px); border-bottom:1px solid var(--el-border-color-lighter); height:64px; padding:0 24px; }
+.header-left { display:flex; align-items:center; gap:14px; }
+.collapse-toggle { font-size:19px; cursor:pointer; color:var(--el-text-color-secondary); transition:color var(--kb-fast) var(--kb-ease); }
+.collapse-toggle:hover { color:var(--el-color-primary); }
 .header-title { font-size:17px; font-weight:700; color:var(--el-text-color-primary); }
 .header-sub { font-size:12px; color:var(--el-text-color-placeholder); margin-top:1px; }
 .user-chip { display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--el-text-color-regular); padding:6px 10px; border-radius:10px; transition:background var(--kb-fast) var(--kb-ease); }

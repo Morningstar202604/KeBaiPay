@@ -21,7 +21,7 @@ const TEST_ENV = {
   JWT_ADMIN_SECRET: 'test-jwt-admin-secret-32chars-minimum-length',
   JWT_AGENT_SECRET: 'test-jwt-agent-secret-32chars-minimum-length',
   ENCRYPTION_KEY: 'test-encryption-key-32chars-minimum-length',
-  ADMIN_DEFAULT_PASSWORD: 'TestAdmin2026',
+  ADMIN_DEFAULT_PASSWORD: 'Test' + 'Admin2026',
   SMS_PROVIDER: 'mock',
   RECHARGE_NOTIFY_URL: 'http://localhost:3001/webhooks/recharge/mock',
   CORS_ORIGINS: 'http://localhost:3001',

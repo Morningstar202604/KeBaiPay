@@ -339,6 +339,17 @@ export class SubscriptionsService {
           cycleEnd: currentCycleEnd,
         })
 
+        // 首期扣款失败：整体回滚订阅（不出现"未付款先享一期服务"），
+        // 失败原因透出给调用方；executeCharge 已写 FAILED 记录，随事务一并回滚
+        if (charge.status === SubscriptionChargeStatus.FAILED) {
+          throw new BadRequestException(
+            kbError(
+              KBErrorCodes.SUBSCRIPTION_FIRST_CHARGE_FAILED,
+              `首期扣款失败：${charge.failureReason ?? '未知原因'}`,
+            ),
+          )
+        }
+
         // 更新订阅状态
         const updatedSub = await tx.subscription.update({
           where: { id: subscription.id },
@@ -376,6 +387,22 @@ export class SubscriptionsService {
     },
   ) {
     const { subscriberId, ownerId, amount, cycleStart, cycleEnd } = params
+
+    // 唯一约束 (subscriptionId, cycleStart) 下同一周期至多一条扣款记录：
+    // 失败退避重试会再次以同一 cycleStart 进入，若上轮记录仍存在则删除重建，
+    // 让重试可正常落库推进（连续失败计数改由 Subscription.consecutiveFailures 维护）；
+    // 上轮记录为 SUCCESS 时直接拒绝，防止同一周期被重复扣款
+    const existingCharge = await tx.subscriptionCharge.findUnique({
+      where: { subscriptionId_cycleStart: { subscriptionId, cycleStart } },
+    })
+    if (existingCharge) {
+      if (existingCharge.status === SubscriptionChargeStatus.SUCCESS) {
+        throw new BadRequestException(
+          kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID, '该周期已扣款成功，不可重复扣款'),
+        )
+      }
+      await tx.subscriptionCharge.delete({ where: { id: existingCharge.id } })
+    }
 
     // 创建扣款记录（PENDING）
     const chargeNo = generateOrderNo('SC')
@@ -785,11 +812,18 @@ export class SubscriptionsService {
             throw new Error(`订阅状态非 ACTIVE: ${sub.status}`)
           }
 
+          // 到期复查：autoCharge 扫描与本次扣款之间，另一个调度流（多实例或
+          // 上一轮超周期执行）可能已扣款并把 nextChargeAt 前移；锁内重读后
+          // 未到期直接幂等返回，防止同一期被扣两次
+          if (!sub.nextChargeAt || sub.nextChargeAt > new Date()) {
+            return
+          }
+
           // 检查是否已达到 totalCycles
           if (sub.plan.totalCycles && sub.completedCycles >= sub.plan.totalCycles) {
-            // 标记 EXPIRED
-            await tx.subscription.update({
-              where: { id: sub.id },
+            // 标记 EXPIRED（条件守卫：并发取消后不得复活/改写）
+            await tx.subscription.updateMany({
+              where: { id: sub.id, status: SubscriptionStatus.ACTIVE },
               data: {
                 status: SubscriptionStatus.EXPIRED,
                 nextChargeAt: null,
@@ -809,33 +843,29 @@ export class SubscriptionsService {
           })
 
           // 查询最近连续失败次数（用于暂停止损与退避计算）
-          const recentCharges = await tx.subscriptionCharge.findMany({
-            where: { subscriptionId: sub.id },
-            orderBy: { createdAt: 'desc' },
-            take: SUBSCRIPTION_MAX_FAILURES,
-          })
-          let consecutiveFailures = 0
-          for (const c of recentCharges) {
-            if (c.status !== SubscriptionChargeStatus.FAILED) break
-            consecutiveFailures++
-          }
+          // 失败重试复用同周期的唯一约束槽位（删除重建），行级历史无法表达
+          // 连续失败次数，改由 Subscription.consecutiveFailures 维护
+          let consecutiveFailures = sub.consecutiveFailures
 
           // 扣款失败：不推进周期、不递增 completedCycles，
           // 安排指数退避重试（24h 起，翻倍，上限 7 天）；
           // 连续失败达上限则转 SUSPENDED 止损。
           if (charge.status === SubscriptionChargeStatus.FAILED) {
+            consecutiveFailures += 1
             const backoffMs = Math.min(
               24 * 60 * 60 * 1000 * Math.pow(2, consecutiveFailures - 1),
               7 * 24 * 60 * 60 * 1000,
             )
             const retryAt = new Date(Date.now() + backoffMs)
             const shouldSuspend = consecutiveFailures >= SUBSCRIPTION_MAX_FAILURES
-            await tx.subscription.update({
-              where: { id: sub.id },
+            // 条件守卫：并发取消（cancel 不持本锁）后不得把 CANCELLED 覆写回 ACTIVE
+            await tx.subscription.updateMany({
+              where: { id: sub.id, status: SubscriptionStatus.ACTIVE },
               data: {
                 lastChargeId: charge.id,
                 nextChargeAt: shouldSuspend ? null : retryAt,
                 status: shouldSuspend ? SubscriptionStatus.SUSPENDED : SubscriptionStatus.ACTIVE,
+                consecutiveFailures: shouldSuspend ? 0 : consecutiveFailures,
               },
             })
             this.logger.warn(
@@ -856,8 +886,10 @@ export class SubscriptionsService {
           const totalCyclesLimit = sub.plan.totalCycles
           const isExpired = totalCyclesLimit && newCompletedCycles >= totalCyclesLimit
 
-          await tx.subscription.update({
-            where: { id: sub.id },
+          // 条件守卫：并发取消（cancel 不持本锁）后不得把 CANCELLED 覆写回 ACTIVE。
+          // count=0 说明订阅已被取消/状态变更，本期扣款保留（资金已划转），但订阅状态不再回写
+          const finalized = await tx.subscription.updateMany({
+            where: { id: sub.id, status: SubscriptionStatus.ACTIVE },
             data: {
               completedCycles: newCompletedCycles,
               lastChargeId: charge.id,
@@ -866,8 +898,14 @@ export class SubscriptionsService {
               nextChargeAt: isExpired ? null : nextCycleStart,
               status: isExpired ? SubscriptionStatus.EXPIRED : SubscriptionStatus.ACTIVE,
               endAt: isExpired ? new Date() : sub.endAt,
+              consecutiveFailures: 0,
             },
           })
+          if (finalized.count === 0) {
+            this.logger.warn(
+              `订阅 ${sub.subscriptionNo} 扣款成功但状态已非 ACTIVE（疑似并发取消），跳过周期推进`,
+            )
+          }
         }),
     )
   }

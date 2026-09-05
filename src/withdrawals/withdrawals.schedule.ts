@@ -79,6 +79,7 @@ export class WithdrawalsSchedule {
         status: WithdrawalStatus.PROCESSING,
         reviewedAt: { lt: threshold },
       },
+      take: 200, // 单轮扫描限流，剩余留给下一轮 cron
     })
 
     if (orders.length === 0) return

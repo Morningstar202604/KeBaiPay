@@ -127,22 +127,26 @@ X-Signature: <hmac_sha256_hex>
 
 ```text
 sign_string = HTTP_METHOD\nPATH\nRAW_BODY\nTIMESTAMP\nNONCE\nAPP_ID
-hmac_key    = SHA256_HEX(app_secret)              # 先对明文 appSecret 取 SHA-256（小写 hex）
+hmac_key    = SHA256_RAW(app_secret)              # 先对明文 appSecret 取 SHA-256，用 32 字节原始摘要作密钥
 signature   = HMAC-SHA256(hmac_key, sign_string)  # 输出小写 hex
 ```
 
-> ⚠️ 重要约定：HMAC 密钥不是 appSecret 明文，而是其 SHA-256 十六进制串
-> （服务端数据库只存哈希，验签直接用库中哈希作密钥）。
+> ⚠️ 重要约定：HMAC 密钥不是 appSecret 明文，而是 `sha256(appSecret)` 的 **32 字节原始摘要**
+> （Node 中 `digest()` 不带参数、Python 中 `digest()` 而非 `hexdigest()`）。
+> 服务端数据库只存该摘要的小写 hex；验签时以 `Buffer.from(hash, 'hex')` 还原同一字节序列。
+> 切勿把 hex 字符串本身（64 字节 ASCII）当作 HMAC 密钥——与服务端口径不一致会恒返回 `KB401`。
 > 客户端务必先对 appSecret 做 `sha256` 再签名。
 
 > 📌 兼容期说明（2026-08-26）：官方 SDK（`public/sdk/kebaipay.js`）与本文档四语言示例
 > 已统一为「先 sha256 再 HMAC」口径。历史版本 SDK/示例曾使用明文 secret 作 key，
 > 该口径与服务端存储不兼容（按旧示例接入会 100% 返回 KB401）——若你从旧文档迁移，
 > 只需在签名前增加一步 `key = sha256(appSecret)` 即可，其余签名串构造不变。
+> v0.2.2 修复：服务端此前误以 hex 字符串作 HMAC 密钥，与 SDK 的原始摘要口径不一致，
+> 现已统一为上述口径，以官方 SDK 实测为准。
 
 appSecret 明文仅在「创建应用」与「重新生成密钥」两个接口的响应中返回一次，
 之后无法再次获取，请妥善保存。商户侧回调通知签名使用同一约定：
-回调头 `X-KB-Signature = HMAC-SHA256(sha256(appSecret), body)`。
+回调头 `X-KB-Signature = HMAC-SHA256(SHA256_RAW(app_secret), raw_body)`（详见 SDK_GUIDE 第 3 节）。
 
 **安全机制：**
 
@@ -589,7 +593,7 @@ period 取值：`DAILY` / `WEEKLY` / `MONTHLY` / `YEARLY`。
 
 约束：每期金额上限 10000 元，单用户订阅计划数上限 100，连续失败 3 次自动暂停。
 
-错误码：`KB650 计划不存在`、`KB651 计划已下架`、`KB652 订阅不存在`、`KB653 订阅状态不允许该操作`、`KB654 已订阅该计划`、`KB655 扣款记录不存在`、`KB656 不能订阅自己的计划`、`KB657 周期参数无效`、`KB658 订阅金额必须大于 0`。
+错误码：`KB650 计划不存在`、`KB651 计划已下架`、`KB652 订阅不存在`、`KB653 订阅状态不允许该操作`、`KB654 已订阅该计划`、`KB655 扣款记录不存在`、`KB656 不能订阅自己的计划`、`KB657 周期参数无效`、`KB658 订阅金额必须大于 0`、`KB659 首期扣款失败（订阅未创建，修正后重新订阅）`。
 
 ---
 
@@ -1466,6 +1470,7 @@ KeBaiPay 统一错误码范围为 `KB001 ~ KB999`，按业务域分段。所有�
 | KB656 | SUBSCRIPTION_CANNOT_SELF_SUBSCRIBE | 不能订阅自己的计划 |
 | KB657 | SUBSCRIPTION_PERIOD_INVALID | 订阅周期参数无效 |
 | KB658 | SUBSCRIPTION_AMOUNT_INVALID | 订阅金额必须大于 0 |
+| KB659 | SUBSCRIPTION_FIRST_CHARGE_FAILED | 订阅首期扣款失败（订阅整体未创建） |
 | KB660 | SPLIT_ORDER_NOT_FOUND | 分账订单不存在 |
 | KB661 | SPLIT_SOURCE_ORDER_NOT_FOUND | 源订单不存在或非已支付状态 |
 | KB662 | SPLIT_AMOUNT_EXCEED_SOURCE | 分账总额超过源订单可分账金额 |

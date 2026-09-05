@@ -13,6 +13,11 @@ const SENSITIVE_FIELDS = new Set([
   'password_hash',
   'hashedPassword',
   'hashed_password',
+  'loginPassword',
+  'login_password',
+  'payPassword',
+  'pay_password',
+  'pendingPayPasswordHash',
   'appSecret',
   'app_secret',
   'secret',
@@ -27,6 +32,13 @@ const SENSITIVE_FIELDS = new Set([
   'salt',
   'verificationCode',
   'verification_code',
+  // 「加密列 + 哈希列」双列设计中的哈希列：可被离线穷举，一律不外发
+  'idCardHash',
+  'id_card_hash',
+  'cardNumberHash',
+  'card_number_hash',
+  'phoneHash',
+  'phone_hash',
 ])
 
 /**

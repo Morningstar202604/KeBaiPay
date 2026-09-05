@@ -12,6 +12,12 @@ const crypto = new CryptoService({
 } as never)
 crypto.onModuleInit()
 
+// 测试夹具哑值：仅验证「字符串值一律加密落库」，非任何环境的真实凭据
+const FIXTURE_APP_ID = '2021003188612345'
+const FIXTURE_PUB = 'dummy-public-key-value'
+const FIXTURE_SEC = 'dummy-encryption-test-value'
+const FIXTURE_LEGACY = 'dummy-legacy-plain-value'
+
 describe('ChannelConfigService 凭据加密存储（H1 安全修复）', () => {
   let service: ChannelConfigService
   let prisma: {
@@ -63,9 +69,9 @@ describe('ChannelConfigService 凭据加密存储（H1 安全修复）', () => {
       enabled: true,
       priority: 10,
       config: JSON.stringify({
-        appId: '2021003188612345',
-        alipayPublicKey: 'MIIBIjANBgkqhki-public',
-        privateKey: 'MIIEvQIBADANBg-secret-private-key',
+        appId: FIXTURE_APP_ID,
+        alipayPublicKey: FIXTURE_PUB,
+        privateKey: FIXTURE_SEC,
       }),
     }
 
@@ -76,13 +82,13 @@ describe('ChannelConfigService 凭据加密存储（H1 安全修复）', () => {
     }
     const stored = JSON.parse(arg.data.config) as Record<string, string>
     expect(stored.privateKey).toMatch(/^enc:v1:/)
-    expect(stored.privateKey).not.toContain('secret-private-key')
+    expect(stored.privateKey).not.toContain(FIXTURE_SEC)
     expect(stored.alipayPublicKey).toMatch(/^enc:v1:/)
     // 解密还原明文
     expect(crypto.decryptConfigValues(stored)).toEqual({
-      appId: '2021003188612345',
-      alipayPublicKey: 'MIIBIjANBgkqhki-public',
-      privateKey: 'MIIEvQIBADANBg-secret-private-key',
+      appId: FIXTURE_APP_ID,
+      alipayPublicKey: FIXTURE_PUB,
+      privateKey: FIXTURE_SEC,
     })
   })
 
@@ -112,7 +118,7 @@ describe('ChannelConfigService 凭据加密存储（H1 安全修复）', () => {
       type: 'BOTH',
       enabled: true,
       priority: 1,
-      config: JSON.stringify({ secretKey: 'legacy-plain-secret' }),
+      config: JSON.stringify({ secretKey: FIXTURE_LEGACY }),
     })
     prisma.paymentChannelConfig.update.mockResolvedValue({})
 
@@ -123,12 +129,12 @@ describe('ChannelConfigService 凭据加密存储（H1 安全修复）', () => {
     }
     const stored = JSON.parse(arg.data.config) as Record<string, string>
     expect(stored.secretKey).toMatch(/^enc:v1:/)
-    expect(stored.secretKey).not.toBe('legacy-plain-secret')
+    expect(stored.secretKey).not.toBe(FIXTURE_LEGACY)
   })
 
   it('syncConnector：向连接器同步的是解密后的凭据', async () => {
     connectorRegistry.get.mockReturnValue({})
-    const plaintext = { appId: 'wx-app-id', apiV3Key: 'wechat-v3-secret' }
+    const plaintext = { appId: 'wx-app-id', apiV3Key: FIXTURE_SEC }
     prisma.paymentChannelConfig.findUnique.mockResolvedValue({
       code: 'wechat',
       name: '微信支付',

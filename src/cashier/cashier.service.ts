@@ -542,7 +542,12 @@ export class CashierService {
           paidAt: order.paidAt,
         }
         const body = JSON.stringify(payload)
-        const signature = createHmac('sha256', appSecret).update(body).digest('hex')
+        // DB 中 appSecret 为 SHA-256 hex 摘要（见 API_REFERENCE.md 回调验签协议）：
+        // 商户侧以 sha256(明文 appSecret) 的 32 字节原始摘要为 HMAC 密钥验证，
+        // 此处用 Buffer.from(hex, 'hex') 复现同一字节序列，不得直接用 hex 字符串作密钥
+        const signature = createHmac('sha256', Buffer.from(appSecret, 'hex'))
+          .update(body)
+          .digest('hex')
 
         const maxRetries = MAX_CALLBACK_RETRIES
         let attempts = 0
