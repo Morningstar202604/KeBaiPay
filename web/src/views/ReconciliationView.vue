@@ -5,6 +5,7 @@
         <el-date-picker
           v-model="range"
           type="daterange"
+        :shortcuts="rangeShortcuts"
           range-separator="至"
           start-placeholder="开始日期"
           end-placeholder="结束日期"
@@ -52,6 +53,12 @@ import { fetchReconciliation } from '@/api/modules'
 import { extractError } from '@/api/http'
 
 const range = ref<[string, string] | null>(null)
+
+// 快捷日期范围（近7天/近30天）
+const rangeShortcuts = [
+  { text: '近7天', value: () => { const e = new Date(); const s2 = new Date(Date.now() - 7 * 864e5); return [s2, e] } },
+  { text: '近30天', value: () => { const e = new Date(); const s2 = new Date(Date.now() - 30 * 864e5); return [s2, e] } },
+]
 const loading = ref(false)
 const data = ref<ReconciliationData | null>(null)
 
