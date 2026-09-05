@@ -13,6 +13,7 @@ export type Permission =
   | 'risk:config'
   | 'risk:event:handle'
   | 'admin:view'
+  | 'admin:manage'
 
 export const PERMISSIONS_KEY = 'permissions'
 
@@ -22,6 +23,9 @@ export const PERMISSIONS_KEY = 'permissions'
  * - SUPER_ADMIN 拥有所有权限
  * - 其他角色仅拥有各自职能范围内的权限
  * - admin:view 为通用查询权限，所有后台角色均可读管理后台基础数据
+ * - admin:manage（管理员账号的增删改/重置密码）仅 SUPER_ADMIN 经 '*' 获得，
+ *   职能角色一律不得持有——此前该类端点误用 user:status，客服角色可借此创建
+ *   SUPER_ADMIN 接管后台
  */
 export const ROLE_PERMISSIONS: Record<AdminRole, Permission[] | '*'> = {
   SUPER_ADMIN: '*',

@@ -120,18 +120,22 @@ export class AdminService {
     ])
 
     return {
-      data: data.map((u) => ({
-        ...u,
-        phone: u.phone
-          ? u.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
-          : null,
-        email: u.email
-          ? u.email.replace(/(.{2}).*(@.*)/, '$1***$2')
-          : null,
-        totalBalanceYuan: u.account
-          ? fenToYuan(u.account.totalBalance)
-          : '0.00',
-      })),
+      data: data.map((u) => {
+        // 密码哈希不外发：list/detail 均为 admin:view 可达，最小化数据面
+        const { loginPassword: _lp, payPassword: _pp, ...safe } = u
+        return {
+          ...safe,
+          phone: safe.phone
+            ? safe.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
+            : null,
+          email: safe.email
+            ? safe.email.replace(/(.{2}).*(@.*)/, '$1***$2')
+            : null,
+          totalBalanceYuan: safe.account
+            ? fenToYuan(safe.account.totalBalance)
+            : '0.00',
+        }
+      }),
       total,
       page,
       limit,
@@ -156,22 +160,26 @@ export class AdminService {
       },
     })
     if (!user) throw new NotFoundException(kbError(KBErrorCodes.USER_NOT_FOUND))
+    const { loginPassword: _lp, payPassword: _pp, ...safeUser } = user
     return {
-      ...user,
-      identity: user.identity
+      ...safeUser,
+      identity: safeUser.identity
         ? {
-            ...user.identity,
-            idCard: this.maskIdCard(this.decryptIdCard(user.identity.idCard)),
+            // 暂存支付密码哈希与证件哈希列不外发（哈希可被离线穷举）
+            ...safeUser.identity,
+            pendingPayPasswordHash: undefined,
+            idCardHash: undefined,
+            idCard: this.maskIdCard(this.decryptIdCard(safeUser.identity.idCard)),
           }
         : null,
-      account: user.account
+      account: safeUser.account
         ? {
-            ...user.account,
+            ...safeUser.account,
             availableBalanceYuan: fenToYuan(
-              user.account.availableBalance,
+              safeUser.account.availableBalance,
             ),
-            frozenBalanceYuan: fenToYuan(user.account.frozenBalance),
-            totalBalanceYuan: fenToYuan(user.account.totalBalance),
+            frozenBalanceYuan: fenToYuan(safeUser.account.frozenBalance),
+            totalBalanceYuan: fenToYuan(safeUser.account.totalBalance),
           }
         : null,
     }
@@ -1023,9 +1031,18 @@ export class AdminService {
       throw new NotFoundException(kbError(KBErrorCodes.ADMIN_USER_NOT_FOUND))
     }
 
-    // 只有 SUPER_ADMIN 可以修改其他管理员的角色和状态
-    if (admin.role !== AdminRole.SUPER_ADMIN && data.role !== undefined) {
-      throw new ForbiddenException(kbError(KBErrorCodes.ADMIN_INSUFFICIENT_PERMISSIONS))
+    // 角色变更仅限 SUPER_ADMIN 操作者：此前误校验"被编辑目标"的角色，
+    // 导致低权操作者可把任意管理员提权为 SUPER_ADMIN
+    if (data.role !== undefined) {
+      const actor = await this.prisma.adminUser.findUnique({
+        where: { id: currentAdminId },
+        select: { role: true },
+      })
+      if (actor?.role !== AdminRole.SUPER_ADMIN) {
+        throw new ForbiddenException(
+          kbError(KBErrorCodes.ADMIN_INSUFFICIENT_PERMISSIONS, '仅超级管理员可以变更管理员角色'),
+        )
+      }
     }
 
     // 不能将自己的状态设为 DISABLED
