@@ -11,7 +11,7 @@
 [![CI](https://github.com/Morningstar202604/KeBaiPay/actions/workflows/ci.yml/badge.svg)](https://github.com/Morningstar202604/KeBaiPay/actions/workflows/ci.yml)
 [![version](https://img.shields.io/badge/version-0.2.1-0FA968)](docs/CHANGELOG.md)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](package.json)
-[![tests](https://img.shields.io/badge/tests-1186%20passing-0FA968)](docs/CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-1178%20passing-0FA968)](docs/CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-PolyForm%20NC%201.0-E0533D)](LICENSE)
 [![platforms](https://img.shields.io/badge/%E2%AD%90-GitHub-C71D23)](https://github.com/Morningstar202604/KeBaiPay)
 
@@ -62,7 +62,7 @@ npx prisma migrate deploy && npx prisma db seed
 npm run start:dev                              # http://localhost:3001
 ```
 
-**测试账号**（seed 预置）：用户 `13800000001` / `Abc12345`（支付密码 `123456`）· 管理员 `admin` / `Admin2026`
+**测试账号**（seed 预置）：用户 `13800000001` / `Abc12345`（支付密码 `123456`）· 管理员 `admin`（密码取 `.env` 的 `ADMIN_DEFAULT_PASSWORD`，example 默认 `ChangeAdmin2026`）
 
 <details>
 <summary><b>前端三端构建（可选）</b></summary>
