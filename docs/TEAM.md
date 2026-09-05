@@ -6,7 +6,7 @@
 
 | 平台 | 角色 | 主要职责 |
 |---|---|---|
-| [@Morningstar202604](https://github.com/Morningstar202604)（GitHub） · [@Morningstar202604](https://gitcode.com/Morningstar202604)（gitcode） | 项目负责人 / 架构师 | 整体技术架构、资金安全审查、API 契约、风控引擎、AI 智能体设计 |
+| [@Morningstar202604](https://github.com/Morningstar202604)（GitHub） | 项目负责人 / 架构师 | 整体技术架构、资金安全审查、API 契约、风控引擎、AI 智能体设计 |
 | [@KEBAI-CN](https://github.com/KEBAI-CN) | 联合开发者 | 功能开发、测试用例、文档维护、前端实现、LLM 接入联调 |
 
 ### 仓库
