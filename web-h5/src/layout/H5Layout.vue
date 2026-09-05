@@ -14,11 +14,7 @@
     </header>
 
     <main class="h5-main">
-      <router-view v-slot="{ Component }">
-        <transition name="fade-slide" mode="out-in">
-          <component :is="Component" />
-        </transition>
-      </router-view>
+      <router-view />
     </main>
 
     <nav class="h5-nav">

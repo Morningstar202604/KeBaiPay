@@ -105,6 +105,13 @@ export class ResponseTransformInterceptor implements NestInterceptor {
       return data
     }
 
+    // Date 实例必须原样保留（Express JSON 序列化时走 Date.toJSON 输出 ISO 字符串）。
+    // 若落入下方 Object.entries 递归，Date 无可枚举属性会被洗成 {}，
+    // 导致全端所有日期字段丢失（H5 账单/后台注册时间等全部损坏）。
+    if (data instanceof Date) {
+      return data
+    }
+
     if (Array.isArray(data)) {
       return data.map((item) => this.stripSensitiveFields(item, skip))
     }

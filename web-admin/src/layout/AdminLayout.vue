@@ -48,9 +48,9 @@
       </el-header>
       <el-main class="admin-main">
         <router-view v-slot="{ Component }">
-          <transition name="fade-slide" mode="out-in">
-            <component :is="Component" />
-          </transition>
+          <component :is="Component" />
+          <!-- fade-slide 过渡已移除：mode=out-in 在无渲染帧环境（内嵌浏览器/后台标签）
+               永远等不到 transitionend，视图切换会永久卡死——稳定性优先 -->
         </router-view>
       </el-main>
     </el-container>

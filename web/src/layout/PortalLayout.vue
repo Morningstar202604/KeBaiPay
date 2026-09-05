@@ -49,11 +49,9 @@
       </el-header>
 
       <el-main class="portal-main">
-        <router-view v-slot="{ Component }">
-          <transition name="fade-slide" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
+        <router-view />
+        <!-- fade-slide 过渡已移除（与 H5/管理后台一致）：mode=out-in 在无渲染帧
+             环境永远等不到 transitionend，视图切换会永久卡死——稳定性优先 -->
       </el-main>
     </el-container>
   </el-container>
