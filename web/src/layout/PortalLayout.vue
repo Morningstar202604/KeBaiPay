@@ -1,15 +1,15 @@
 <template>
   <el-container class="portal">
-    <el-aside width="224px" class="portal-aside">
+    <el-aside :width="isCollapse ? '64px' : '224px'" class="portal-aside">
       <div class="brand">
         <img class="brand-logo" src="/logo.svg" alt="KeBaiPay" />
-        <div class="brand-text">
+        <div class="brand-text" v-show="!isCollapse">
           <span class="brand-name">科佰支付</span>
           <span class="brand-sub">KeBaiPay · 商户</span>
         </div>
       </div>
 
-      <el-menu :default-active="activePath" router class="portal-menu" background-color="transparent" text-color="#94a3b8" active-text-color="#fff">
+      <el-menu :default-active="activePath" router :collapse="isCollapse" :collapse-transition="false" class="portal-menu" background-color="transparent" text-color="#94a3b8" active-text-color="#fff">
         <el-menu-item index="/dashboard"><el-icon><DataAnalysis /></el-icon><span>数据看板</span></el-menu-item>
         <el-menu-item index="/orders"><el-icon><List /></el-icon><span>订单管理</span></el-menu-item>
         <el-menu-item index="/reconciliation"><el-icon><DocumentChecked /></el-icon><span>对账查询</span></el-menu-item>
@@ -24,9 +24,15 @@
 
     <el-container>
       <el-header class="portal-header">
-        <div>
-          <div class="header-title">{{ pageTitle }}</div>
-          <div class="header-sub">科佰支付 · 安全资金服务</div>
+        <div class="header-left">
+          <el-icon class="collapse-toggle" @click="toggleCollapse" :title="isCollapse ? '展开菜单' : '收起菜单'">
+            <Expand v-if="isCollapse" />
+            <Fold v-else />
+          </el-icon>
+          <div>
+            <div class="header-title">{{ pageTitle }}</div>
+            <div class="header-sub">科佰支付 · 安全资金服务</div>
+          </div>
         </div>
         <el-dropdown @command="onCommand">
           <span class="user-chip">
@@ -54,9 +60,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataAnalysis, List, DocumentChecked, Grid, Key, Shop, User, ArrowDown, Postcard } from '@element-plus/icons-vue'
+import { DataAnalysis, List, DocumentChecked, Grid, Key, Shop, User, ArrowDown, Postcard, Expand, Fold } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
@@ -66,6 +72,22 @@ const auth = useAuthStore()
 
 const activePath = computed(() => route.path)
 const pageTitle = computed(() => (route.meta.title as string) || '商户后台')
+
+// 响应式：窄屏自动收起侧边栏为图标模式（P0-4，与管理后台一致）
+const isCollapse = ref(false)
+function syncCollapse() {
+  isCollapse.value = window.innerWidth < 1280
+}
+function toggleCollapse() {
+  isCollapse.value = !isCollapse.value
+}
+let onResize: () => void
+onMounted(() => {
+  syncCollapse()
+  onResize = syncCollapse
+  window.addEventListener('resize', onResize)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
 async function onCommand(cmd: string) {
   if (cmd === 'logout') {
@@ -143,6 +165,9 @@ async function onCommand(cmd: string) {
   height: 64px;
   padding: 0 24px;
 }
+.header-left { display: flex; align-items: center; gap: 14px; }
+.collapse-toggle { font-size: 19px; cursor: pointer; color: var(--el-text-color-secondary); transition: color 0.15s ease; }
+.collapse-toggle:hover { color: var(--el-color-primary); }
 .header-title { font-size: 17px; font-weight: 700; color: var(--el-text-color-primary); }
 .header-sub { font-size: 12px; color: var(--el-text-color-placeholder); margin-top: 1px; }
 

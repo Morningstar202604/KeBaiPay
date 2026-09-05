@@ -105,3 +105,9 @@ async function onCommand(cmd: string) {
 .nav-item.router-link-active :deep(.el-icon) { transform: translateY(-1px); }
 .nav-item:active { transform: scale(0.94); }
 </style>
+
+/* 平板/宽屏限宽（P0-4）：内容居中 520px，底部导航同步居中 */
+@media (min-width: 768px) {
+  .h5-header, .h5-main { max-width: 520px; margin-left: auto; margin-right: auto; width: 100%; }
+  .h5-nav { max-width: 520px; left: 50%; transform: translateX(-50%); border-radius: 16px 16px 0 0; }
+}

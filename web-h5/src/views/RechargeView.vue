@@ -2,6 +2,18 @@
   <div class="card">
     <el-form label-position="top" @keyup.enter="submit">
       <el-form-item label="充值金额（元）">
+        <div class="quick-amounts">
+          <button
+            v-for="q in quickAmounts"
+            :key="q"
+            type="button"
+            class="quick-chip"
+            :class="{ active: amount === q }"
+            @click="amount = q"
+          >
+            ¥{{ q }}
+          </button>
+        </div>
         <el-input-number v-model="amount" :min="0.01" :max="500000" :precision="2" :step="10" size="large" style="width: 100%" />
       </el-form-item>
       <el-form-item label="支付密码">
@@ -19,6 +31,7 @@ import { ElMessage } from 'element-plus'
 import { recharge } from '@/api/modules'
 import { extractError } from '@/api/http'
 
+const quickAmounts = [100, 500, 1000, 5000]
 const amount = ref(100)
 const payPassword = ref('')
 const loading = ref(false)
@@ -47,3 +60,8 @@ async function submit() {
 .card { background: #fff; border-radius: 12px; padding: 20px; }
 .btn { width: 100%; margin-top: 8px; }
 </style>
+
+.quick-amounts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; width: 100%; }
+.quick-chip { height: 38px; border-radius: 10px; border: 1px solid var(--el-border-color); background: var(--el-fill-color-blank); font-size: 14px; font-weight: 600; color: var(--el-text-color-regular); cursor: pointer; transition: all .15s ease; }
+.quick-chip:hover { border-color: var(--el-color-primary); color: var(--el-color-primary); }
+.quick-chip.active { background: var(--el-color-primary-light-9); border-color: var(--el-color-primary); color: var(--el-color-primary); }
