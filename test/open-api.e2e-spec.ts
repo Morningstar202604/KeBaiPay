@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing'
 import { ValidationPipe, INestApplication } from '@nestjs/common'
+import { createHash, createHmac } from 'crypto'
 import { ThrottlerModule } from '@nestjs/throttler'
 import { ConfigModule } from '@nestjs/config'
 import request from 'supertest'
@@ -10,14 +11,31 @@ import { PrismaService } from '../src/prisma/prisma.service'
 import { RedisService } from '../src/redis/redis.service'
 import { RiskEngineService } from '../src/risk/risk-engine.service'
 
+// 商户侧只有明文 appSecret；服务端 DB 只存其 SHA-256 hex 摘要
+const PLAINTEXT_SECRET = 'secret_e2e'
+const APP_ID = 'app_xxx'
+
+/** 按 public/sdk/kebaipay.js 口径签名：key = sha256(明文) 的 32 字节原始摘要 */
+function signLikeSdk(
+  method: string,
+  path: string,
+  rawBody: string,
+  timestamp: string,
+  nonce: string,
+) {
+  const signString = `${method}\n${path}\n${rawBody}\n${timestamp}\n${nonce}\n${APP_ID}`
+  const key = createHash('sha256').update(PLAINTEXT_SECRET, 'utf8').digest()
+  return createHmac('sha256', key).update(signString, 'utf8').digest('hex')
+}
+
 describe('OpenApiController (e2e)', () => {
   let app: INestApplication
   const mockPrisma = {
     merchantApp: {
       findUnique: jest.fn().mockResolvedValue({
         id: 'app1',
-        appId: 'app_xxx',
-        appSecret: 'secret',
+        appId: APP_ID,
+        appSecret: createHash('sha256').update(PLAINTEXT_SECRET).digest('hex'),
         merchantId: 'm1',
         status: 'ACTIVE',
       }),
@@ -56,7 +74,8 @@ describe('OpenApiController (e2e)', () => {
       ],
     }).compile()
 
-    app = moduleRef.createNestApplication()
+    // rawBody: true 让 OpenApiGuard 能读到原始请求体参与验签（与 main.ts 生产配置一致）
+    app = moduleRef.createNestApplication({ rawBody: true })
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -89,5 +108,25 @@ describe('OpenApiController (e2e)', () => {
       .expect(401)
 
     expect(response.body.message).toContain('KB401')
+  })
+
+  // 防回归：此用例以真实 SDK 口径（sha256 预哈希 raw 摘要作 HMAC 密钥）签名，
+  // 曾经服务端误用 hex 字符串作密钥导致真实商户恒 401，而失败路径测试无法发现
+  it('POST /open-api/v1/orders 以 SDK 口径签名成功创建订单', async () => {
+    const rawBody = JSON.stringify({ merchantOrderNo: 'MO1', amount: 10, subject: '商品' })
+    const timestamp = String(Date.now())
+    const nonce = `n_${Date.now()}_${Math.random().toString(36).slice(2)}`
+
+    const response = await request(app.getHttpServer())
+      .post('/open-api/v1/orders')
+      .set('Content-Type', 'application/json')
+      .set('X-App-Id', APP_ID)
+      .set('X-Timestamp', timestamp)
+      .set('X-Nonce', nonce)
+      .set('X-Signature', signLikeSdk('POST', '/open-api/v1/orders', rawBody, timestamp, nonce))
+      .send(rawBody)
+      .expect(201)
+
+    expect(response.body).toMatchObject({ orderNo: 'P1', amountYuan: '10.00' })
   })
 })

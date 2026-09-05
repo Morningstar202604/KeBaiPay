@@ -4,6 +4,8 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
+import { createHash, createHmac } from 'crypto'
+import * as helpers from '../common/helpers'
 import { PaymentOrderStatus } from '../common/enums'
 import { Prisma } from '@prisma/client'
 import { CashierService } from './cashier.service'
@@ -20,6 +22,7 @@ type RedisMock = Record<'isEnabled' | 'withLock', jest.Mock>
 type PrismaMock = {
   $transaction: jest.Mock
   merchant: Record<string, jest.Mock>
+  merchantApp: Record<string, jest.Mock>
   paymentOrder: Record<string, jest.Mock>
   transactionOrder: Record<string, jest.Mock>
   account: Record<string, jest.Mock>
@@ -45,6 +48,7 @@ describe('CashierService', () => {
     prisma = {
       $transaction: jest.fn(async (cb: (p: PrismaMock) => Promise<unknown>) => cb(prisma)),
       merchant: { findUnique: jest.fn() },
+      merchantApp: { findUnique: jest.fn() },
       paymentOrder: {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
@@ -624,6 +628,54 @@ describe('CashierService', () => {
           },
         }),
       )
+    })
+  })
+
+  describe('notifyMerchant 商户回调验签', () => {
+    it('X-KB-Signature 可被只有明文 appSecret 的商户验证（sha256 预哈希密钥口径）', async () => {
+      const plaintextSecret = 'plain_secret_abc'
+      // DB 只存 SHA-256 hex 摘要；商户侧拿不到它，只有明文
+      const secretHash = createHash('sha256').update(plaintextSecret).digest('hex')
+      prisma.merchantApp = {
+        findUnique: jest.fn().mockResolvedValue({ appSecret: secretHash }),
+      }
+      // 锁内重读：通知未成功过
+      prisma.paymentOrder.findUnique.mockResolvedValue({
+        notifyStatus: 'PENDING',
+        notifyCount: 0,
+        callbackUrl: 'https://callback.example.com/notify',
+      })
+      prisma.paymentOrder.update.mockResolvedValue({ notifyStatus: 'SUCCESS', notifyCount: 1 })
+
+      // 拦截外呼与 URL 安全校验（后者会做真实 DNS 解析）
+      jest.spyOn(helpers, 'isCallbackUrlSafe').mockResolvedValue({ safe: true })
+      let receivedSig = ''
+      let receivedBody = ''
+      jest.spyOn(helpers, 'postJsonPinned').mockImplementation(
+        async (_url, body, headers) => {
+          receivedSig = (headers as Record<string, string>)['X-KB-Signature']
+          receivedBody = body as string
+          return { ok: true, status: 200 }
+        },
+      )
+
+      const result = await service.notifyMerchant({
+        id: 'po1',
+        orderNo: 'P1',
+        merchantOrderNo: 'MO1',
+        amount: 1000,
+        status: PaymentOrderStatus.PAID,
+        paidAt: new Date('2026-01-01T00:00:00Z'),
+        callbackUrl: 'https://callback.example.com/notify',
+        appId: 'app_1',
+      })
+
+      expect(result.notifyStatus).toBe('SUCCESS')
+      // 商户侧验证：以 sha256(明文 appSecret) 的 32 字节原始摘要为 HMAC 密钥可复现签名
+      const merchantExpected = createHmac('sha256', createHash('sha256').update(plaintextSecret).digest())
+        .update(receivedBody)
+        .digest('hex')
+      expect(receivedSig).toBe(merchantExpected)
     })
   })
 })
