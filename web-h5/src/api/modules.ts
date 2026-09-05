@@ -140,3 +140,9 @@ export async function agentLogin(agentId: string, authId: string): Promise<{ tok
 }
 
 export { extractError }
+
+// 当日限额使用情况（转账页进度条）
+export async function fetchDailyLimit(): Promise<{ limitYuan: string; usedYuan: string; remainingYuan: string }> {
+  const { data } = await http.get('/users/daily-limit')
+  return data
+}

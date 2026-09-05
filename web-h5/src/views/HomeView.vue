@@ -57,6 +57,27 @@ import { fetchAccount } from '@/api/modules'
 import { extractError } from '@/api/http'
 
 const account = ref<AccountInfo | null>(null)
+const balanceDisplay = ref('0.00')
+
+// 余额数字滚动动画（P3）：页面不可见时直接显示终值，避免 rAF 冻结
+function animateBalance(targetYuan: string) {
+  const target = Number(targetYuan) || 0
+  if (document.visibilityState !== 'visible') {
+    balanceDisplay.value = target.toFixed(2)
+    return
+  }
+  const from = Number(balanceDisplay.value) || 0
+  const start = performance.now()
+  const duration = 600
+  function step(now: number) {
+    const t = Math.min(1, (now - start) / duration)
+    const eased = 1 - Math.pow(1 - t, 3)
+    balanceDisplay.value = (from + (target - from) * eased).toFixed(2)
+    if (t < 1) requestAnimationFrame(step)
+    else balanceDisplay.value = target.toFixed(2)
+  }
+  requestAnimationFrame(step)
+}
 const loading = ref(true)
 const ledgers = ref<LedgerItem[]>([])
 
@@ -80,6 +101,7 @@ function fmt(v: string) { return v ? v.replace('T', ' ').slice(5, 16) : '' }
 onMounted(async () => {
   try {
     account.value = await fetchAccount()
+  animateBalance(account.value?.totalBalanceYuan || '0.00')
     ledgers.value = account.value?.ledgers || []
   } catch (e) {
     ElMessage.error(extractError(e))

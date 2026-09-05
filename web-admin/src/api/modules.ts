@@ -85,6 +85,19 @@ export async function handleRiskEvent(id: string, body: { note?: string }): Prom
 }
 
 // ---------- 财务 ----------
+
+export interface DailySummaryItem {
+  date: string
+  totalIncomeYuan: string
+  totalExpenseYuan: string
+  totalFeeYuan: string
+  transactionCount: number
+}
+
+export async function fetchDailySummary(params: { startDate?: string; endDate?: string }): Promise<{ data: DailySummaryItem[] }> {
+  const { data } = await http.get('/admin/finance/daily-summary', { params })
+  return data
+}
 export async function fetchFinanceOverview(): Promise<FinanceOverview> {
   const { data } = await http.get<FinanceOverview>('/admin/finance/overview')
   return data

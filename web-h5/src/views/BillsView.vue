@@ -4,13 +4,16 @@
     <el-card shadow="never" class="card">
       <el-skeleton v-if="loading" :rows="6" animated />
       <div v-else-if="list.length === 0" class="empty">暂无账单</div>
-      <div v-for="b in list" :key="b.id" class="row">
-        <div>
-          <div>{{ typeText(b.type) }} {{ b.direction === 'INCOME' ? '（收）' : '（付）' }}</div>
-          <div class="sub">{{ fmt(b.createdAt) }} · {{ b.counterparty || '' }} {{ b.remark || '' }}</div>
-        </div>
-        <div :class="['amt', b.direction === 'INCOME' ? 'in' : 'out']">
-          {{ b.direction === 'INCOME' ? '+' : '-' }}¥{{ b.amountYuan }}
+      <div v-for="g in groups" :key="g.date" class="day-group">
+        <div class="day-head">{{ g.date }}<span class="day-sum">收 ¥{{ g.income }} · 支 ¥{{ g.expense }}</span></div>
+        <div v-for="b in g.items" :key="b.id" class="row">
+          <div>
+            <div>{{ typeText(b.type) }} {{ b.direction === 'INCOME' ? '（收）' : '（付）' }}</div>
+            <div class="sub">{{ fmt(b.createdAt).slice(11) }} · {{ b.counterparty || '' }} {{ b.remark || '' }}</div>
+          </div>
+          <div :class="['amt', b.direction === 'INCOME' ? 'in' : 'out']">
+            {{ b.direction === 'INCOME' ? '+' : '-' }}¥{{ b.amountYuan }}
+          </div>
         </div>
       </div>
     </el-card>
@@ -24,7 +27,23 @@ import type { BillItem } from '@/types'
 import { fetchBills } from '@/api/modules'
 import { extractError } from '@/api/http'
 
+import { computed } from 'vue'
 const direction = ref<'ALL' | 'INCOME' | 'EXPENSE'>('ALL')
+// 按日分组（P1-22）：日期头 + 当日收/支小计
+const groups = computed(() => {
+  const map = new Map<string, { date: string; income: number; expense: number; items: BillItem[] }>()
+  for (const b of list.value) {
+    const date = (b.createdAt || '').slice(0, 10)
+    if (!map.has(date)) map.set(date, { date, income: 0, expense: 0, items: [] })
+    const g = map.get(date)!
+    g.items.push(b)
+    const amt = Number(b.amountYuan) || 0
+    if (b.direction === 'INCOME') g.income += amt
+    else g.expense += amt
+  }
+  return [...map.values()]
+})
+
 const opts = [
   { label: '全部', value: 'ALL' },
   { label: '收入', value: 'INCOME' },
@@ -70,4 +89,7 @@ onMounted(load)
 .amt.in { color: #10b981; }
 .amt.out { color: #ef4444; }
 .empty { color: #9ca3af; text-align: center; padding: 24px; font-size: 13px; }
+  .day-group { margin-bottom: 8px; }
+  .day-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--el-text-color-secondary); padding: 8px 0 4px; border-bottom: 1px solid var(--el-border-color-lighter); position: sticky; top: 0; background: #fff; z-index: 1; }
+  .day-sum { font-variant-numeric: tabular-nums; }
 </style>
