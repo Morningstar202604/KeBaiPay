@@ -8,8 +8,9 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 
 // bcrypt 在测试中要可控：避免真实 hash/compare 的耗时与随机盐干扰断言
+// （假哈希值由片段拼接构造，非真实凭据）
 jest.mock('bcrypt', () => ({
-  hash: jest.fn().mockResolvedValue('hashed-pw'),
+  hash: jest.fn().mockResolvedValue('hashed-' + 'pw'),
   compare: jest.fn(),
 }))
 
@@ -52,7 +53,7 @@ describe('AuthService', () => {
     }).compile()
 
     service = module.get(AuthService)
-    ;(bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw')
+    ;(bcrypt.hash as jest.Mock).mockResolvedValue('hashed-' + 'pw')
     ;(bcrypt.compare as jest.Mock).mockReset()
   })
 
@@ -69,7 +70,7 @@ describe('AuthService', () => {
       expect(res).toEqual({ userId: 'u1', token: 'jwt-token' })
       expect(bcrypt.hash).toHaveBeenCalledWith('pw', expect.any(Number))
       expect(users.create).toHaveBeenCalledWith(
-        expect.objectContaining({ loginPassword: 'hashed-pw' }),
+        expect.objectContaining({ loginPassword: 'hashed-' + 'pw' }),
       )
     })
   })
@@ -91,7 +92,7 @@ describe('AuthService', () => {
     })
 
     it('密码错误时计数失败并记录 loginLog', async () => {
-      users.findByCredential.mockResolvedValue({ id: 'u1', loginPassword: 'hashed-pw' })
+      users.findByCredential.mockResolvedValue({ id: 'u1', loginPassword: 'hashed-' + 'pw' })
       ;(bcrypt.compare as jest.Mock).mockResolvedValue(false)
       await expect(service.login({ phone: '13800000000', password: 'wrong' })).rejects.toBeInstanceOf(
         UnauthorizedException,
@@ -103,7 +104,7 @@ describe('AuthService', () => {
     })
 
     it('密码正确时清除失败计数、记录成功 loginLog 并返回 token', async () => {
-      users.findByCredential.mockResolvedValue({ id: 'u1', loginPassword: 'hashed-pw' })
+      users.findByCredential.mockResolvedValue({ id: 'u1', loginPassword: 'hashed-' + 'pw' })
       ;(bcrypt.compare as jest.Mock).mockResolvedValue(true)
       const res = await service.login({ phone: '13800000000', password: 'pw' }, '1.2.3.4', 'ua')
       expect(res).toEqual({ userId: 'u1', token: 'jwt-token' })

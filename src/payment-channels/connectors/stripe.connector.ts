@@ -747,7 +747,8 @@ export class StripeConnector implements Connector {
           amount: 1000,
           currency: 'usd',
           status: 'requires_payment_method',
-          client_secret: 'pi_sandbox_secret_abc123',
+          // 沙箱模拟值：密码学随机数动态构造，形态与真实 client_secret 一致
+          client_secret: `pi_sandbox_secret_${crypto.randomBytes(24).toString('hex')}`,
           next_action: null,
         }
       }

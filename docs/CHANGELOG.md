@@ -82,6 +82,16 @@
 - **README**：测试数量徽章修正为实测 1178（原文 1186）；管理员测试账号密码说明改为取自 `ADMIN_DEFAULT_PASSWORD`（原文 `Admin2026` 与 `.env.example` 的 `ChangeAdmin2026` 不符）。
 - **CONTRIBUTING**：检查套件命令笔误 `pnpm test` 修正为本仓库实际使用的 `npm run lint && npm test`。
 
+
+### 逻辑链遍历追加修复（v0.2.2 续）：退款链资金闭环
+
+按资金流向建全链不变量清单逐环核对，在覆盖最薄弱的退款链发现并修复：
+
+- **【高】退款资金单边账**：退款成功仅扣回商户余额并记单边账本——资金既未原路退回的渠道侧分录、也无 Bill，去向不明且每笔退款必然触发对账 assets_balance 差异。现补复式记账双腿（借 USER:商户 / 贷 CHANNEL_FUND，渠道原路退回付款方）+ 商户 EXPENSE / 付款方 INCOME 双账单；对账公式 expectedAssetsChange 补减退款项。
+- **【高】退款三路径并发双扣窗口**：同步成功（createRefund）、查询确认（queryRefund）、异步回调（handleRefundCallback）各自持不同锁、各自实现扣款与幂等检查，渠道同步成功+异步回调并发时可同时通过幂等检查双倍扣回商户。现资金处理收敛为 processRefundSuccess 唯一入口（独立锁 + 账本键互见 + 条件状态迁移三重防护），回调/query 路径只做条件状态迁移后委托。
+- **【中】queryRefund 无锁无守卫**：状态迁移为无条件 update，与回调路径竞态。改条件迁移（PENDING/PROCESSING → 终态），仅抢到迁移权的一方处理资金。
+- e2e MockPrismaClient 修复潜在缺陷：where 匹配器 `in`/`notIn` 操作符误对整个条件对象调 includes（此前无查询使用 `in` 未暴露），已修正为对 `val.in`/`val.notIn`。
+
 ### 验证
 
 - 全量单元测试 77 套件 / 1178 用例通过；E2E 5 套件 / 49 用例通过（Windows 本机实测）

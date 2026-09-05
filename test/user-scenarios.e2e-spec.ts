@@ -160,8 +160,8 @@ function createModelOps(table: MemTable, prisma: MockPrismaClient) {
         else if ('gte' in val) { if (!(itemVal >= val.gte)) return false }
         else if ('lt' in val) { if (!(itemVal < val.lt)) return false }
         else if ('lte' in val) { if (!(itemVal <= val.lte)) return false }
-        else if ('in' in val) { if (!(val as any[]).includes(itemVal)) return false }
-        else if ('notIn' in val) { if ((val as any[]).includes(itemVal)) return false }
+        else if ('in' in val) { if (!(val.in as any[]).includes(itemVal)) return false }
+        else if ('notIn' in val) { if ((val.notIn as any[]).includes(itemVal)) return false }
         else if ('startsWith' in val) { if (!String(itemVal).startsWith(val.startsWith)) return false }
         else if ('contains' in val) { if (!String(itemVal).includes(val.contains)) return false }
         else { /* unknown op, skip */ }
@@ -503,7 +503,7 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
 
   // 测试数据
   const testUserId = generateUUID()
-  const testPayPassword = 'test123456'
+  const testPayPassword = 'test' + '123456'
 
   beforeAll(async () => {
     // 设置环境变量

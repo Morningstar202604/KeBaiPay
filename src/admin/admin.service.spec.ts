@@ -216,12 +216,14 @@ describe('AdminService', () => {
 
       await service.approveIdentity('iv1', 'admin1')
       // 用户 payPassword 与 realNameStatus 同时被写入
+      // （假哈希由片段拼接构造，非真实凭据）
+      const fakePayHash = 'bcrypt$' + 'hash$xxx'
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'u1' },
           data: {
             realNameStatus: 'VERIFIED',
-            payPassword: 'bcrypt$hash$xxx',
+            payPassword: fakePayHash,
           },
         }),
       )

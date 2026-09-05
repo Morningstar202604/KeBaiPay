@@ -11,6 +11,11 @@ const crypto = new CryptoService({
 } as never)
 crypto.onModuleInit()
 
+// 测试夹具哑值：非任何环境的真实凭据
+const FIXTURE_APP_ID = '2021003188612345'
+const FIXTURE_SEC = 'dummy-registry-test-value'
+const FIXTURE_LEGACY = 'dummy-legacy-plain-value'
+
 const configServiceMock = {
   get: (key: string) => (key === 'NODE_ENV' ? 'development' : undefined),
 }
@@ -42,10 +47,10 @@ describe('PaymentChannelRegistry 配置解密（H1 安全修复）', () => {
 
   describe('getEnabledConfig', () => {
     it('返回解密后的渠道配置', async () => {
-      const plaintext = { appId: '2021003188612345', privateKey: 'MIIEvQ-secret-key-material' }
+      const plaintext = { appId: FIXTURE_APP_ID, privateKey: FIXTURE_SEC }
       const encryptedJson = JSON.stringify(crypto.encryptConfigValues(plaintext))
       // 库内必须已是密文：前置校验，防止测试数据本身写错
-      expect(encryptedJson).not.toContain('MIIEvQ-secret')
+      expect(encryptedJson).not.toContain(FIXTURE_SEC)
 
       prisma.paymentChannelConfig.findUnique.mockResolvedValue({
         code: 'alipay',
@@ -67,11 +72,11 @@ describe('PaymentChannelRegistry 配置解密（H1 安全修复）', () => {
         type: 'BOTH',
         enabled: true,
         priority: 1,
-        config: JSON.stringify({ secretKey: 'legacy-plain-secret' }),
+        config: JSON.stringify({ secretKey: FIXTURE_LEGACY }),
       })
 
       const result = await registry.getEnabledConfig('mock')
-      expect(result.config).toEqual({ secretKey: 'legacy-plain-secret' })
+      expect(result.config).toEqual({ secretKey: FIXTURE_LEGACY })
     })
 
     it('未启用渠道抛 NotFoundException', async () => {

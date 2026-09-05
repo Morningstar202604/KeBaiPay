@@ -4,6 +4,7 @@ import { RefundService } from './refund.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { RiskEngineService } from '../risk/risk-engine.service'
+import { JournalService } from '../finance/journal.service'
 import { PaymentChannelRegistry } from './payment-channel.registry'
 import { PaymentChannelBridge } from './payment-channel.bridge'
 import { ConnectorRegistry } from './connector.registry'
@@ -23,11 +24,15 @@ type PrismaMock = {
   account: { findUnique: jest.Mock; update: jest.Mock; updateMany: jest.Mock }
   accountLedger: { create: jest.Mock; findFirst: jest.Mock }
   paymentOrder: { findUnique: jest.Mock; update: jest.Mock }
+  bill: { create: jest.Mock }
+  user: { findMany: jest.Mock }
+  riskEvent: { create: jest.Mock }
   $transaction: jest.Mock
 }
 type RedisMock = { withLock: jest.Mock }
 type ChannelRegistryMock = { getChannel: jest.Mock; getEnabledConfig: jest.Mock }
 type RiskMock = { recordTransaction: jest.Mock }
+type JournalMock = { createEntries: jest.Mock }
 
 const baseOrder = {
   id: 'o1',
@@ -47,6 +52,7 @@ describe('RefundService', () => {
   let redis: RedisMock
   let channelRegistry: ChannelRegistryMock
   let risk: RiskMock
+  let journal: JournalMock
   let mockChannel: {
     refund: jest.Mock
     queryRefund: jest.Mock
@@ -73,6 +79,9 @@ describe('RefundService', () => {
       },
       accountLedger: { create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
       paymentOrder: { findUnique: jest.fn(), update: jest.fn() },
+      bill: { create: jest.fn() },
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+      riskEvent: { create: jest.fn() },
       // $transaction 接收回调并把同一 prisma 对象作为 tx 传入，让 mock 复用
       $transaction: jest.fn(async (fn: (tx: typeof prisma) => Promise<unknown>) => fn(prisma)),
     }
@@ -90,6 +99,7 @@ describe('RefundService', () => {
       getEnabledConfig: jest.fn().mockResolvedValue({ config: {} }),
     }
     risk = { recordTransaction: jest.fn().mockResolvedValue(undefined) }
+    journal = { createEntries: jest.fn().mockResolvedValue(undefined) }
 
     const module = await Test.createTestingModule({
       providers: [
@@ -98,6 +108,7 @@ describe('RefundService', () => {
         { provide: RedisService, useValue: redis },
         { provide: PaymentChannelRegistry, useValue: channelRegistry },
         { provide: RiskEngineService, useValue: risk },
+        { provide: JournalService, useValue: journal },
         // 桥接层：连接器未注册时回退直连渠道（经 mocked channelRegistry 走 mockChannel）
         PaymentChannelBridge,
         { provide: ConnectorRegistry, useValue: { get: jest.fn().mockReturnValue(undefined) } },
@@ -168,7 +179,9 @@ describe('RefundService', () => {
       prisma.transactionOrder.findUnique
         .mockResolvedValueOnce(baseOrder) // createRefund 内查找原订单
         // processRefundSuccess 内查找退款单：status=PROCESSING 表示需要处理
-        .mockResolvedValueOnce({ id: 'rf1', orderNo: 'RF1', status: TransactionStatus.PROCESSING, relatedOrderNo: 'O1' })
+        .mockResolvedValueOnce({ id: 'rf1', orderNo: 'RF1', status: TransactionStatus.PROCESSING, relatedOrderNo: 'O1', amount: 100 })
+        // processRefundSuccess 内查找原订单（fromUserId=付款方 / toUserId=收款方）
+        .mockResolvedValueOnce({ fromUserId: 'u2', toUserId: 'u1', relatedOrderNo: 'PO1' })
       prisma.transactionOrder.create.mockResolvedValue({ id: 'rf1', orderNo: 'RF1' })
       prisma.account.findUnique.mockResolvedValue({ id: 'a1', availableBalance: 1000 })
       prisma.account.update.mockResolvedValue({ id: 'a1', availableBalance: 900 })
@@ -192,6 +205,15 @@ describe('RefundService', () => {
       )
       // 风控频率记录被调用
       expect(risk.recordTransaction).toHaveBeenCalled()
+      // 复式记账双腿：借 USER:商户 / 贷 CHANNEL_FUND（v0.2.2 补齐，此前单边账）
+      expect(journal.createEntries).toHaveBeenCalledTimes(1)
+      const entries = journal.createEntries.mock.calls[0][1]
+      expect(entries[0].accountCode).toBe('USER:u1')
+      expect(entries[0].debit).toBe(100)
+      expect(entries[1].accountCode).toBe('CHANNEL_FUND')
+      expect(entries[1].credit).toBe(100)
+      // 三表联动：账单补齐（商户 EXPENSE + 付款方 INCOME）
+      expect(prisma.bill.create).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -245,15 +267,9 @@ describe('RefundService', () => {
       prisma.account.findUnique.mockResolvedValue({ id: 'a1', availableBalance: 1000 })
       prisma.account.update.mockResolvedValue({ id: 'a1', availableBalance: 900 })
       prisma.transactionOrder.updateMany.mockResolvedValue({ count: 1 })
-      // queryRefund 内查找原订单（用于 toUserId）
-      // 已在第二次 findUnique 返回的 relatedOrderNo='O1' 触发查找 originalOrder
-      // 此处第三次 findUnique 返回 originalOrder
-      prisma.paymentOrder.findUnique.mockResolvedValue(null)
       // processRefundSuccess 内查找 originalOrder（refundOrder.relatedOrderNo='O1'）
-      // 注意原代码用 this.prisma.transactionOrder.findUnique 而非 tx，需补一次返回
       prisma.transactionOrder.findUnique.mockResolvedValueOnce({
-        id: 'o1',
-        orderNo: 'O1',
+        fromUserId: 'u2',
         toUserId: 'u1',
         relatedOrderNo: null,
       })
@@ -303,7 +319,7 @@ describe('RefundService', () => {
         channelRefundNo: 'CH_RF_NEW',
       })
       prisma.transactionOrder.findUnique
-        // 第一次：查找退款单
+        // 第一次：事务内查找退款单
         .mockResolvedValueOnce({
           id: 'rf1',
           orderNo: 'RF1',
@@ -313,15 +329,24 @@ describe('RefundService', () => {
           relatedOrderNo: 'O1',
           amount: 100,
         })
-        // 第二次：查找 originalOrder
+        // 第二次：processRefundSuccess 内查找退款单
         .mockResolvedValueOnce({
-          id: 'o1',
-          orderNo: 'O1',
+          id: 'rf1',
+          orderNo: 'RF1',
+          status: TransactionStatus.PROCESSING,
+          relatedOrderNo: 'O1',
+          amount: 100,
+        })
+        // 第三次：processRefundSuccess 内查找 originalOrder
+        .mockResolvedValueOnce({
+          fromUserId: 'u2',
           toUserId: 'u1',
           relatedOrderNo: 'PO1', // 链到 paymentOrder
         })
       prisma.account.findUnique.mockResolvedValue({ id: 'a1', availableBalance: 1000 })
       prisma.account.update.mockResolvedValue({ id: 'a1', availableBalance: 900 })
+      // 事务内条件状态迁移
+      prisma.transactionOrder.updateMany.mockResolvedValue({ count: 1 })
       prisma.paymentOrder.findUnique.mockResolvedValue({
         id: 'po1',
         amount: 1000,
@@ -330,10 +355,13 @@ describe('RefundService', () => {
 
       const res = await service.handleRefundCallback('mock', 'body', {})
       expect(res).toBe('OK')
-      // 验证状态更新（不再覆盖已有 channelOrderNo）
-      const updateArgs = prisma.transactionOrder.update.mock.calls[0][0]
+      // 验证状态更新为条件迁移（不再覆盖已有 channelOrderNo）
+      const updateArgs = prisma.transactionOrder.updateMany.mock.calls[0][0]
       expect(updateArgs.data.status).toBe(TransactionStatus.SUCCESS)
       expect(updateArgs.data.channelOrderNo).toBe('CH_RF_NEW')
+      expect(updateArgs.where.status).toEqual({
+        in: [TransactionStatus.PENDING, TransactionStatus.PROCESSING],
+      })
       // 验证账户扣款（条件更新防负余额）
       expect(prisma.account.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -346,6 +374,9 @@ describe('RefundService', () => {
           data: expect.objectContaining({ refundAmount: 100, refundedAt: expect.any(Date) }),
         }),
       )
+      // 复式记账双腿 + 双方账单
+      expect(journal.createEntries).toHaveBeenCalledTimes(1)
+      expect(prisma.bill.create).toHaveBeenCalledTimes(2)
     })
   })
 
