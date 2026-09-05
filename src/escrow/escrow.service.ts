@@ -141,8 +141,36 @@ export class EscrowService {
     return this.redis.withLock(
       `escrow:pay:${orderNo}`,
       REDIS_LOCK_TTL_SECONDS,
-      () =>
-        this.prisma.$transaction(async (tx) => {
+      async () => {
+        // 支付密码与风控在事务外校验：验密含 Redis 计数与 bcrypt 慢哈希、
+        // 风控含 Redis 窗口统计，放进事务会拉长 DB 事务与锁持有时间
+        //（对齐 cashier.pay 的"事务前校验"口径）
+        await this.usersService.verifyPayPassword(buyerId, payPassword)
+
+        const orderPre = await this.prisma.escrowOrder.findUnique({
+          where: { orderNo },
+          select: { amount: true },
+        })
+        if (orderPre) {
+          const riskResult = await this.riskEngine.check({
+            userId: buyerId,
+            type: 'TRANSFER',
+            amount: orderPre.amount,
+          })
+          if (riskResult.blocked) {
+            throw new ForbiddenException(
+              kbError(
+                KBErrorCodes.FORBIDDEN,
+                `担保交易被风控拦截：${riskResult.rules
+                  .filter((r) => r.action === 'BLOCK')
+                  .map((r) => r.name)
+                  .join('、')}`,
+              ),
+            )
+          }
+        }
+
+        return this.prisma.$transaction(async (tx) => {
           const order = await tx.escrowOrder.findUnique({
             where: { orderNo },
             include: {
@@ -169,26 +197,7 @@ export class EscrowService {
             throw new BadRequestException(kbError(KBErrorCodes.ESCROW_EXPIRED))
           }
 
-          // 实名与支付密码校验
-          await this.usersService.verifyPayPassword(buyerId, payPassword)
-
-          // 风控
-          const riskResult = await this.riskEngine.check({
-            userId: buyerId,
-            type: 'TRANSFER',
-            amount: order.amount,
-          })
-          if (riskResult.blocked) {
-            throw new ForbiddenException(
-              kbError(
-                KBErrorCodes.FORBIDDEN,
-                `担保交易被风控拦截：${riskResult.rules
-                  .filter((r) => r.action === 'BLOCK')
-                  .map((r) => r.name)
-                  .join('、')}`,
-              ),
-            )
-          }
+          // 实名与支付密码校验、风控检查已移到事务外（见方法开头）
 
           // 单日限额
           const dateStr = businessDayKey()
@@ -301,7 +310,8 @@ export class EscrowService {
 
           const updated = await tx.escrowOrder.findUnique({ where: { id: order.id } })
           return updated
-        }),
+        })
+      },
     ).then((result) => {
       this.riskEngine
         .recordTransaction({
@@ -735,7 +745,7 @@ export class EscrowService {
     })
   }
 
-  /** 调度：自动取消超时未付款订单 */
+  /** 调度：自动取消超时未付款订单（扫描分页限流，防积压时全表装载） */
   async autoExpire() {
     const now = new Date()
     const expired = await this.prisma.escrowOrder.findMany({
@@ -744,6 +754,7 @@ export class EscrowService {
         expiredAt: { lt: now },
       },
       select: { id: true, orderNo: true },
+      take: 200,
     })
     for (const order of expired) {
       try {
@@ -762,7 +773,7 @@ export class EscrowService {
     return expired.length
   }
 
-  /** 调度：发货后超时自动确认收货（放款给卖家） */
+  /** 调度：发货后超时自动确认收货（放款给卖家），扫描分页限流 */
   async autoConfirm() {
     const threshold = new Date(Date.now() - ESCROW_AUTO_CONFIRM_MS)
     const candidates = await this.prisma.escrowOrder.findMany({
@@ -771,6 +782,7 @@ export class EscrowService {
         shippedAt: { lt: threshold },
       },
       select: { id: true, orderNo: true, buyerId: true },
+      take: 200,
     })
     let success = 0
     for (const order of candidates) {

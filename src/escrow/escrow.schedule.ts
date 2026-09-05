@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { EscrowService } from './escrow.service'
+import { RedisService } from '../redis/redis.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 
 @Injectable()
@@ -9,6 +10,7 @@ export class EscrowSchedule {
 
   constructor(
     private readonly escrowService: EscrowService,
+    private readonly redis: RedisService,
     private readonly scheduleHealth: ScheduleHealthService,
   ) {
     this.scheduleHealth.register('escrow:auto-expire', '0 */5 * * * *', '担保订单超时未付款自动取消')
@@ -21,7 +23,10 @@ export class EscrowSchedule {
     const start = Date.now()
     this.scheduleHealth.reportStart('escrow:auto-expire')
     try {
-      const count = await this.escrowService.autoExpire()
+      // 分布式锁串行化：多实例部署时防止并发扫描重复取消
+      const count = await this.redis.withLock('sched:escrow:auto-expire', 240, () =>
+        this.escrowService.autoExpire(),
+      )
       const duration = Date.now() - start
       this.scheduleHealth.reportComplete('escrow:auto-expire', true, duration)
       if (count > 0) {
@@ -41,7 +46,9 @@ export class EscrowSchedule {
     const start = Date.now()
     this.scheduleHealth.reportStart('escrow:auto-confirm')
     try {
-      const count = await this.escrowService.autoConfirm()
+      const count = await this.redis.withLock('sched:escrow:auto-confirm', 240, () =>
+        this.escrowService.autoConfirm(),
+      )
       const duration = Date.now() - start
       this.scheduleHealth.reportComplete('escrow:auto-confirm', true, duration)
       if (count > 0) {

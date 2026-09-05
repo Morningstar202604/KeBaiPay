@@ -159,7 +159,19 @@ describe('EscrowService', () => {
     it('正常付款：余额扣减并冻结', async () => {
       prisma.escrowOrder.findUnique.mockReset()
       prisma.account.findUnique.mockReset()
+      // 两次完整订单响应：一次给事务外的风控预检读取，一次给事务内主读取
       prisma.escrowOrder.findUnique
+        .mockResolvedValueOnce({
+          id: 'e1',
+          orderNo: 'E1',
+          buyerId: 'u1',
+          sellerId: 'u2',
+          status: EscrowStatus.CREATED,
+          amount: 1000,
+          expiredAt: new Date(Date.now() + 60000),
+          buyer: { nickname: 'B' },
+          seller: { nickname: 'S' },
+        })
         .mockResolvedValueOnce({
           id: 'e1',
           orderNo: 'E1',

@@ -131,9 +131,23 @@ export class SplitsService {
       (sum, r) => sum + yuanToFen(r.amount),
       0,
     )
-    // 校验分账总额不超过源订单金额
+    // 校验分账总额不超过源订单金额，且不突破该源订单的累计已分账额——
+    // 否则对同一源订单 N 次提交可累计分出 N 倍金额，破坏"分账来自源订单"的账务不变量
+    const previousSplits = await this.prisma.splitOrder.findMany({
+      where: { sourceOrderNo: dto.sourceOrderNo, status: { not: 'CANCELLED' } },
+      select: { splitAmount: true },
+    })
+    const alreadySplit = previousSplits.reduce((sum, o) => sum + o.splitAmount, 0)
     if (totalAmount > sourceOrder.amount) {
       throw new BadRequestException(kbError(KBErrorCodes.SPLIT_AMOUNT_EXCEED_SOURCE))
+    }
+    if (alreadySplit + totalAmount > sourceOrder.amount) {
+      throw new BadRequestException(
+        kbError(
+          KBErrorCodes.SPLIT_AMOUNT_EXCEED_SOURCE,
+          `该源订单累计已分账 ${fenToYuan(alreadySplit)} 元，剩余可分 ${fenToYuan(sourceOrder.amount - alreadySplit)} 元`,
+        ),
+      )
     }
 
     // 风控
