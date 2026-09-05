@@ -5,6 +5,7 @@
 ## 目录
 
 - [版本 0.2.1（2026-09-05）](#版本-0212026-09-05)
+- [版本 0.2.2（进行中）](#版本-022进行中)
 - [版本 0.3.0（进行中）](#版本-030进行中)
 - [版本 2.2.1（2026-08-26）](#版本-2212026-08-26)
 - [仓库体检与开源规范化](#仓库体检与开源规范化)
@@ -27,6 +28,38 @@
 
 - 版本基线收敛为 **0.2.1**（以根 `package.json` 的 0.2.1 为唯一版本源）。
 - 历史 2.x 条目（2.2.1 / 2.1.x / 2.0.0 等）作为历史记录归档保留，不再影响对外版本号。
+
+---
+
+## 版本 0.2.2（进行中）
+
+**版本类型：** Bug 修复 + 开发者体验修复
+
+### 安全修复
+
+- **开放 API HMAC 密钥口径修复（高危）**：2.2.1 的"签名口径统一"只对齐了签名串格式，未验证密钥字节序列——服务端（`open-api.guard`）此前直接把库存 hex 摘要字符串（64 字节 ASCII）作 HMAC 密钥，而官方 SDK 与四语言示例用的是 `sha256(appSecret)` 的 32 字节原始摘要，**两者签名恒不匹配，真实商户按 SDK 接入 100% 返回 KB401**。守卫单测用服务端口径自证、e2e 只覆盖失败路径，故未被发现。现服务端改为 `Buffer.from(hash, 'hex')` 还原与 SDK 相同的字节序列；`open-api.guard.spec` 签名助手改为真实客户端口径（仅持有明文），并新增 e2e 成功路径用例防回归。
+- **商户 Webhook 回调签名同口径修复**：`cashier.service.notifyMerchant` 同样误用 hex 字符串作密钥——商户手上只有明文 appSecret，永远无法验签通过。现与商户侧统一为 `HMAC-SHA256(SHA256_RAW(app_secret), raw_body)`；新增单测模拟"只有明文的商户"验证回调签名。
+
+### 修复
+
+- **E2E 测试在 Windows 下无法发现用例**：`test/jest-e2e.config.js` 的 `testMatch` 使用 `<rootDir>/**` 绝对 glob，Windows（路径分隔符 `\`）下匹配 0 个文件、`npm run test:e2e` 报 "No tests found"；CI（Linux）不受影响。改为相对 glob `**/*.e2e-spec.ts`。
+- **lockfile 版本漂移**：四个 `package-lock.json` 内嵌版本号仍停留在历史 2.2.1/2.3.0，与根 `package.json` 的 0.2.1 脱节（`version:sync` 此前只同步三前端 package.json）。`scripts/version-sync.mjs` 现同时校验/同步根与三前端 lockfile 的内嵌版本（`version:check` 不一致直接红）。
+- **快速开始第一步即失败（.env 与 dev compose 脱节）**：`.env.example` 的数据库密码与 `docker-compose.dev.yml` 硬编码的 `postgres` 不一致，照 README `cp .env.example .env` 后 `migrate deploy` 直接 P1000 认证失败。dev compose 改为引用 `${POSTGRES_PASSWORD:-postgres}`，与 `.env` 共用同一变量。
+- **照文档复制的 `.env` 服务无法启动**：`.env.example` 自带 `NODE_ENV="production"` + `SMS_PROVIDER="mock"`，生产环境禁止 mock 短信导致启动即被安全校验拒绝，与 README"开发模式默认 mock 渠道/短信"矛盾。`.env.example` 默认值改为 `development`（注释注明生产部署必须改回 production）。
+
+### 文档勘误
+
+- **DEVELOPER_GUIDE**：商户 HMAC 签名示例补齐"先对 appSecret 做 SHA-256 取 32 字节原始摘要"关键步骤（原文示例直接用明文作密钥，照抄必然验签失败）；用户登录响应示例修正为实际返回的 `{userId, token}`（原文写 `{access_token, user}`）；管理员登录示例密码改为说明取自 `ADMIN_DEFAULT_PASSWORD`（原文硬编码 `admin123456` 为错误值）。
+- **API_REFERENCE**：签名算法中 `hmac_key = SHA256_HEX(app_secret)` 澄清为 **32 字节原始摘要**（raw digest），明确"hex 字符串作密钥"为错误口径，并注明 v0.2.2 服务端口径修复。
+- **SDK_GUIDE 第 3 节重写**：Webhook 验签章节此前描述的 `X-App-Id/X-Timestamp/X-Nonce/X-Signature` 四头协议与 `eventType` 字段从未实现，与实际报文（单 `X-KB-Signature` 头 + `{orderNo, merchantOrderNo, amount, amountYuan, status, paidAt}` body）完全不符；现按实际实现重写报文结构、验签算法（预哈希密钥）、Node/Express/Python 示例，并新增重试与幂等说明。
+- **README**：测试数量徽章修正为实测 1178（原文 1186）；管理员测试账号密码说明改为取自 `ADMIN_DEFAULT_PASSWORD`（原文 `Admin2026` 与 `.env.example` 的 `ChangeAdmin2026` 不符）。
+- **CONTRIBUTING**：检查套件命令笔误 `pnpm test` 修正为本仓库实际使用的 `npm run lint && npm test`。
+
+### 验证
+
+- 全量单元测试 77 套件 / 1178 用例通过；E2E 5 套件 / 49 用例通过（Windows 本机实测）
+- `npm run lint`（tsc --noEmit）零错误；`npm run version:check` 全部对齐 0.2.1（lockfile 已同步）
+- 真实环境冒烟：mock 渠道充值 66.66 元 → 签名回调入账 → 余额/账本/账单核对一致 → 幂等键重复下单与回调重放均不重复入账
 
 ---
 
