@@ -99,7 +99,46 @@ const order = await kb.createOrder({ merchantOrderNo: 'MO_001', amount: 9.9, sub
 | ![admin](demo/screenshots/admin-dashboard.png) | ![portal](demo/screenshots/portal-dashboard.png) | ![h5](demo/screenshots/h5-home.png) |
 | 提现审核 / 风控事件 / Agent 管理 | 订单对账 / 收款码 / 应用密钥 | 钱包 / 红包 / AI 助手 |
 
-更多截图见 [`demo/screenshots/`](demo/screenshots)（24 张），演示视频见 [`demo/videos/`](demo/videos)。
+### 全端功能一览
+
+<details open>
+<summary><b>管理后台 Admin（10 页）</b> —— 点开查看全部截图</summary>
+
+| 页面 | 截图 | 页面 | 截图 |
+|---|---|---|---|
+| 登录 | ![admin-login](demo/screenshots/admin-login.png) | 数据概览 | ![admin-dashboard](demo/screenshots/admin-dashboard.png) |
+| 用户管理 | ![admin-users](demo/screenshots/admin-users.png) | 商户管理 | ![admin-merchants](demo/screenshots/admin-merchants.png) |
+| 实名审核 | ![admin-review](demo/screenshots/admin-review-withdrawals.png) | 提现审核 | ![admin-withdrawals](demo/screenshots/admin-withdrawals.png) |
+| 支付订单 | ![admin-orders](demo/screenshots/admin-orders.png) | 财务总览 | ![admin-finance](demo/screenshots/admin-finance.png) |
+| 风控事件 | ![admin-risk](demo/screenshots/admin-risk.png) | 智能体管理 | ![admin-agents](demo/screenshots/admin-agents.png) |
+
+</details>
+
+<details open>
+<summary><b>用户端 H5（7 页）</b></summary>
+
+| 页面 | 截图 | 页面 | 截图 |
+|---|---|---|---|
+| 登录 | ![h5-login](demo/screenshots/h5-login.png) | 钱包首页 | ![h5-home](demo/screenshots/h5-home.png) |
+| 充值 | ![h5-recharge](demo/screenshots/h5-recharge.png) | 红包 | ![h5-redpacket](demo/screenshots/h5-redpacket.png) |
+| 账单 | ![h5-bills](demo/screenshots/h5-bills.png) | 收银台 | ![h5-cashier](demo/screenshots/h5-cashier.png) |
+| AI 助手 | ![h5-agent](demo/screenshots/h5-agent.png) | | |
+
+</details>
+
+<details>
+<summary><b>商户门户 Portal（8 页）</b></summary>
+
+| 页面 | 截图 | 页面 | 截图 |
+|---|---|---|---|
+| 登录 | ![portal-login](demo/screenshots/portal-login.png) | 数据看板 | ![portal-dashboard](demo/screenshots/portal-dashboard.png) |
+| 应用密钥 | ![portal-apps](demo/screenshots/portal-apps.png) | 商户资料 | ![portal-merchant](demo/screenshots/portal-merchant.png) |
+| 订单管理 | ![portal-orders](demo/screenshots/portal-orders.png) | 收款码 | ![portal-qrcodes](demo/screenshots/portal-qrcodes.png) |
+| 对账查询 | ![portal-reconciliation](demo/screenshots/portal-reconciliation.png) | | |
+
+</details>
+
+> 每个页面每个按钮的详细操作说明见 **[用户使用手册](docs/USER_MANUAL.md)**，演示视频见 [`demo/videos/`](demo/videos)。
 
 ## 📊 功能矩阵
 
