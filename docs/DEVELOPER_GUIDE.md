@@ -351,7 +351,7 @@ Prisma schema 中通过 `@@index` 声明索引，遵循以下原则：
 
 权限系统由 `src/admin/permissions.decorator.ts` 与 `src/admin/permissions.guard.ts` 实现，基于「角色 → 权限码」映射，通过装饰器声明端点所需权限，Guard 在运行时校验 JWT 中的 `role`。
 
-### 11 种权限码
+### 12 种权限码
 
 | 权限码 | 说明 |
 |--------|------|
@@ -366,6 +366,7 @@ Prisma schema 中通过 `@@index` 声明索引，遵循以下原则：
 | `risk:config` | 风控规则配置、自定义规则 CRUD |
 | `risk:event:handle` | 风控事件处理 |
 | `admin:view` | 通用查询权限，所有后台角色均可读管理后台基础数据 |
+| `admin:manage` | 管理员账号增删改与密码重置，仅 SUPER_ADMIN 持有（v0.2.2：此前误用 user:status，客服角色可借此创建超级管理员接管后台） |
 
 ### 4 种角色
 

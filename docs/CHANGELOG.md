@@ -35,6 +35,33 @@
 
 **版本类型：** Bug 修复 + 开发者体验修复
 
+
+### 全库遍历审查修复（v0.2.2 追加，逐条人工核实）
+
+对全部业务模块做自底向上代码遍历（基础层人工精读 + 业务层三路并行审查、逐条核实后修复）：
+
+- **【严重】管理员账号端点权限提升**：admin-users 全部端点此前误用 `user:status` 权限，CUSTOMER_SERVICE 角色可创建/删除管理员、重置任意管理员密码（含 SUPER_ADMIN）——直接接管后台。新增 `admin:manage` 权限（仅 SUPER_ADMIN 持有）并全部换用；`updateAdminUser` 角色变更校验此前误查「被编辑目标」而非「操作者」角色，形同虚设，已修正。
+- **【高】批量转账验密缺失**：DTO 强制收集 payPassword 但服务端从不验证（全仓验密点不含 batch-transfers），持有 JWT 会话即可无需支付密码转出最高 500 笔×5000 元。
+- **【高】批量转账取消双花**：cancel 对 PENDING 明细的 updateMany 不检查命中数即累加退款额，与 processItem 认领并发时同一笔冻结双重释放。现仅对真正置 FAILED 的明细累计退款。
+- **【高】订阅自动扣款重复扣款**：chargeOnce 锁内重读后不复查 nextChargeAt，并发/重叠调度下同一周期扣两次；且调度任务无分布式锁。已加到期复查 + 调度级 withLock。
+- **【高】订阅首扣失败当成功**：subscribe 不检查首期扣款状态即推进周期（未付款先享一期，totalCycles=1 时直接 EXPIRED）。现首扣失败整体回滚（新增错误码 KB659）。
+- **【高】订阅失败重试死循环**：SubscriptionCharge 唯一约束 (subscriptionId, cycleStart) 使失败重试永远无法落库，consecutiveFailures 恒为 1、永不暂停。executeCharge 现复用同周期槽位（SUCCESS 拒绝重扣），连续失败计数改由新增 Subscription.consecutiveFailures 字段维护（附迁移）。
+- **【高】订阅扣款复活已取消订阅**：chargeOnce 收尾为无条件 update，与 cancel 并发时把 CANCELLED 覆写回 ACTIVE 继续扣款。成功/失败/过期三处收尾均加 ACTIVE 条件守卫。
+- **【高】管理端响应泄露密码哈希**：listUsers/getUserDetail spread 全列，响应含 loginPassword/payPassword 哈希与 pendingPayPasswordHash。已剔除；全局响应脱敏名单补充 loginPassword/payPassword/idCardHash/cardNumberHash/phoneHash 等。
+- **【高】渠道凭据明文入审计链**：updateChannel 审计 detail 落 dto 原文（含新私钥/apiV3Key），而库内已加密——审计日志成为明文凭据出口。detail 改记元数据；顺带把列表脱敏由「长度>20」阈值改为字段名白名单。
+- **【高】银行卡明文卡号出网**：GET /bank-cards/default 返回 cardNumberPlain 明文卡号（无任何调用方需要，注释声称的提现用途不成立）。已移除；toDto 解密加容错防单条坏记录打挂列表。
+- **【高】Agent 授权限额被架空**：AgentAuthorization.maxAmount 只存不校验，用户授权设置的单笔上限无效。确认执行路径实时读取授权记录强制执行，并校验授权未撤销。
+- **【高】Agent 转账日限额 8 小时绕过窗口**：agentTransfer 日聚合窗口用 UTC 拼接 businessDayKey 的日期串，北京时间 0:00-8:00 的交易落在任何窗口之外，AGENT_MAX_AMOUNT_PER_DAY 可被反复绕过。新增 businessDayRange() 业务时区日界助手并修用。
+- **【中】幂等归属校验补漏**：recharge 预检与 P2002 兜底路径、qr-pay P2002 兜底路径命中幂等键时不校验归属（其余资金模块均有），可跨用户读回他人订单实体。已补齐。
+- **【中】事务内外呼治理**：红包领取的风控检查（Redis+非事务 DB 读）在已持行锁的事务内执行；提现创建与充值回调在事务内 fire-and-forget 风控频率写入（与提交竞跑）。红包预检移到事务外（金额取保守上界），频率记录统一移到事务提交后。
+- **【中】代付回调成功路径缺状态守卫**：PROCESSING→SUCCESS 用无守卫 update，与失败路径的条件 update 不对称，锁退化时可双写。补条件转移 + 冲突时幂等返回并告警。
+- **【中】调度任务加固**：红包过期调度补分布式锁；红包/充值超时/提现超时/担保过期/担保自动放款五个扫描补 take 限流；担保两个调度补 withLock。
+- **【中】提现日限额首建竞态**：并发首笔转账同时 create DailyLimitUsage 撞唯一约束抛未映射 P2002（500）。捕获后重读走 version 条件更新。
+- **【中】分账累计上限缺失**：对同一源订单 N 次分账可累计分出 N 倍源订单金额。现校验累计已分额（CANCELLED 除外）不超源订单。
+- **【中】邀请奖励门槛绕过**：triggerReward 接受客户端自报 amount（dto.amount ?? order.amount）绕过触发门槛，端点实际公开。一律以订单实际金额判定。
+- **【中】银联验签旁路移除**：verifyWebhook 沙箱直通 + MOCK_SIGN_ 前缀放行——验签可被配置静默关闭属高危模式。全部移除，沙箱同样强制验签。
+- **【中】健康诊断端点无认证**：/health/schedules、/health/channels 暴露内部任务名与 lastError 原文。补 AdminJwtAuthGuard（liveness/readiness 保持公开）。
+- **【中】对账自动修正事件丢失**：auto-fix 以 userId='SYSTEM' 写 RiskEvent 必然违反外键被吞，事件从未落库。改用 anchor 用户模式（对齐 audit.schedule）。
 ### 安全修复
 
 - **开放 API HMAC 密钥口径修复（高危）**：2.2.1 的"签名口径统一"只对齐了签名串格式，未验证密钥字节序列——服务端（`open-api.guard`）此前直接把库存 hex 摘要字符串（64 字节 ASCII）作 HMAC 密钥，而官方 SDK 与四语言示例用的是 `sha256(appSecret)` 的 32 字节原始摘要，**两者签名恒不匹配，真实商户按 SDK 接入 100% 返回 KB401**。守卫单测用服务端口径自证、e2e 只覆盖失败路径，故未被发现。现服务端改为 `Buffer.from(hash, 'hex')` 还原与 SDK 相同的字节序列；`open-api.guard.spec` 签名助手改为真实客户端口径（仅持有明文），并新增 e2e 成功路径用例防回归。

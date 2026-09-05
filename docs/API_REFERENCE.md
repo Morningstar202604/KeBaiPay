@@ -593,7 +593,7 @@ period 取值：`DAILY` / `WEEKLY` / `MONTHLY` / `YEARLY`。
 
 约束：每期金额上限 10000 元，单用户订阅计划数上限 100，连续失败 3 次自动暂停。
 
-错误码：`KB650 计划不存在`、`KB651 计划已下架`、`KB652 订阅不存在`、`KB653 订阅状态不允许该操作`、`KB654 已订阅该计划`、`KB655 扣款记录不存在`、`KB656 不能订阅自己的计划`、`KB657 周期参数无效`、`KB658 订阅金额必须大于 0`。
+错误码：`KB650 计划不存在`、`KB651 计划已下架`、`KB652 订阅不存在`、`KB653 订阅状态不允许该操作`、`KB654 已订阅该计划`、`KB655 扣款记录不存在`、`KB656 不能订阅自己的计划`、`KB657 周期参数无效`、`KB658 订阅金额必须大于 0`、`KB659 首期扣款失败（订阅未创建，修正后重新订阅）`。
 
 ---
 
@@ -1470,6 +1470,7 @@ KeBaiPay 统一错误码范围为 `KB001 ~ KB999`，按业务域分段。所有�
 | KB656 | SUBSCRIPTION_CANNOT_SELF_SUBSCRIBE | 不能订阅自己的计划 |
 | KB657 | SUBSCRIPTION_PERIOD_INVALID | 订阅周期参数无效 |
 | KB658 | SUBSCRIPTION_AMOUNT_INVALID | 订阅金额必须大于 0 |
+| KB659 | SUBSCRIPTION_FIRST_CHARGE_FAILED | 订阅首期扣款失败（订阅整体未创建） |
 | KB660 | SPLIT_ORDER_NOT_FOUND | 分账订单不存在 |
 | KB661 | SPLIT_SOURCE_ORDER_NOT_FOUND | 源订单不存在或非已支付状态 |
 | KB662 | SPLIT_AMOUNT_EXCEED_SOURCE | 分账总额超过源订单可分账金额 |
