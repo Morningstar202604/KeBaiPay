@@ -1,4 +1,0 @@
-# Dependabot 已禁用
-# CONTRIBUTING.md 明确要求：手动更新，不使用 Dependabot / Renovate 等自动依赖机器人
-# 每月由维护者人工执行 npm audit + npm outdated，评估升级风险后提交 PR
-# 此文件保留仅供说明，不触发任何自动更新行为。
