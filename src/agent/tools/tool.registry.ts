@@ -233,6 +233,26 @@ export class ToolRegistry {
             throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '收款人ID无效或不能向自己转账'))
           }
           const remark = this.truncate(args?.remark, 200)
+          // 授权单笔限额：AgentAuthorization.maxAmount 此前只存不校验，
+          // 用户授权时设置的金额上限被架空。确认执行路径实时读取授权记录强制执行，
+          // 顺带校验授权未撤销（防确认窗口内撤销后的残余执行）
+          if (ctx.authId) {
+            const auth = await this.prisma.agentAuthorization.findUnique({
+              where: { id: ctx.authId },
+              select: { maxAmount: true, revokedAt: true },
+            })
+            if (!auth || auth.revokedAt) {
+              throw new ForbiddenException(
+                kbError(KBErrorCodes.AGENT_AUTHORIZATION_REVOKED, '授权不存在或已撤销'),
+              )
+            }
+            const amountFen = Math.round(amountYuan * 100)
+            if (auth.maxAmount != null && amountFen > auth.maxAmount) {
+              throw new ForbiddenException(
+                kbError(KBErrorCodes.FORBIDDEN, `超过该授权的单笔限额 ${fenToYuan(auth.maxAmount)} 元`),
+              )
+            }
+          }
           // opLogId 由 AgentService 注入 args.__opLogId，作为幂等键防止重复执行
           const opLogId = this.truncate(args?.__opLogId, 64) || `AGENT:legacy:${Date.now()}`
           const order = await deps.transfersService.agentTransfer(subjectId, {

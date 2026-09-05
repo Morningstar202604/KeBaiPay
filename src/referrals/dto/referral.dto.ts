@@ -57,5 +57,5 @@ export class TriggerRewardDto {
   @IsInt()
   @Min(1)
   @Type(() => Number)
-  amount?: number  // 触发交易的金额（分），不传则从订单查询
+  amount?: number  // 已废弃：服务端一律以订单实际金额判定触发门槛，此字段被忽略
 }
