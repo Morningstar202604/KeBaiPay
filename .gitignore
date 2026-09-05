@@ -23,6 +23,8 @@ prisma/migrations/*
 .env.*.local
 
 # Logs
+.mimosa/
+
 logs
 *.log
 npm-debug.log*

@@ -2,7 +2,7 @@
   <el-container class="admin">
     <el-aside width="224px" class="admin-aside">
       <div class="brand">
-        <div class="brand-mark"><span>佰</span></div>
+        <img class="brand-logo" src="/logo.svg" alt="KeBaiPay" />
         <div class="brand-text">
           <span class="brand-name">科佰支付</span>
           <span class="brand-sub">管理后台</span>
@@ -82,7 +82,7 @@ async function onCommand(cmd: string) {
   overflow-x: hidden;
 }
 .brand { display: flex; align-items: center; gap: 10px; padding: 20px 18px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-.brand-mark { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg,#0fa968,#0ea5e9); display: flex; align-items: center; justify-content: center; color:#fff; font-weight:700; box-shadow: 0 6px 16px rgba(15,169,104,0.35); }
+.brand-logo { width: 36px; height: 36px; border-radius: 10px; box-shadow: 0 6px 16px rgba(15,169,104,0.35); display: block; }
 .brand-text { display:flex; flex-direction:column; line-height:1.25; }
 .brand-name { color:#fff; font-weight:600; font-size:15px; }
 .brand-sub { font-size:11px; color:#64748b; }

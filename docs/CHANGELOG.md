@@ -92,6 +92,16 @@
 - **【中】queryRefund 无锁无守卫**：状态迁移为无条件 update，与回调路径竞态。改条件迁移（PENDING/PROCESSING → 终态），仅抢到迁移权的一方处理资金。
 - e2e MockPrismaClient 修复潜在缺陷：where 匹配器 `in`/`notIn` 操作符误对整个条件对象调 includes（此前无查询使用 `in` 未暴露），已修正为对 `val.in`/`val.notIn`。
 
+
+### 全端 UI 走查与小版本打磨（v0.2.2 续）
+
+浏览器逐页真实点击/输入走查四端后修复：
+
+- **【高】管理后台全部列表页数据恒为空**：8 个页面（用户/商户/实名/提现/订单/财务/风控/智能体）把「全部状态」的空字符串筛选值直接传给后端，触发 KB400 校验失败。三前端 axios 请求拦截器统一剔除空参（空串/null/undefined），一处修复覆盖全部页面。
+- **品牌化**：新增可替换矢量 logo `public/logo.svg`（翡翠绿渐变 + KB 字标），接入管理后台/商户门户侧边栏、H5 顶栏、三端登录页与全站 favicon；企业换标只需替换该文件（三前端 public 目录各有一份构建副本）。
+- **视觉打磨**：design-system 三端增加文本选中色、表格/统计数字等宽（tabular-nums）、键盘焦点可见（focus-visible）。
+- **交付资料**：新增 `docs/HANDOVER.md`（企业交接说明：部署/必改环境变量/测试账号/验证状态/已知限制）与 `docs/openapi.json`（192 端点 OpenAPI 3.0 规范，可直接导入 Apifox/Postman）。
+
 ### 验证
 
 - 全量单元测试 77 套件 / 1178 用例通过；E2E 5 套件 / 49 用例通过（Windows 本机实测）

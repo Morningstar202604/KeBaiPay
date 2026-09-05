@@ -2,7 +2,7 @@
   <div class="login-page">
     <div class="login-card">
       <div class="brand">
-        <div class="brand-mark">佰</div>
+        <img class="brand-mark" src="/logo.svg" alt="KeBaiPay" />
         <h1>科佰支付</h1>
         <p>商户服务中台 · 安全资金服务</p>
       </div>
@@ -104,13 +104,8 @@ async function submit() {
   height: 56px;
   margin: 0 auto 12px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #0fa968, #0ea5e9);
-  color: #fff;
-  font-size: 24px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  object-fit: cover;
   box-shadow: 0 10px 24px rgba(15, 169, 104, 0.35);
 }
 .brand h1 { margin: 0; font-size: 22px; color: var(--el-text-color-primary); }

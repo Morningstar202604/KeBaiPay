@@ -2,7 +2,7 @@
   <div class="h5">
     <header class="h5-header">
       <div class="h5-brand">
-        <span class="brand-dot" />
+        <img class="brand-logo" src="/logo.svg" alt="KeBaiPay" />
         <span>{{ title }}</span>
       </div>
       <el-dropdown v-if="auth.isAuthenticated" @command="onCommand">
@@ -73,7 +73,7 @@ async function onCommand(cmd: string) {
   z-index: 10;
 }
 .h5-brand { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; }
-.brand-dot { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg,#0fa968,#0ea5e9); box-shadow: 0 0 10px rgba(15,169,104,.6); }
+.brand-logo { width: 26px; height: 26px; border-radius: 7px; display: block; box-shadow: 0 2px 8px rgba(15,169,104,.4); }
 .h5-user { color: #fff; cursor: pointer; display: flex; align-items: center; }
 .h5-main { flex: 1; overflow-y: auto; padding: 14px; padding-bottom: 90px; }
 .h5-nav {
