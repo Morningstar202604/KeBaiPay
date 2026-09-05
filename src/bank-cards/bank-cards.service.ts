@@ -157,17 +157,13 @@ export class BankCardsService {
     return { success: true }
   }
 
-  /** 取默认卡（提现时使用） */
+  /** 取默认卡（展示用，仅脱敏字段） */
   async findDefault(userId: string) {
     const card = await this.prisma.bankCard.findFirst({
       where: { userId, status: 'ACTIVE', isDefault: true },
     })
     if (!card) return null
-    return {
-      ...this.toDto(card),
-      // 提现服务需要明文卡号
-      cardNumberPlain: this.crypto.decrypt(card.cardNumber),
-    }
+    return this.toDto(card)
   }
 
   /** 转换为对外 DTO：脱敏卡号、手机号 */
@@ -194,13 +190,21 @@ export class BankCardsService {
         maskedPhone = maskPhone(card.phone)
       }
     }
+    // 解密一次并容错：历史明文/密钥轮换导致解密失败时按原值脱敏，
+    // 不让单条坏记录打挂整个列表接口（对齐 withdrawals 的兼容口径）
+    let cardNumberPlain: string
+    try {
+      cardNumberPlain = this.crypto.decrypt(card.cardNumber)
+    } catch {
+      cardNumberPlain = card.cardNumber
+    }
     return {
       id: card.id,
       holderName: card.holderName,
       // 永远只返回脱敏后的卡号
-      cardNumberMasked: maskBankCard(this.crypto.decrypt(card.cardNumber)),
+      cardNumberMasked: maskBankCard(cardNumberPlain),
       // 末四位方便前端展示
-      cardNumberLast4: this.crypto.decrypt(card.cardNumber).slice(-4),
+      cardNumberLast4: cardNumberPlain.slice(-4),
       bankName: card.bankName,
       branchName: card.branchName,
       phoneMasked: maskedPhone,

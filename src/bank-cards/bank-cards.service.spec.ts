@@ -261,7 +261,8 @@ describe('BankCardsService', () => {
         updatedAt: new Date(),
       })
       const result = await service.findDefault('u1')
-      expect(result?.cardNumberPlain).toBe('6222001234567890123')
+      // v0.2.2 安全修复：默认卡接口不再返回明文卡号（此前泄露给前端）
+      expect(result).not.toHaveProperty('cardNumberPlain')
       expect(result?.cardNumberMasked).toBe('6222****0123')
     })
   })
