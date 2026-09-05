@@ -303,7 +303,13 @@ export class QrCodesService {
           const existing = await this.prisma.transactionOrder.findUnique({
             where: { idempotencyKey: dto.idempotencyKey },
           })
-          if (existing) return existing
+          if (existing) {
+            // 归属校验：此兜底路径此前绕过了事务内的 H5 归属检查
+            if (existing.fromUserId !== payerId) {
+              throw new BadRequestException(kbError(KBErrorCodes.IDEMPOTENCY_KEY_CONFLICT))
+            }
+            return existing
+          }
         }
         throw e
       }

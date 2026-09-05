@@ -55,12 +55,17 @@ export class TransactionsService {
     const amount = yuanToFen(amountYuan)
     const orderNo = generateOrderNo('R')
 
-    // 幂等检查
+    // 幂等检查（命中时校验归属：防止携他人幂等键读回他人订单实体）
     if (idempotencyKey) {
       const existing = await this.prisma.transactionOrder.findUnique({
         where: { idempotencyKey },
       })
-      if (existing) return existing
+      if (existing) {
+        if (existing.toUserId !== userId) {
+          throw new BadRequestException(kbError(KBErrorCodes.IDEMPOTENCY_KEY_CONFLICT))
+        }
+        return existing
+      }
     }
 
     // 风控检查：创建订单前执行，拦截高风险充值
@@ -110,7 +115,13 @@ export class TransactionsService {
         const existing = await this.prisma.transactionOrder.findUnique({
           where: { idempotencyKey },
         })
-        if (existing) return existing
+        if (existing) {
+          // 同样校验归属
+          if (existing.toUserId !== userId) {
+            throw new BadRequestException(kbError(KBErrorCodes.IDEMPOTENCY_KEY_CONFLICT))
+          }
+          return existing
+        }
       }
       throw e
     }
@@ -183,14 +194,14 @@ export class TransactionsService {
     const result = channel.parseRechargeCallback(rawBody, headers, channelConfig.config)
 
     return this.redis.withLock(`recharge:callback:${result.orderNo}`, REDIS_LOCK_TTL_SECONDS, async () => {
-      return this.prisma.$transaction(async (tx) => {
+      const txResult = await this.prisma.$transaction(async (tx) => {
         const order = await tx.transactionOrder.findUnique({
           where: { orderNo: result.orderNo },
         })
         if (!order) throw new NotFoundException(kbError(KBErrorCodes.ORDER_NOT_FOUND, '充值订单不存在'))
         if (order.status === TransactionStatus.SUCCESS || order.status === TransactionStatus.FAILED) {
           // 终态订单幂等返回，防止乱序回调凭空入账
-          return channel.buildRechargeCallbackSuccess()
+          return { response: channel.buildRechargeCallbackSuccess(), risk: null }
         }
         // 安全防护：回调渠道必须与订单创建时的渠道一致，防止用 A 渠道密钥伪造对 B 渠道订单的回调
         if (order.channel !== channelCode) {
@@ -214,7 +225,7 @@ export class TransactionsService {
               completedAt: new Date(),
             },
           })
-          return channel.buildRechargeCallbackSuccess()
+          return { response: channel.buildRechargeCallbackSuccess(), risk: null }
         }
 
         // 成功：入账
@@ -286,17 +297,23 @@ export class TransactionsService {
           { journalId, accountCode: `USER:${order.toUserId}`, credit: order.amount, memo: `充值入账 ${order.orderNo}` },
         ])
 
-        const response = channel.buildRechargeCallbackSuccess()
-        // 充值入账成功后记录风控频率（不阻塞回调返回）
-        this.riskEngine.recordTransaction({
-          userId: order.toUserId!,
-          type: 'RECHARGE',
-          amount: order.amount,
-        }).catch((err) => {
-          this.logger.warn(`recordTransaction(RECHARGE) 失败: ${err?.message || err}`)
-        })
-        return response
+        return {
+          response: channel.buildRechargeCallbackSuccess(),
+          risk: { userId: order.toUserId!, amount: order.amount },
+        }
       })
+    // 风控频率在事务提交后记录（此前 fire-and-forget 发生在事务内，
+    // 与提交竞跑：可能入账未提交而频率已计入）
+    if (txResult.risk) {
+      this.riskEngine.recordTransaction({
+        userId: txResult.risk.userId,
+        type: 'RECHARGE',
+        amount: txResult.risk.amount,
+      }).catch((err) => {
+        this.logger.warn(`recordTransaction(RECHARGE) 失败: ${err?.message || err}`)
+      })
+    }
+    return txResult.response
     })
   }
 }

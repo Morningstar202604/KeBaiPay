@@ -362,15 +362,31 @@ export class UsersService {
       },
     })
     if (!usage) {
-      usage = await tx.dailyLimitUsage.create({
-        data: {
-          userId,
-          limitType,
-          date,
-          usedAmount: 0,
-          version: 0,
-        },
-      })
+      try {
+        usage = await tx.dailyLimitUsage.create({
+          data: {
+            userId,
+            limitType,
+            date,
+            usedAmount: 0,
+            version: 0,
+          },
+        })
+      } catch (e) {
+        // 首建竞态：同一用户两笔并发转账持不同锁（如不同 idempotencyKey），
+        // 同时 create 撞 @@unique([userId, limitType, date])。捕获后重读，
+        // 走下方 version 条件更新——限额守卫语义不变，避免无谓 500
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          usage = await tx.dailyLimitUsage.findFirst({
+            where: { userId, limitType, date },
+          })
+        } else {
+          throw e
+        }
+      }
+    }
+    if (!usage) {
+      throw new BadRequestException(kbError(KBErrorCodes.DAILY_LIMIT_EXCEEDED))
     }
 
     const updated = await tx.dailyLimitUsage.updateMany({

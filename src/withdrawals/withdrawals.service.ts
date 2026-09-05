@@ -226,7 +226,10 @@ export class WithdrawalsService {
         })
       }
 
-      // 提现申请创建成功后记录风控频率（不阻塞业务）
+      return order
+    }).then((order) => {
+      // 提现申请创建成功后记录风控频率：移到事务提交后执行，
+      // 此前 fire-and-forget 在事务内发起，与提交竞跑且拉长事务
       this.riskEngine.recordTransaction({
         userId,
         type: 'WITHDRAW',
@@ -234,7 +237,6 @@ export class WithdrawalsService {
       }).catch((err) => {
         this.logger.warn(`recordTransaction(WITHDRAW) 失败: ${err?.message || err}`)
       })
-
       return order
     })
     })
@@ -465,13 +467,23 @@ export class WithdrawalsService {
         if (!account) throw new NotFoundException(kbError(KBErrorCodes.ACCOUNT_NOT_FOUND))
 
         if (result.status === 'SUCCESS') {
-          await tx.withdrawalOrder.update({
-            where: { id: order.id },
+          // 条件状态转移 PROCESSING -> SUCCESS：与失败路径的守卫对称，
+          // 防止锁退化时成功回调与超时/人工退款流程双写（钱已退回又记成功）
+          const successUpdate = await tx.withdrawalOrder.updateMany({
+            where: { id: order.id, status: WithdrawalStatus.PROCESSING },
             data: {
               ...(needChannelNoBackfill ? { channelOrderNo: result.channelOrderNo } : {}),
               status: WithdrawalStatus.SUCCESS,
             },
           })
+          if (successUpdate.count === 0) {
+            // 已被失败路径抢先处理（钱已退回用户）：不再补记 bill/journal，
+            // 幂等返回成功给渠道止住重试；差异交人工/对账核实
+            this.logger.error(
+              `代付回调成功但订单 ${order.orderNo} 已非 PROCESSING（疑似并发失败退款），需人工核对`
+            )
+            return channel.buildPayoutCallbackSuccess()
+          }
 
           await tx.bill.create({
             data: {

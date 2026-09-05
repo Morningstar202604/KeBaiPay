@@ -1,4 +1,4 @@
-import { businessDayKey } from '../common/date-helpers'
+import { businessDayKey, businessDayRange } from '../common/date-helpers'
 import {
   Injectable,
   BadRequestException,
@@ -174,9 +174,10 @@ export class TransfersService {
       const dateStr = businessDayKey()
 
       return this.prisma.$transaction(async (tx) => {
-        // Agent 专项单日累计限额（含本次）
-        const dayStart = new Date(`${dateStr}T00:00:00.000Z`)
-        const dayEnd = new Date(`${dateStr}T23:59:59.999Z`)
+        // Agent 专项单日累计限额（含本次）。
+        // 业务时区日界：此前用 UTC 拼接，北京时间 0:00-8:00 的转账 completedAt
+        // 落在任何一天的聚合窗口之外，AGENT_MAX_AMOUNT_PER_DAY 可被绕过
+        const { start: dayStart, end: dayEnd } = businessDayRange(dateStr)
         const agentToday = await tx.transactionOrder.aggregate({
           where: {
             fromUserId,

@@ -612,6 +612,8 @@ describe('WithdrawalsService', () => {
         totalBalance: 9000,
       })
 
+      prisma.withdrawalOrder.updateMany.mockResolvedValue({ count: 1 })
+
       const body = JSON.stringify({
         orderNo,
         channelOrderNo,
@@ -623,8 +625,9 @@ describe('WithdrawalsService', () => {
       const result = await service.handlePayoutCallback('mock', body, headers)
 
       expect(result).toBe('SUCCESS')
-      expect(prisma.withdrawalOrder.update).toHaveBeenCalledWith(
+      expect(prisma.withdrawalOrder.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
+          where: expect.objectContaining({ status: 'PROCESSING' }),
           data: expect.objectContaining({ status: 'SUCCESS' }),
         }),
       )
