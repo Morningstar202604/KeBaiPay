@@ -763,6 +763,7 @@ model Subscription {
   endAt             DateTime? @map("end_at") // 计划结束时间（totalCycles 达到时）
   cancelledAt       DateTime? @map("cancelled_at")
   completedCycles   Int       @default(0) @map("completed_cycles")
+  consecutiveFailures Int     @default(0) @map("consecutive_failures")
   lastChargeId      String?   @map("last_charge_id")
   idempotencyKey    String?   @unique @map("idempotency_key")
   createdAt         DateTime  @default(now()) @map("created_at")
