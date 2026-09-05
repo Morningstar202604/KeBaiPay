@@ -13,22 +13,21 @@
 
 ## 代码托管平台
 
-本项目同步托管于两个平台，**内容完全一致**，请按网络环境选择：
+本项目托管于 GitHub，**内容以主仓库为准**：
 
 | 平台 | 地址 | 适用场景 |
 |---|---|---|
-| GitHub（国际） | https://github.com/Morningstar202604/KeBaiPay | 国际协作、CI 自动化、Issue/PR 主入口 |
-| gitcode（国内） | https://gitcode.com/badhope/KeBaiPay | 国内镜像访问加速、国内开发者 Fork/Clone |
+| GitHub | https://github.com/Morningstar202604/KeBaiPay | 协作、CI 自动化、Issue/PR 主入口 |
 
-- **主仓库**为 GitHub，gitcode 为镜像。CI 自动化仅在 GitHub 运行（`.github/workflows/`）
-- 提交 PR 请在 GitHub 主仓库发起，gitcode 仅用于代码镜像与国内访问
-- Issue 可在任一平台提交，但建议在 GitHub 统一跟踪
+- **主仓库**为 GitHub。CI 自动化在 GitHub 运行（`.github/workflows/`）
+- 提交 PR 请在 GitHub 主仓库发起
+- Issue 请在 GitHub 提交
 
 ## 核心贡献者
 
 | 平台 | 角色 | 职责 |
 |---|---|---|
-| [@Morningstar202604](https://github.com/Morningstar202604)（GitHub） · [@badhope](https://gitcode.com/badhope)（gitcode） | 项目负责人 / 架构师 | 整体架构、资金安全审查、技术选型、API 契约 |
+| [@Morningstar202604](https://github.com/Morningstar202604)（GitHub） | 项目负责人 / 架构师 | 整体架构、资金安全审查、技术选型、API 契约 |
 | [@KEBAI-CN](https://github.com/KEBAI-CN) | 联合开发者 | 功能开发、测试、文档、AI 智能体层、前端 |
 
 ## 如何贡献

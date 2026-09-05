@@ -6,15 +6,14 @@
 
 | 平台 | 角色 | 主要职责 |
 |---|---|---|
-| [@Morningstar202604](https://github.com/Morningstar202604)（GitHub） · [@badhope](https://gitcode.com/badhope)（gitcode） | 项目负责人 / 架构师 | 整体技术架构、资金安全审查、API 契约、风控引擎、AI 智能体设计 |
+| [@Morningstar202604](https://github.com/Morningstar202604)（GitHub） · [@Morningstar202604](https://gitcode.com/Morningstar202604)（gitcode） | 项目负责人 / 架构师 | 整体技术架构、资金安全审查、API 契约、风控引擎、AI 智能体设计 |
 | [@KEBAI-CN](https://github.com/KEBAI-CN) | 联合开发者 | 功能开发、测试用例、文档维护、前端实现、LLM 接入联调 |
 
-### 仓库（双平台镜像）
+### 仓库
 
 | 平台 | 地址 | 定位 |
 |---|---|---|
 | GitHub | https://github.com/Morningstar202604/KeBaiPay | 主仓库，CI/Issue/PR 主入口 |
-| gitcode | https://gitcode.com/badhope/KeBaiPay | 国内镜像，访问加速 |
 
 ## 角色定义
 
@@ -112,4 +111,4 @@
    - `fix:` 修复
    - `refactor:` 重构
    - `docs:` 文档
-5. **阶段同步**：每完成一个阶段，同时推送到 GitHub 和 GitCode 两个仓库。
+5. **阶段同步**：每完成一个阶段，推送到 GitHub 主仓库。

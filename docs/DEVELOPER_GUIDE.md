@@ -37,11 +37,8 @@
 ### 安装与启动
 
 ```bash
-# 1. 克隆项目（任选其一，国内推荐 gitcode 镜像）
-# GitHub（国际）：
+# 1. 克隆项目（GitHub 主仓库）
 git clone https://github.com/Morningstar202604/KeBaiPay.git
-# gitcode（国内）：
-git clone https://gitcode.com/badhope/KeBaiPay.git
 cd KeBaiPay
 
 # 2. 安装依赖

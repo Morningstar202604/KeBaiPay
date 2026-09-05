@@ -41,7 +41,7 @@
 | # | 检查项 | 内容 | 状态 |
 |---|---|---|---|
 | 1 | LICENSE 文件 | PolyForm Noncommercial 1.0.0 | ✅ |
-| 2 | Copyright 声明 | `badhope / Morningstar202604` | ✅ |
+| 2 | Copyright 声明 | `Morningstar202604` | ✅ |
 | 3 | README 许可证说明 | 非商用免费，商用需授权 | ✅ |
 | 4 | CONTRIBUTING.md 商用条款 | 明确标注 | ✅ |
 | 5 | FUNDING.yml | 不接受赞助，欢迎其他贡献 | ✅ |
@@ -50,12 +50,12 @@
 
 | # | 检查项 | 值 | 状态 |
 |---|---|---|---|
-| 1 | root package.json version | 2.2.1 | ✅ |
-| 2 | web package.json version | 2.2.1 | ✅ |
-| 3 | web-h5 package.json version | 2.2.1 | ✅ |
-| 4 | web-admin package.json version | 2.2.1 | ✅ |
-| 5 | README version badge | 2.2.1 | ✅ |
-| 6 | CHANGELOG.md latest | v2.2.1 (2026-08-26) | ✅ |
+| 1 | root package.json version | 0.2.1 | ✅ |
+| 2 | web package.json version | 0.2.1 | ✅ |
+| 3 | web-h5 package.json version | 0.2.1 | ✅ |
+| 4 | web-admin package.json version | 0.2.1 | ✅ |
+| 5 | README version badge | 0.2.1 | ✅ |
+| 6 | CHANGELOG.md latest | v0.2.1 (2026-09-05) | ✅ |
 
 ---
 
@@ -110,15 +110,13 @@
 
 ---
 
-## 五、多平台仓库说明
+## 五、仓库说明
 
 | 平台 | 地址 | 定位 |
 |---|---|---|
 | **GitHub（主仓库）** | [Morningstar202604/KeBaiPay](https://github.com/Morningstar202604/KeBaiPay) | 主要开发平台，Issues / PR / CI |
-| Gitee | [badhope/kebaipay](https://gitee.com/badhope/kebaipay) | 国内镜像，方便国内开发者访问 |
-| GitCode | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) | 备用镜像 |
 
-> **注意**：三平台内容应保持同步，主要开发在 GitHub 上进行。
+> **注意**：主要开发在 GitHub 上进行。
 
 ---
 
@@ -159,9 +157,8 @@ git check-ignore -v dist/ node_modules/ demo/videos/
 
 1. 修改 `docs/CHANGELOG.md` 添加新版本记录
 2. 执行 `npm run version:sync` 同步所有 package.json 版本号
-3. 提交版本变更，打 Git Tag（如 `v2.3.0`）
+3. 提交版本变更，打 Git Tag（如 `v0.3.0`）
 4. 发布 GitHub Release，附更新说明
-5. 同步推送到 Gitee 和 GitCode 镜像
 
 ### 社区贡献
 
@@ -225,6 +222,6 @@ cd ../web-admin && npm install && npm run build
 
 ---
 
-**最后更新**：2026-09-04  
-**项目版本**：v2.2.1  
+**最后更新**：2026-09-05  
+**项目版本**：v0.2.1  
 **发布状态**：✅ 已完成开源发布准备

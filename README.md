@@ -9,11 +9,11 @@
 `NestJS 11` `TypeScript 6` `Prisma 7` `PostgreSQL 16` `Redis 7` `Vercel AI SDK` `MCP`
 
 [![CI](https://github.com/Morningstar202604/KeBaiPay/actions/workflows/ci.yml/badge.svg)](https://github.com/Morningstar202604/KeBaiPay/actions/workflows/ci.yml)
-[![version](https://img.shields.io/badge/version-2.2.1-0FA968)](docs/CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-0.2.1-0FA968)](docs/CHANGELOG.md)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](package.json)
-[![tests](https://img.shields.io/badge/tests-1177%20passing-0FA968)](docs/CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-1186%20passing-0FA968)](docs/CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-PolyForm%20NC%201.0-E0533D)](LICENSE)
-[![platforms](https://img.shields.io/badge/%E2%AD%90-Gitee%20%C2%B7%20GitCode%20%C2%B7%20GitHub-C71D23)](#-三平台同步)
+[![platforms](https://img.shields.io/badge/%E2%AD%90-GitHub-C71D23)](https://github.com/Morningstar202604/KeBaiPay)
 
 [快速开始](#-快速开始) · [功能矩阵](#-功能矩阵) · [界面预览](#-界面预览) · [文档](#-文档索引) · [路线图](docs/EXPERT_PANEL_ASSESSMENT.md)
 
@@ -126,8 +126,8 @@ const order = await kb.createOrder({ merchantOrderNo: 'MO_001', amount: 9.9, sub
 ## 🗺 路线图
 
 ```
-v2.2.1 ✅ 可信度（安全修复+版本纪律） → v2.3 可用性（三大UI断点+一键体验）
-→ v3.0 影响力（AI Agent 打通真实划转+小程序SDK） → v3.x 商业化（多币种+生态）
+v0.2.1 ✅ 可信度（安全修复+版本纪律） → v0.3 可用性（三大UI断点+一键体验）
+→ v0.4 影响力（AI Agent 打通真实划转+小程序SDK） → v0.5 商业化（多币种+生态）
 ```
 
 详见 [专家评审报告与竞争力路线图](docs/EXPERT_PANEL_ASSESSMENT.md)。
@@ -137,15 +137,13 @@ v2.2.1 ✅ 可信度（安全修复+版本纪律） → v2.3 可用性（三大U
 PR 前 `npm run lint && npm test` 必须全绿；发版遵循 [SemVer 纪律](docs/VERSIONING.md)。
 安全问题请走 [SECURITY.md](SECURITY.md) 私下披露，勿公开 issue。
 
-## ⭐ 三平台同步
+## ⭐ 仓库
 
 | 平台 | 仓库 |
 |---|---|
 | GitHub | [Morningstar202604/KeBaiPay](https://github.com/Morningstar202604/KeBaiPay) |
-| Gitee | [badhope/kebaipay](https://gitee.com/badhope/kebaipay) |
-| GitCode | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) |
 
-**觉得有价值？三个平台都欢迎 Star ⭐⭐⭐**
+**觉得有价值？欢迎 Star ⭐⭐⭐**
 
 ## 📄 许可证
 
@@ -153,5 +151,5 @@ PR 前 `npm run lint && npm test` 必须全绿；发版遵循 [SemVer 纪律](do
 任何商业用途（SaaS、商业产品集成、付费托管等）需版权持有者书面商业授权。
 
 <div align="center">
-<sub>Built with ❤️ by KeBaiPay Contributors · v2.2.1</sub>
+<sub>Built with ❤️ by KeBaiPay Contributors · v0.2.1</sub>
 </div>

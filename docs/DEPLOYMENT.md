@@ -109,9 +109,7 @@ sudo chown $USER:$USER /opt/kebaipay
 cd /opt/kebaipay
 
 # 方式一：git clone（推荐，便于后续升级）
-# 任选其一，国内服务器推荐 gitcode 镜像访问更快
 git clone https://github.com/Morningstar202604/KeBaiPay.git .
-# 或：git clone https://gitcode.com/badhope/KeBaiPay.git .
 
 # 方式二：上传 tar 包
 # scp kebaipay-2.0.0.tar.gz user@your-server:/opt/kebaipay/
@@ -527,7 +525,6 @@ sudo chown $USER:$USER /opt/kebaipay
 cd /opt/kebaipay
 
 git clone https://github.com/Morningstar202604/KeBaiPay.git .
-# 或国内镜像：git clone https://gitcode.com/badhope/KeBaiPay.git .
 
 # 安装依赖（生产 + dev，因为 build 需要 typescript）
 npm ci
