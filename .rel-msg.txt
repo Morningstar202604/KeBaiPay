@@ -1,0 +1,13 @@
+release: v0.2.2 —— 稳定性/资金安全修复 + UI 0.3.0 + 交付文档 + 安卓 APK
+
+版本 0.2.1 → 0.2.2（PATCH，全部为修复/交付类变更，无破坏性）：
+- 安全/资金：HMAC 口径、权限提升、退款单边账、订阅/批量转账缺陷、
+  Date 序列化、路由过渡卡死等（详单见 CHANGELOG 0.2.2 章节）
+- UI 0.3.0：响应式、概览可点击、账单按日分组、限额进度条、财务柱图、
+  转账二次确认、密钥复制、二维码预览/下载、充值快捷金额
+- 安卓：Capacitor 7 打包 APK（debug 签名），原生工程入库
+- 交付：USER_MANUAL / HANDOVER（含企业上线自查清单）/ openapi.json /
+  UI_OPTIMIZATION_PLAN
+- 版本：根与三前端 package.json/lockfile 全部对齐 0.2.2（version:check 通过）
+
+全量回归：tsc 三端 0 错误、单测 1178 / E2E 49 全绿。

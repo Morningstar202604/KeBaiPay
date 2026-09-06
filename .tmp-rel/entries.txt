@@ -1,0 +1,11 @@
+docs/CHANGELOG.md efb720e2eda08f1f1cfa12ccea4c06f96111be37
+docs/HANDOVER.md ed8d69a679332701eaf4067773bfdeef5ac980ec
+package-lock.json 0ca9c4a25fc95be35ce02234e909d7ad36ae62b6
+package.json c3730534fe22b1e9b613117f770daa73a5cc56c0
+web-admin/package-lock.json da8ae7e9e597a52b4721aecf82327db6ecbd96f5
+web-admin/package.json d1ccf55cb7cbf47326d04c723b8569235de88732
+web-h5/package-lock.json 1213a15b5e9131e727600011e9cd227312abf292
+web-h5/package.json 1072989a1bf62507a5feea78fb98744ba5b7a146
+web/package-lock.json 888774f0047dd6e70b47e65c09d830c15dbe56cf
+web/package.json 974d9fc67c2b27e32c1bc9b28b761559d38eef7d
+web/src/views/QrCodesView.vue 5c016b5b60a31e9946ee6c554e7cd6e8117086eb
