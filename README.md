@@ -161,6 +161,8 @@ const order = await kb.createOrder({ merchantOrderNo: 'MO_001', amount: 9.9, sub
 | [SDK_GUIDE](docs/SDK_GUIDE.md) | Node/Py/Java/PHP 示例 | [DEVELOPER_GUIDE](docs/DEVELOPER_GUIDE.md) | 架构与规范 |
 | [VERSIONING](docs/VERSIONING.md) | SemVer 发版纪律 | [EXPERT_PANEL_ASSESSMENT](docs/EXPERT_PANEL_ASSESSMENT.md) | 专家评审与路线图 |
 | [LAUNCH](docs/LAUNCH.md) | 开源发布准备清单 | [CHANGELOG](docs/CHANGELOG.md) | 版本更新记录 |
+| [USER_MANUAL](docs/USER_MANUAL.md) | 用户手册（逐页逐按钮） | [HANDOVER](docs/HANDOVER.md) | 企业交接与上线清单 |
+| [UI_OPTIMIZATION_PLAN](docs/UI_OPTIMIZATION_PLAN.md) | UI/UX 优化任务清单 | [openapi.json](docs/openapi.json) | OpenAPI 3.0 规范（192 端点） |
 
 ## 🗺 路线图
 
