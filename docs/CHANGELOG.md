@@ -153,6 +153,15 @@
 - **【高】路由过渡永久卡死**：三端 router-view 的 fade-slide 过渡（mode=out-in）在无渲染帧环境（内嵌浏览器/后台标签/低端设备）永远等不到 transitionend，**首次切换后视图永久冻结在旧页面**（浏览器实测复现：hash 已变、横幅已变、视图不动）。修复：移除装饰性过渡，切换即时且稳定（稳定性 > 160ms 动画）。
 
 修复后实测：/bills 返回 ISO 日期；H5 账单页按日分组完整渲染（2026-09-05 收 ¥66.66）；全端页面切换正常。
+
+### 安卓 APK 打包（v0.2.2 续）
+
+- **Capacitor 7 接入**：H5 用户端打包为安卓应用（appId `com.kebaipay.app`，应用名「科佰钱包」），WebView 内嵌完整 H5 功能，API 指向自托管后端地址（构建时 `VITE_API_BASE` 注入，企业部署时替换为自己的服务器地址后重新构建）
+- 安卓工程配置：明文 HTTP 允许（局域网/自托管联调）、`local.properties` 指向本机 SDK、gradle 仓库切换腾讯/阿里镜像（谷歌源在本机网络不可达）、JDK 21（Capacitor 7 要求，华为云镜像下载）
+- 产物：`web-h5/android/app/build/outputs/apk/debug/app-debug.apk`（4.6MB debug 签名，可直接安装体验）
+- 安卓原生工程 `web-h5/android/` 已入库（Capacitor 官方建议），后续构建/签名直接在工程上迭代
+- 生产发布需：生成正式签名 keystore + `assembleRelease`，后端部署到公网并改用 HTTPS
+
 ### 验证
 
 - 全量单元测试 77 套件 / 1178 用例通过；E2E 5 套件 / 49 用例通过（Windows 本机实测）

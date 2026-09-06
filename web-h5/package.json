@@ -15,6 +15,9 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
     "@element-plus/icons-vue": "^2.3.1",
     "axios": "^1.7.9",
     "dayjs": "^1.11.13",
