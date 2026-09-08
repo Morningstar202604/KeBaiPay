@@ -9,7 +9,7 @@
 `NestJS 11` `TypeScript 6` `Prisma 7` `PostgreSQL 16` `Redis 7` `Vercel AI SDK` `MCP`
 
 [![CI](https://github.com/Morningstar202604/KeBaiPay/actions/workflows/ci.yml/badge.svg)](https://github.com/Morningstar202604/KeBaiPay/actions/workflows/ci.yml)
-[![version](https://img.shields.io/badge/version-0.2.1-0FA968)](docs/CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-0.2.2-0FA968)](docs/CHANGELOG.md)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](package.json)
 [![tests](https://img.shields.io/badge/tests-1178%20passing-0FA968)](docs/CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-PolyForm%20NC%201.0-E0533D)](LICENSE)
@@ -192,5 +192,5 @@ PR 前 `npm run lint && npm test` 必须全绿；发版遵循 [SemVer 纪律](do
 任何商业用途（SaaS、商业产品集成、付费托管等）需版权持有者书面商业授权。
 
 <div align="center">
-<sub>Built with ❤️ by KeBaiPay Contributors · v0.2.1</sub>
+<sub>Built with ❤️ by KeBaiPay Contributors · v0.2.2</sub>
 </div>
