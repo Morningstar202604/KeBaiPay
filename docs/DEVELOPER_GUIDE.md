@@ -38,7 +38,7 @@
 
 ```bash
 # 1. 克隆项目（GitHub 主仓库）
-git clone https://github.com/Morningstar202604/KeBaiPay.git
+git clone https://github.com/x33834/KeBaiPay.git
 cd KeBaiPay
 
 # 2. 安装依赖
