@@ -6,14 +6,21 @@
 
 | 平台 | 角色 | 主要职责 |
 |---|---|---|
-| [@Morningstar202604](https://github.com/Morningstar202604)（GitHub） | 项目负责人 / 架构师 | 整体技术架构、资金安全审查、API 契约、风控引擎、AI 智能体设计 |
+| [@x33834](https://github.com/x33834)（GitHub） | 项目负责人 / 架构师 | 整体技术架构、资金安全审查、API 契约、风控引擎、AI 智能体设计 |
 | [@KEBAI-CN](https://github.com/KEBAI-CN) | 联合开发者 | 功能开发、测试用例、文档维护、前端实现、LLM 接入联调 |
 
 ### 仓库
 
+三平台同步维护：
+
 | 平台 | 地址 | 定位 |
 |---|---|---|
-| GitHub | https://github.com/Morningstar202604/KeBaiPay | 主仓库，CI/Issue/PR 主入口 |
+| GitHub | https://github.com/x33834/KeBaiPay | 主仓库，CI / Issue / PR 主入口 |
+| GitCode | https://gitcode.com/badhope/KeBaiPay | 国内镜像，发布同步 |
+| Gitee | https://gitee.com/badhope/KeBaiPay | 国内镜像，发布同步 |
+
+> 日常协作走 GitHub：CI 只在 GitHub 上跑，Issue / PR 也只在这里受理。
+> 国内镜像仅做代码同步，方便网络受限的开发者拉取。
 
 ## 角色定义
 
