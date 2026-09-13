@@ -1,54 +1,21 @@
-PolyForm Noncommercial License 1.0.0
+MIT License
 
-Copyright (c) 2026 Morningstar202604
+Copyright (c) 2026 KeBaiPay Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to use,
-copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-1. **Noncommercial Use Only.** You may not use the Software for any commercial
-   purpose. "Commercial purpose" means any use of the Software in connection
-   with a business, trade, or occupation, or for any revenue-generating activity,
-   including but not limited to offering the Software as a service (SaaS),
-   embedding it in a commercial product, or using it to provide paid services.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-2. **Attribution.** You must retain all copyright, patent, trademark, and
-   attribution notices in the Software, and include a copy of this license
-   in all distributions.
-
-3. **ShareAlike.** If you modify the Software and distribute the modified
-   version, you must license the modified version under the same terms as this
-   license, or a later version of this license.
-
-4. **No Endorsement.** You may not use the names of the copyright holders to
-   endorse or promote products derived from the Software without specific prior
-   written permission.
-
-5. **Patent Grant.** Each contributor grants you a non-exclusive, worldwide,
-   royalty-free patent license under their essential patent claims to make, use,
-   sell, offer for sale, import, and otherwise transfer the Software, subject
-   to the noncommercial restriction above.
-
-6. **Termination.** If you breach any term of this license, your rights under
-   this license terminate automatically. Upon termination, you must cease all
-   use, distribution, and modification of the Software.
-
-7. **Disclaimer of Warranty.** THE SOFTWARE IS PROVIDED "AS IS", WITHOUT
-   WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
-   WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
-   NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-   LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF
-   CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH
-   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
----
-
-This license is the PolyForm Noncommercial License 1.0.0.
-For the full legal text, see: https://polyformproject.org/licenses/noncommercial/1.0.0/
-
-**Note:** This license permits use for learning, research, personal projects,
-and internal evaluation only. Any commercial use requires a separate commercial
-license from the copyright holder (Morningstar202604).
-Contact: via GitHub profile.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

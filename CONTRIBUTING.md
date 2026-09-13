@@ -17,17 +17,20 @@
 
 | 平台 | 地址 | 适用场景 |
 |---|---|---|
-| GitHub | https://github.com/Morningstar202604/KeBaiPay | 协作、CI 自动化、Issue/PR 主入口 |
+| GitHub | https://github.com/x33834/KeBaiPay | 协作、CI 自动化、Issue/PR 主入口 |
+| GitCode | https://gitcode.com/badhope/KeBaiPay | 国内镜像（只读同步） |
+| Gitee | https://gitee.com/badhope/KeBaiPay | 国内镜像（只读同步） |
 
 - **主仓库**为 GitHub。CI 自动化在 GitHub 运行（`.github/workflows/`）
 - 提交 PR 请在 GitHub 主仓库发起
 - Issue 请在 GitHub 提交
+- 国内镜像按 tag 同步，**不接受 PR**；在镜像上提的改动会被覆盖
 
 ## 核心贡献者
 
 | 平台 | 角色 | 职责 |
 |---|---|---|
-| [@Morningstar202604](https://github.com/Morningstar202604)（GitHub） | 项目负责人 / 架构师 | 整体架构、资金安全审查、技术选型、API 契约 |
+| [@x33834](https://github.com/x33834)（GitHub） | 项目负责人 / 架构师 | 整体架构、资金安全审查、技术选型、API 契约 |
 | [@KEBAI-CN](https://github.com/KEBAI-CN) | 联合开发者 | 功能开发、测试、文档、AI 智能体层、前端 |
 
 ## 如何贡献
@@ -92,4 +95,6 @@ docs(readme): 更新 AI 智能体层介绍
 
 ## License
 
-本项目采用 [PolyForm Noncommercial 1.0.0](./LICENSE) 许可：**允许**学习、研究、教学及一切非商业使用；**禁止**任何商业用途（含 SaaS 分发、商业产品集成、付费托管服务）。商业授权需版权持有者书面同意。提交贡献即表示您同意将所贡献内容按本许可授权。
+本项目采用 [MIT License](./LICENSE)，可自由使用、修改与分发，包括商业用途。
+
+提交 PR 即表示您同意将自己贡献的代码以 MIT License 授权给本项目，并确认您有权提交该贡献。

@@ -6,10 +6,22 @@
 
 如发现安全漏洞，请通过以下方式私下报告：
 
-1. GitHub Security Advisory：[新建安全公告](https://github.com/Morningstar202604/KeBaiPay/security/advisories/new)
+1. GitHub Security Advisory：[新建安全公告](https://github.com/x33834/KeBaiPay/security/advisories/new)
 2. 邮件：发送至维护者邮箱（见贡献者主页）
 
 **响应时间**：收到报告后 48 小时内确认，7 天内给出初步评估，30 天内发布修复版本。
+
+## 支持版本
+
+项目处于 1.0 之前的快速迭代期，安全修复采用**前进式修复**（fix forward）：只对最新的 minor 版本出补丁，不维护多个 LTS 分支。
+
+| 版本 | 安全更新 |
+|---|---|
+| 0.3.x | ✅ 支持 |
+| 0.2.x | ❌ 不再维护，请升级 |
+| < 0.2 | ❌ 不再维护 |
+
+升级方式见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)；版本规则见 [docs/VERSIONING.md](docs/VERSIONING.md)。
 
 ## 已知安全机制
 
