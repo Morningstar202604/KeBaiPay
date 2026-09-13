@@ -3,7 +3,7 @@
   "version": "0.2.2",
   "description": "KeBaiPay 科佰支付 - 个人钱包 + 商户收款 + 开放 API + 多平台对账聚合 + AI 智能体层平台（NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7 + Vercel AI SDK v7 + MCP）",
   "author": "KeBaiPay Contributors",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "private": true,
   "engines": {
     "node": ">=20.0.0"
@@ -68,7 +68,7 @@
     "helmet": "^8.3.0",
     "ioredis": "^6.0.0",
     "nanoid": "^3.3.18",
-    "nodemailer": "^9.0.6",
+    "nodemailer": "^9.1.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "prisma": "^7.10.0",
@@ -105,7 +105,11 @@
   "overrides": {
     "uuid": "^11.1.1",
     "deepmerge-ts": "^8.0.0",
-    "mysql2": "^3.24.0"
+    "mysql2": "^3.24.0",
+    "multer": "^2.3.0",
+    "mailparser": {
+      "nodemailer": "^9.1.1"
+    }
   },
   "keywords": [
     "nestjs",
@@ -134,12 +138,12 @@
     "risk-control",
     "self-hosted"
   ],
-  "homepage": "https://github.com/Morningstar202604/KeBaiPay",
+  "homepage": "https://github.com/x33834/KeBaiPay",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Morningstar202604/KeBaiPay.git"
+    "url": "https://github.com/x33834/KeBaiPay.git"
   },
   "bugs": {
-    "url": "https://github.com/Morningstar202604/KeBaiPay/issues"
+    "url": "https://github.com/x33834/KeBaiPay/issues"
   }
 }
