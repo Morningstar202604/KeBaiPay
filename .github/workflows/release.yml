@@ -1,0 +1,65 @@
+# 打 tag 时自动创建 GitHub Release，正文取自 docs/CHANGELOG.md 对应版本章节
+# 手动触发也支持，用于补发历史版本
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的 tag（如 v0.3.0），需已存在'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches package.json
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAGVER="${{ steps.version.outputs.version }}"
+          if [ "$PKG" != "$TAGVER" ]; then
+            echo "::error::tag ($TAGVER) 与 package.json ($PKG) 不一致，拒绝发布"
+            exit 1
+          fi
+          echo "版本一致性校验通过：$PKG"
+
+      - name: Extract changelog section
+        run: node scripts/extract-changelog.mjs "${{ steps.version.outputs.version }}" > release-notes.md
+        env:
+          CHANGELOG_PATH: docs/CHANGELOG.md
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: KeBaiPay ${{ steps.version.outputs.tag }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
