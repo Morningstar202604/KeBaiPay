@@ -1,0 +1,91 @@
+# 依赖更新策略：Dependabot 只做「提 PR」，不做自动合并。
+# 资金类项目不接受无人值守的依赖变更——每个版本都要过 CI 并人工 review。
+#
+# 分组策略：把关联性强的包合并成一个 PR，避免一天开十几个 PR 淹没人工 review。
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      # 支付渠道 SDK 单独成组：升级需真实商户号联调，不能混在其他包里
+      payment-sdks:
+        patterns:
+          - 'wechatpay-*'
+          - 'alipay-*'
+      nestjs:
+        patterns:
+          - '@nestjs/*'
+          - '@nestjs-modules/*'
+      ai-and-mcp:
+        patterns:
+          - 'ai'
+          - '@ai-sdk/*'
+          - '@modelcontextprotocol/*'
+      prisma:
+        patterns:
+          - 'prisma'
+          - '@prisma/*'
+      # 其余运行时补丁/次版本合并，避免 PR 噪音
+      minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels: [dependencies, frontend]
+    commit-message:
+      prefix: 'chore(deps-web)'
+    groups:
+      frontend:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /web-h5
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels: [dependencies, frontend]
+    commit-message:
+      prefix: 'chore(deps-h5)'
+    groups:
+      frontend:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /web-admin
+    schedule:
+      interval: monthly
+      day: monday
+    open-pull-requests-limit: 3
+    labels: [dependencies, frontend]
+    commit-message:
+      prefix: 'chore(deps-admin)'
+    groups:
+      frontend:
+        patterns: ['*']
+
+  # Actions 版本也要跟：actions/checkout 这类升级偶发影响 CI 缓存
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: 'chore(ci)'

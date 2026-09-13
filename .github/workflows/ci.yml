@@ -1,6 +1,7 @@
-# 最小 CI 配置 — 仅运行类型检查和单元测试
-# 不启用：Dependabot / Renovate / 自动合并 / 机器人 / 自动依赖升级
-# 人工管理所有依赖更新和合并
+# CI：类型检查 + 单元测试 + E2E + 三端构建
+#
+# 依赖更新：Dependabot 按周/月提 PR（见 dependabot.yml），但**不自动合并**。
+# 涉及资金的依赖变更一律人工 review + 过 CI 后才合并。
 
 name: CI
 
@@ -45,10 +46,10 @@ jobs:
       ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY || 'ci-test-encryption-key-32-chars-ok' }}
       MOCK_CHANNEL_SECRET: ${{ secrets.CI_MOCK_CHANNEL_SECRET || 'ci-test-mock-secret' }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -86,10 +87,10 @@ jobs:
       ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY || 'ci-test-encryption-key-32-chars-ok' }}
       MOCK_CHANNEL_SECRET: ${{ secrets.CI_MOCK_CHANNEL_SECRET || 'ci-test-mock-secret' }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -106,10 +107,10 @@ jobs:
   web:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -126,10 +127,10 @@ jobs:
   web-h5:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -146,10 +147,10 @@ jobs:
   web-admin:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
