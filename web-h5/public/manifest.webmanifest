@@ -1,0 +1,20 @@
+{
+  "name": "科佰钱包 · KeBaiPay",
+  "short_name": "科佰钱包",
+  "description": "充值、转账、提现、账单、红包与 AI 钱包助手",
+  "lang": "zh-CN",
+  "start_url": "/h5/",
+  "scope": "/h5/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B1220",
+  "theme_color": "#0FA968",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

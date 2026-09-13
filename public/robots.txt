@@ -1,0 +1,35 @@
+# KeBaiPay 科佰支付
+# 允许抓取公开文档与静态资源，禁止抓取 API 端点与后台入口
+
+User-agent: *
+Allow: /$
+Allow: /index.html
+Allow: /style.css
+Allow: /app.js
+Allow: /logo.svg
+Allow: /og-image.png
+Allow: /sitemap.xml
+
+# API 与后台不做索引：无 SEO 价值，且避免端点结构被爬取
+Disallow: /api/
+Disallow: /admin
+Disallow: /portal
+Disallow: /h5
+Disallow: /auth/
+Disallow: /accounts/
+Disallow: /transactions/
+Disallow: /transfers/
+Disallow: /withdrawals/
+Disallow: /merchants/
+Disallow: /agent/
+Disallow: /metrics
+Disallow: /health
+
+# 常见爬虫（搜索结果摘要可正常展示，仅限制训练用途的批量抓取）
+User-agent: Bytespider
+Crawl-delay: 10
+
+User-agent: GPTBot
+Crawl-delay: 10
+
+Sitemap: /sitemap.xml
