@@ -1,6 +1,6 @@
 {
   "name": "kebaipay-web",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "KeBaiPay 科佰支付 - 商户后台 Vue 3 SPA",
   "private": true,
   "type": "module",
@@ -32,5 +32,5 @@
     "vite": "^6.0.7",
     "vue-tsc": "^2.2.0"
   },
-  "license": "SEE LICENSE IN LICENSE"
+  "license": "MIT"
 }
