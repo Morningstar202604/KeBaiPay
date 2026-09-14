@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">科佰钱包</string>
-    <string name="title_activity_main">科佰钱包</string>
+    <string name="app_name">科佰支付</string>
+    <string name="title_activity_main">科佰支付</string>
     <string name="package_name">com.kebaipay.app</string>
     <string name="custom_url_scheme">com.kebaipay.app</string>
 </resources>

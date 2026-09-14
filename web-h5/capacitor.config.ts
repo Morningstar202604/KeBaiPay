@@ -1,15 +1,14 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.kebaipay.app',
-  appName: '科佰钱包',
+  appName: 'KeBaiPay 科佰支付',
   webDir: 'dist',
-  // 安卓 WebView 使用 http scheme 并允许明文流量：
-  // 便于连接局域网/自托管后端（生产 HTTPS 部署后可收紧）
+  // App 内以绝对地址访问后端：构建时经 VITE_API_BASE 注入（见 android README）
   server: {
-    androidScheme: 'http',
+    // 允许 cleartext http 仅用于开发联调；生产请使用 https 并移除
     cleartext: true,
   },
-};
+}
 
-export default config;
+export default config
