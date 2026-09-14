@@ -1,7 +1,10 @@
 import { createRouter, createWebHistory, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-const history = import.meta.env.PROD ? createWebHashHistory('/h5/') : createWebHistory()
+// 路由 base 与构建 base 保持一致：默认服务器子路径 /h5/，
+// 安卓包构建时 VITE_APP_BASE=/ 覆盖（Capacitor WebView 从根路径加载）
+const routeBase = import.meta.env.VITE_APP_BASE || (import.meta.env.PROD ? '/h5/' : '/')
+const history = import.meta.env.PROD ? createWebHashHistory(routeBase) : createWebHistory(routeBase)
 
 const router = createRouter({
   history,

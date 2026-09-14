@@ -16,7 +16,9 @@ export default defineConfig(({ mode }) => {
       // 配合 main.ts 中手动补的 message/message-box 样式，主包体积约减 60%
       Components({ resolvers: [ElementPlusResolver()] }),
     ],
-    base: prod ? '/h5/' : '/',
+    // 部署 base：默认服务器子路径 /h5/；打安卓包时经 VITE_APP_BASE=/ 覆盖
+    // （Capacitor WebView 从 https://localhost/ 根路径加载，带子路径会 404 白屏）
+    base: process.env.VITE_APP_BASE || (prod ? '/h5/' : '/'),
     resolve: {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },

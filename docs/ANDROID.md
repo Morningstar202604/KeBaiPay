@@ -25,7 +25,9 @@
 cd web-h5
 
 # 1. 构建前端，注入你的后端地址
-VITE_API_BASE=https://api.your-domain.com npm run build:only
+#    VITE_APP_BASE=/ 必须设置：App 内 WebView 从根路径加载，
+#    不覆盖的话资源引用会带上服务器部署的 /h5/ 前缀导致白屏
+VITE_API_BASE=https://api.your-domain.com VITE_APP_BASE=/ npm run build:only
 
 # 2. 同步 web 资产到原生工程
 npx cap sync android
@@ -66,6 +68,7 @@ keyPassword=***
 | 现象 | 原因与处理 |
 |---|---|
 | App 内所有请求 404 / 网络错误 | `VITE_API_BASE` 未注入或指向了不可达地址；重新执行第二节流程 |
+| App 打开后白屏 | 构建时漏了 `VITE_APP_BASE=/`，资源引用带 `/h5/` 前缀在 App 内 404；重新构建前端并 `npx cap sync android` |
 | 模拟器连不上本机后端 | 模拟器内宿主机地址是 `http://10.0.2.2:<端口>`，不是 localhost |
 | `gradlew: permission denied` | `chmod +x gradlew`（Windows 下用 `gradlew.bat`） |
 | 构建报 SDK 版本不匹配 | 工程要求 Android 36 / Build-Tools 36，用 `sdkmanager` 安装对应组件 |
