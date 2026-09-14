@@ -6,6 +6,7 @@ import { AuthService } from './auth.service'
 import { UsersService } from '../users/users.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
+import { SmsService } from '../sms/sms.service'
 
 // bcrypt 在测试中要可控：避免真实 hash/compare 的耗时与随机盐干扰断言
 // （假哈希值由片段拼接构造，非真实凭据）
@@ -22,12 +23,14 @@ type RedisMock = {
   incr: jest.Mock
   del: jest.Mock
 }
+type SmsMock = { getConfigStatus: jest.Mock; verifyCode: jest.Mock }
 
 describe('AuthService', () => {
   let service: AuthService
   let users: UsersMock
   let prisma: PrismaMock
   let redis: RedisMock
+  let sms: SmsMock
 
   beforeEach(async () => {
     users = {
@@ -41,6 +44,11 @@ describe('AuthService', () => {
       incr: jest.fn().mockResolvedValue(1),
       del: jest.fn().mockResolvedValue(undefined),
     }
+    // 默认模拟"短信服务未配置"（provider=mock），与本地开发环境一致
+    sms = {
+      getConfigStatus: jest.fn().mockReturnValue({ provider: 'mock', configured: false }),
+      verifyCode: jest.fn().mockResolvedValue({ valid: true, message: 'ok' }),
+    }
 
     const module = await Test.createTestingModule({
       providers: [
@@ -49,6 +57,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('jwt-token') } },
         { provide: PrismaService, useValue: prisma },
         { provide: RedisService, useValue: redis },
+        { provide: SmsService, useValue: sms },
       ],
     }).compile()
 
@@ -72,6 +81,68 @@ describe('AuthService', () => {
       expect(users.create).toHaveBeenCalledWith(
         expect.objectContaining({ loginPassword: 'hashed-' + 'pw' }),
       )
+      // 短信未配置（mock）时不校验验证码
+      expect(sms.verifyCode).not.toHaveBeenCalled()
+    })
+
+    it('短信未配置时手机号注册无需验证码，直接放行', async () => {
+      users.create.mockResolvedValue({ id: 'u2' })
+      const res = await service.register({
+        nickname: 'u',
+        phone: '13800000000',
+        password: 'pw',
+      })
+      expect(res).toEqual({ userId: 'u2', token: 'jwt-token' })
+      expect(sms.verifyCode).not.toHaveBeenCalled()
+    })
+
+    it('短信已配置时手机号注册缺少验证码被拒绝', async () => {
+      sms.getConfigStatus.mockReturnValue({ provider: 'aliyun', configured: true })
+      users.create.mockResolvedValue({ id: 'u3' })
+      await expect(
+        service.register({ nickname: 'u', phone: '13800000000', password: 'pw' }),
+      ).rejects.toBeInstanceOf(BadRequestException)
+      expect(users.create).not.toHaveBeenCalled()
+    })
+
+    it('短信已配置且验证码错误时注册被拒绝', async () => {
+      sms.getConfigStatus.mockReturnValue({ provider: 'aliyun', configured: true })
+      sms.verifyCode.mockResolvedValue({ valid: false, message: '验证码已过期' })
+      await expect(
+        service.register({
+          nickname: 'u',
+          phone: '13800000000',
+          password: 'pw',
+          smsCode: '123456',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException)
+      expect(sms.verifyCode).toHaveBeenCalledWith('13800000000', '123456', 'register')
+      expect(users.create).not.toHaveBeenCalled()
+    })
+
+    it('短信已配置且验证码正确时注册成功（验证码场景 register）', async () => {
+      sms.getConfigStatus.mockReturnValue({ provider: 'aliyun', configured: true })
+      users.create.mockResolvedValue({ id: 'u4' })
+      const res = await service.register({
+        nickname: 'u',
+        phone: '13800000000',
+        password: 'pw',
+        smsCode: '654321',
+      })
+      expect(res).toEqual({ userId: 'u4', token: 'jwt-token' })
+      expect(sms.verifyCode).toHaveBeenCalledWith('13800000000', '654321', 'register')
+    })
+
+    it('短信已配置但邮箱注册不需要验证码', async () => {
+      sms.getConfigStatus.mockReturnValue({ provider: 'aliyun', configured: true })
+      users.create.mockResolvedValue({ id: 'u5' })
+      const res = await service.register({
+        nickname: 'u',
+        email: 'a@b.com',
+        password: 'pw',
+      })
+      expect(res).toEqual({ userId: 'u5', token: 'jwt-token' })
+      expect(sms.verifyCode).not.toHaveBeenCalled()
     })
   })
 

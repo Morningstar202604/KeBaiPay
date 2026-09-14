@@ -9,6 +9,7 @@ import * as bcrypt from 'bcrypt'
 import { UsersService } from '../users/users.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
+import { SmsService } from '../sms/sms.service'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import { BCRYPT_SALT_ROUNDS, JWT_TOKEN_TYPE_USER } from '../common/constants'
 
@@ -27,12 +28,34 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly sms: SmsService,
   ) {}
 
-  async register(dto: { nickname: string; phone?: string; email?: string; password: string }) {
+  async register(dto: {
+    nickname: string
+    phone?: string
+    email?: string
+    password: string
+    smsCode?: string
+  }) {
     if (!dto.phone && !dto.email) {
       throw new BadRequestException(kbError(KBErrorCodes.MISSING_PHONE_OR_EMAIL))
     }
+
+    // 短信验证码开关：配置了真实短信渠道（SMS_PROVIDER 非 mock）时，
+    // 手机号注册必须先通过验证码校验；未配置时跳过，保持本地开发/演示免验证码。
+    if (dto.phone && this.sms.getConfigStatus().configured) {
+      if (!dto.smsCode) {
+        throw new BadRequestException(
+          kbError(KBErrorCodes.SMS_CODE_INVALID, '请先获取短信验证码'),
+        )
+      }
+      const result = await this.sms.verifyCode(dto.phone, dto.smsCode, 'register')
+      if (!result.valid) {
+        throw new BadRequestException(kbError(KBErrorCodes.SMS_CODE_INVALID, result.message))
+      }
+    }
+
     const user = await this.usersService.create({
       nickname: dto.nickname,
       phone: dto.phone,

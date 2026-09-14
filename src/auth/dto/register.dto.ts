@@ -26,4 +26,11 @@ export class RegisterDto {
     message: '密码至少 8 位，且必须包含大写字母、小写字母、数字中的至少两类',
   })
   password!: string
+
+  // 短信验证码：仅在服务端配置了真实短信渠道（SMS_PROVIDER 非 mock）且用手机号注册时必填，
+  // 未配置短信服务时无需携带 —— 见 auth.service.register 的分支逻辑
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  smsCode?: string
 }
