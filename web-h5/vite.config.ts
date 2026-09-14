@@ -1,6 +1,8 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import Components from 'unplugin-vue-components/vite'
+import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 // KeBaiPay 用户端 H5
 export default defineConfig(({ mode }) => {
@@ -8,7 +10,12 @@ export default defineConfig(({ mode }) => {
   const prod = mode === 'production'
 
   return {
-    plugins: [vue()],
+    plugins: [
+      vue(),
+      // Element Plus 组件级按需引入：模板里用到哪个 el-* 组件就打包哪个（含样式），
+      // 配合 main.ts 中手动补的 message/message-box 样式，主包体积约减 60%
+      Components({ resolvers: [ElementPlusResolver()] }),
+    ],
     base: prod ? '/h5/' : '/',
     resolve: {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
