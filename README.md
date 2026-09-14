@@ -7,9 +7,9 @@
 `NestJS 11` · `TypeScript 6` · `Prisma 7` · `PostgreSQL 16` · `Redis 7` · `Vue 3` · `MCP`
 
 [![CI](https://github.com/x33834/KeBaiPay/actions/workflows/ci.yml/badge.svg)](https://github.com/x33834/KeBaiPay/actions/workflows/ci.yml)
-[![version](https://img.shields.io/badge/version-0.3.0-0FA968)](docs/CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-0.3.2-0FA968)](docs/CHANGELOG.md)
 [![node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](package.json)
-[![tests](https://img.shields.io/badge/tests-1178%20passing-0FA968)](docs/CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-1244%20passing-0FA968)](docs/CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-0FA968)](LICENSE)
 
 [快速开始](#-快速开始) · [它能做什么](#-它能做什么) · [界面预览](#-界面预览) · [为什么值得一看](#-为什么值得一看) · [文档](#-文档) · [镜像仓库](#-镜像仓库)
@@ -20,7 +20,7 @@
 
 ## 📖 这到底是什么
 
-一个**可以私有化部署的支付系统参考实现**。不是玩具 demo——微信/支付宝 SDK 直连、复式记账、分布式锁、幂等键、审计哈希链这些工业级该有的东西都在，220 个 API 端点、41 个业务模块、1178 个单元测试。
+一个**可以私有化部署的支付系统参考实现**。不是玩具 demo——微信/支付宝 SDK 直连、复式记账、分布式锁、幂等键、审计哈希链这些工业级该有的东西都在，220 个 API 端点、41 个业务模块、1244 个单元测试。
 
 三条命令跑起来，你就有了一个有钱包、能收单、能对账、还能让 AI 帮你管钱的完整系统。
 
@@ -109,7 +109,7 @@ npm install && npx prisma migrate deploy && npx prisma db seed && npm run start:
 - **审计链是防篡改的** — 每条日志带前序哈希，用数据库 advisory lock 防分叉。改一条日志，后面全断。
 - **AI 花钱是有闸门的** — MCP 工具不是"AI 想干嘛干嘛"，而是 scope 授权 + 单笔/日限额 + 资金操作二次确认，每次调用都进审计链。
 
-也有没做完的地方，不藏着：**Stripe / 银联 Connector 目前是骨架**，测试覆盖率 53% 未达项目自设的 80% 门槛（[体检报告](docs/CODE_HEALTH_REPORT.md) 里有详细分析）。这两个是接下来的重点。
+也有没做完的地方，不藏着：**Stripe / 银联 Connector 目前是骨架**，测试覆盖率 55.6%（v0.3.1 起以真实基线作 jest 门禁防倒退，目标一年内抬到 75%——[体检报告](docs/CODE_HEALTH_REPORT.md) 里有详细分析）。这两个是接下来的重点。
 
 ---
 
@@ -181,6 +181,6 @@ npm install && npx prisma migrate deploy && npx prisma db seed && npm run start:
 
 也欢迎把它分享给可能需要的朋友——好东西被看见，才有继续维护的动力。
 
-<sub>Built with care by KeBaiPay Contributors · v0.3.0</sub>
+<sub>Built with care by KeBaiPay Contributors · v0.3.2</sub>
 
 </div>
