@@ -80,6 +80,25 @@ describe('UnionPayConnector', () => {
         }),
       ).rejects.toThrow('未配置凭据')
     })
+
+    it('非 sandbox 且未注入 HttpService 时给出明确错误（真实网关入口已预留）', async () => {
+      const bare = new UnionPayConnector()
+      bare.setCredentials({
+        merchantId: 'test',
+        signCert: 'CERT',
+        signCertPwd: '123456',
+        notifyUrl: 'https://example.com/notify',
+        sandbox: false,
+      })
+      await expect(
+        bare.createPayment({
+          orderNo: 'ORDER-LIVE',
+          amount: 100,
+          subject: 'test',
+          notifyUrl: 'https://example.com/notify',
+        }),
+      ).rejects.toThrow('HttpService')
+    })
   })
 
   describe('queryPayment', () => {

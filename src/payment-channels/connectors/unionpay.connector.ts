@@ -13,7 +13,9 @@
 // 证书管理：商户证书、银联公钥
 // ============================================================================
 
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Optional } from '@nestjs/common'
+import { HttpService } from '@nestjs/axios'
+import { firstValueFrom } from 'rxjs'
 import * as crypto from 'crypto'
 import {
   Connector,
@@ -342,6 +344,12 @@ export class UnionPayConnector implements Connector {
   }
 
   private readonly logger = new Logger(UnionPayConnector.name)
+
+  /**
+   * HTTP 客户端（可选注入）：模块装配时由 HttpModule 提供；
+   * 单元测试可不注入 —— sandbox 模式走模拟响应，非 sandbox 且未注入时报明确错误。
+   */
+  constructor(@Optional() private readonly httpService?: HttpService) {}
 
   private config: ConnectorConfig = {
     name: 'unionpay',
@@ -789,24 +797,25 @@ export class UnionPayConnector implements Connector {
     const timeout = timeoutMs ?? this.config.timeout
     this.logger.debug(`银联 POST ${url} (timeout=${timeout}ms)`)
 
-    // 在实际集成时，应使用 HttpService 或 axios 发送真实请求
-    // 参考：Node.js crypto + https.request
-    //
-    // const response = await firstValueFrom(
-    //   this.httpService.post(url, new URLSearchParams(params).toString(), {
-    //     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    //     timeout,
-    //   }),
-    // )
-    // return response.data
-
-    // 沙箱/开发环境模拟返回
+    // 沙箱/开发环境模拟返回（未注入 HttpService 时也可用）
     if (this.credentials?.sandbox) {
       return this.mockResponse(url, params) as T
     }
 
+    // 生产/真实网关：注入了 HttpService 才发起真实调用
+    // （form-urlencoded + 签名字段由调用方组装在 params 中）
+    if (this.httpService) {
+      const response = await firstValueFrom(
+        this.httpService.post(url, new URLSearchParams(params).toString(), {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout,
+        }),
+      )
+      return response.data as T
+    }
+
     throw new Error(
-      `银联 HTTP 调用尚未接入真实网关。URL=${url}，请在 credentials 中配置真实凭据或使用 sandbox 模式。`,
+      `银联真实网关调用需要注入 HttpService（UnionPayConnector 构造参数），且 credentials 中不得使用 sandbox 模式。URL=${url}`,
     )
   }
 
