@@ -12,11 +12,35 @@
   }
 })()
 
+// 输出转义：所有要插入 innerHTML 的动态值都必须经过它。
+// 同时转义 " 和 '，因此可直接用于双引号包裹的 HTML 属性。
+// 注意：不能用 !str 判空，否则 0 / false 会被吞成空串。
+const HTML_ESCAPE_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 function escapeHtml(str) {
-  if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  if (str === null || str === undefined) return ''
+  return String(str).replace(/[&<>"']/g, (c) => HTML_ESCAPE_MAP[c])
+}
+
+// 语义别名：明确表示这个值是放进 HTML 属性
+function escapeAttr(str) {
+  return escapeHtml(str)
+}
+
+// 用于内联事件属性，如 onclick="fn(${jsStr(x)})"。
+// JSON.stringify 负责 JS 层转义（引号、反斜杠、换行），escapeHtml 负责 HTML 属性层转义。
+// 调用处不要再手写单引号 —— jsStr 自带引号。
+function jsStr(str) {
+  return escapeHtml(JSON.stringify(str === null || str === undefined ? '' : String(str)))
+}
+
+// 内联事件里的数字/布尔参数：强制收敛类型，避免任意表达式被拼接进 JS
+function jsNum(v) {
+  const n = Number(v)
+  return Number.isFinite(n) ? String(n) : '0'
+}
+
+function jsBool(v) {
+  return v ? 'true' : 'false'
 }
 
 const API_BASE = ''
@@ -213,18 +237,18 @@ function renderPagination(total, page, limit, onPage) {
   const cur = Math.min(Math.max(1, page), totalPages)
   const btns = []
   // 上一页
-  btns.push(`<button class="btn btn-secondary" style="margin:0 4px;min-width:auto;padding:6px 12px" data-page="${cur - 1}" ${cur === 1 ? 'disabled' : ''}>上一页</button>`)
+  btns.push(`<button class="btn btn-secondary" style="margin:0 4px;min-width:auto;padding:6px 12px" data-page="${escapeHtml(cur - 1)}" ${cur === 1 ? 'disabled' : ''}>上一页</button>`)
   // 页码（最多显示 5 个，居中当前页）
   const start = Math.max(1, cur - 2)
   const end = Math.min(totalPages, start + 4)
   for (let i = start; i <= end; i++) {
-    btns.push(`<button class="btn ${i === cur ? 'btn-primary' : 'btn-secondary'}" style="margin:0 4px;min-width:auto;padding:6px 12px" data-page="${i}">${i}</button>`)
+    btns.push(`<button class="btn ${i === cur ? 'btn-primary' : 'btn-secondary'}" style="margin:0 4px;min-width:auto;padding:6px 12px" data-page="${escapeHtml(i)}">${escapeHtml(i)}</button>`)
   }
   // 下一页
-  btns.push(`<button class="btn btn-secondary" style="margin:0 4px;min-width:auto;padding:6px 12px" data-page="${cur + 1}" ${cur === totalPages ? 'disabled' : ''}>下一页</button>`)
+  btns.push(`<button class="btn btn-secondary" style="margin:0 4px;min-width:auto;padding:6px 12px" data-page="${escapeHtml(cur + 1)}" ${cur === totalPages ? 'disabled' : ''}>下一页</button>`)
   return `
     <div style="display:flex;justify-content:center;align-items:center;margin-top:16px;flex-wrap:wrap">
-      <span style="font-size:13px;color:var(--kb-text-secondary);margin-right:8px">共 ${total} 条 / ${totalPages} 页</span>
+      <span style="font-size:13px;color:var(--kb-text-secondary);margin-right:8px">共 ${escapeHtml(total)} 条 / ${escapeHtml(totalPages)} 页</span>
       ${btns.join('')}
     </div>
   `
@@ -296,7 +320,7 @@ const ICONS = {
 function icon(name, size) {
   const s = size || 20
   const svg = ICONS[name] || ICONS.empty
-  return svg.replace('<svg', `<svg width="${s}" height="${s}"`)
+  return svg.replace('<svg', `<svg width="${escapeHtml(s)}" height="${escapeHtml(s)}"`)
 }
 
 function fmtTime(iso) {
@@ -327,7 +351,7 @@ function showModal(title, bodyHtml) {
   modal.className = 'card'
   modal.style.cssText = 'max-width:420px;width:100%;max-height:80vh;overflow:auto'
   modal.innerHTML = `
-    <div class="section-title">${title}</div>
+    <div class="section-title">${escapeHtml(title)}</div>
     ${bodyHtml}
     <button class="btn btn-secondary" id="btnCloseModal" style="margin-top:12px">关闭</button>
   `
@@ -573,7 +597,7 @@ function renderRegister() {
         <div style="display:flex;gap:4px;margin-bottom:4px">
           ${[0,1,2,3].map(i => `<div style="flex:1;height:4px;border-radius:2px;background:${i <= level ? colors[level] : 'var(--kb-border)'};transition:background 0.3s"></div>`).join('')}
         </div>
-        <div style="font-size:12px;color:${colors[level]}">密码强度：${labels[level]}</div>
+        <div style="font-size:12px;color:${escapeHtml(colors[level])}">密码强度：${escapeHtml(labels[level])}</div>
       </div>
     `
   }
@@ -697,7 +721,7 @@ function renderRegister() {
         } else if (v.length === 11) {
           hint.innerHTML = '<span style="color:var(--kb-error)">✗ 手机号格式不正确</span>'
         } else {
-          hint.innerHTML = `<span style="color:var(--kb-text-secondary)">${v.length}/11</span>`
+          hint.innerHTML = `<span style="color:var(--kb-text-secondary)">${escapeHtml(v.length)}/11</span>`
         }
       })
       document.getElementById('btnRegNext').onclick = () => {
@@ -1125,13 +1149,13 @@ async function renderHome() {
       container.innerHTML = recent.map((b) => {
         const iconCls = b.direction === 'INCOME' ? (b.type === 'TRANSFER' || b.type === 'RECEIPT' ? 'transfer' : 'income') : 'expense'
         return `
-        <div class="kb-txn-item" data-bill-id="${b.id}" style="cursor:pointer">
-          <div class="kb-txn-icon ${iconCls}">${icon(billIconMap[b.type] || 'payment', 18)}</div>
+        <div class="kb-txn-item" data-bill-id="${escapeHtml(b.id)}" style="cursor:pointer">
+          <div class="kb-txn-icon ${escapeHtml(iconCls)}">${icon(billIconMap[b.type] || 'payment', 18)}</div>
           <div class="kb-txn-info">
-            <div class="kb-txn-title">${fmtType(b.type)}${b.counterparty ? ' · ' + escapeHtml(b.counterparty) : ''}</div>
-            <div class="kb-txn-desc">${fmtTime(b.createdAt)}${b.remark ? ' · ' + escapeHtml(b.remark) : ''}</div>
+            <div class="kb-txn-title">${escapeHtml(fmtType(b.type))}${b.counterparty ? ' · ' + escapeHtml(b.counterparty) : ''}</div>
+            <div class="kb-txn-desc">${escapeHtml(fmtTime(b.createdAt))}${b.remark ? ' · ' + escapeHtml(b.remark) : ''}</div>
           </div>
-          <div class="kb-txn-amount ${b.direction === 'INCOME' ? 'income' : 'expense'}">${b.direction === 'INCOME' ? '+' : '-'}${b.amountYuan}</div>
+          <div class="kb-txn-amount ${b.direction === 'INCOME' ? 'income' : 'expense'}">${b.direction === 'INCOME' ? '+' : '-'}${escapeHtml(b.amountYuan)}</div>
         </div>
       `}).join('')
       container.querySelectorAll('[data-bill-id]').forEach((el) => {
@@ -1147,11 +1171,11 @@ function renderBillItem(b) {
   return `
     <div class="bill-item">
       <div class="bill-info">
-        <div class="bill-type">${fmtType(b.type)} ${b.counterparty ? `(${escapeHtml(b.counterparty)})` : ''}</div>
-        <div class="bill-time">${fmtTime(b.createdAt)} · ${escapeHtml(b.remark) || ''}</div>
+        <div class="bill-type">${escapeHtml(fmtType(b.type))} ${b.counterparty ? `(${escapeHtml(b.counterparty)})` : ''}</div>
+        <div class="bill-time">${escapeHtml(fmtTime(b.createdAt))} · ${escapeHtml(b.remark) || ''}</div>
       </div>
       <div class="bill-amount ${b.direction === 'INCOME' ? 'income' : 'expense'}">
-        ${b.direction === 'INCOME' ? '+' : '-'}${b.amountYuan}
+        ${b.direction === 'INCOME' ? '+' : '-'}${escapeHtml(b.amountYuan)}
       </div>
     </div>
   `
@@ -1625,19 +1649,19 @@ async function renderBills() {
     }
 
     container.innerHTML = pageData.map((b) => `
-      <div class="kb-bill-card" data-bill-id="${b.id}">
-        <div class="kb-bill-icon" style="background:${typeIconBg[b.type] || '#f1f5f9'};color:${typeIconColor[b.type] || '#64748b'}">${icon(typeIconMap[b.type] || 'empty', 20)}</div>
+      <div class="kb-bill-card" data-bill-id="${escapeHtml(b.id)}">
+        <div class="kb-bill-icon" style="background:${escapeHtml(typeIconBg[b.type]) || '#f1f5f9'};color:${escapeHtml(typeIconColor[b.type]) || '#64748b'}">${icon(typeIconMap[b.type] || 'empty', 20)}</div>
         <div class="kb-bill-body">
           <div class="kb-bill-top">
-            <div class="kb-bill-type">${fmtType(b.type)}${b.counterparty ? ' · ' + escapeHtml(b.counterparty) : ''}</div>
-            <div class="kb-bill-amount ${b.direction === 'INCOME' ? 'income' : 'expense'}">${b.direction === 'INCOME' ? '+' : '-'}${b.amountYuan}</div>
+            <div class="kb-bill-type">${escapeHtml(fmtType(b.type))}${b.counterparty ? ' · ' + escapeHtml(b.counterparty) : ''}</div>
+            <div class="kb-bill-amount ${b.direction === 'INCOME' ? 'income' : 'expense'}">${b.direction === 'INCOME' ? '+' : '-'}${escapeHtml(b.amountYuan)}</div>
           </div>
-          <div class="kb-bill-meta">${fmtTime(b.createdAt)}${b.remark ? ' · ' + escapeHtml(b.remark) : ''}</div>
+          <div class="kb-bill-meta">${escapeHtml(fmtTime(b.createdAt))}${b.remark ? ' · ' + escapeHtml(b.remark) : ''}</div>
         </div>
       </div>
     `).join('') + `
       <div style="display:flex;justify-content:center;align-items:center;gap:8px;padding:16px 0;font-size:13px;color:var(--kb-text-secondary)">
-        <span>共 ${filtered.length} 条</span>
+        <span>共 ${escapeHtml(filtered.length)} 条</span>
         ${totalPages > 1 ? `
           <button class="kb-filter-chip" onclick="window._billPagePrev()" ${currentPage <= 1 ? 'disabled style="opacity:0.4"' : ''}>‹ 上一页</button>
           <span>${currentPage}/${totalPages}</span>
@@ -1660,7 +1684,7 @@ async function renderBills() {
       allBills = await api('/bills')
       renderBillList()
     } catch (e) {
-      document.getElementById('billList').innerHTML = `<div class="kb-empty-state"><div class="kb-empty-icon">${icon('empty', 48)}</div><div class="kb-empty-text">加载失败：${e.message}</div></div>`
+      document.getElementById('billList').innerHTML = `<div class="kb-empty-state"><div class="kb-empty-icon">${icon('empty', 48)}</div><div class="kb-empty-text">加载失败：${escapeHtml(e.message)}</div></div>`
     }
   }
 
@@ -1888,13 +1912,13 @@ async function renderWallet() {
       container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--kb-text-tertiary);font-size:14px">暂无交易记录</div>'
     } else {
       container.innerHTML = recent.map((b) => `
-        <div class="kb-txn-item" data-bill-id="${b.id}" style="cursor:pointer">
-          <div class="kb-txn-icon" style="background:${typeIconBg[b.type] || '#f1f5f9'};color:${typeIconColor[b.type] || '#64748b'}">${icon(typeIconMap[b.type] || 'empty', 20)}</div>
+        <div class="kb-txn-item" data-bill-id="${escapeHtml(b.id)}" style="cursor:pointer">
+          <div class="kb-txn-icon" style="background:${escapeHtml(typeIconBg[b.type]) || '#f1f5f9'};color:${escapeHtml(typeIconColor[b.type]) || '#64748b'}">${icon(typeIconMap[b.type] || 'empty', 20)}</div>
           <div class="kb-txn-info">
-            <div class="kb-txn-title">${fmtType(b.type)}${b.counterparty ? ' · ' + b.counterparty : ''}</div>
-            <div class="kb-txn-desc">${fmtTime(b.createdAt)}${b.remark ? ' · ' + b.remark : ''}</div>
+            <div class="kb-txn-title">${escapeHtml(fmtType(b.type))}${b.counterparty ? ' · ' + escapeHtml(b.counterparty) : ''}</div>
+            <div class="kb-txn-desc">${escapeHtml(fmtTime(b.createdAt))}${b.remark ? ' · ' + escapeHtml(b.remark) : ''}</div>
           </div>
-          <div class="kb-txn-amount ${b.direction === 'INCOME' ? 'income' : 'expense'}">${b.direction === 'INCOME' ? '+' : '-'}${b.amountYuan}</div>
+          <div class="kb-txn-amount ${b.direction === 'INCOME' ? 'income' : 'expense'}">${b.direction === 'INCOME' ? '+' : '-'}${escapeHtml(b.amountYuan)}</div>
         </div>
       `).join('')
       container.querySelectorAll('[data-bill-id]').forEach((el) => {
@@ -2000,13 +2024,13 @@ async function renderBillDetail() {
         relatedHtml = `
           <div class="kb-related-card">
             <div class="kb-related-title">关联账单</div>
-            <div class="kb-related-item" data-bill-id="${related.id}" style="cursor:pointer">
-              <div class="kb-related-icon" style="background:${rBg};color:${rColor}">${icon(rIconName, 18)}</div>
+            <div class="kb-related-item" data-bill-id="${escapeHtml(related.id)}" style="cursor:pointer">
+              <div class="kb-related-icon" style="background:${escapeHtml(rBg)};color:${escapeHtml(rColor)}">${icon(rIconName, 18)}</div>
               <div class="kb-related-info">
-                <div class="kb-related-type">${fmtType(related.type)}${related.counterparty ? ' · ' + escapeHtml(related.counterparty) : ''}</div>
-                <div class="kb-related-meta">${fmtTime(related.createdAt)}</div>
+                <div class="kb-related-type">${escapeHtml(fmtType(related.type))}${related.counterparty ? ' · ' + escapeHtml(related.counterparty) : ''}</div>
+                <div class="kb-related-meta">${escapeHtml(fmtTime(related.createdAt))}</div>
               </div>
-              <div class="kb-related-amount ${related.direction === 'INCOME' ? 'income' : 'expense'}">${related.direction === 'INCOME' ? '+' : '-'}${fmtMoney(related.amountYuan)}</div>
+              <div class="kb-related-amount ${related.direction === 'INCOME' ? 'income' : 'expense'}">${related.direction === 'INCOME' ? '+' : '-'}${escapeHtml(fmtMoney(related.amountYuan))}</div>
             </div>
           </div>
         `
@@ -2015,16 +2039,16 @@ async function renderBillDetail() {
 
     document.getElementById('billDetailContent').innerHTML = `
       <div class="kb-detail-hero">
-        <div class="kb-hero-icon" style="background:${bgColor};color:${textColor}">${icon(iconName, 28)}</div>
-        <div class="kb-hero-type">${fmtType(bill.type)}</div>
-        <div class="kb-hero-amount ${isIncome ? 'income' : 'expense'}">${isIncome ? '+' : '-'}${fmtMoney(bill.amountYuan)}</div>
+        <div class="kb-hero-icon" style="background:${escapeHtml(bgColor)};color:${escapeHtml(textColor)}">${icon(iconName, 28)}</div>
+        <div class="kb-hero-type">${escapeHtml(fmtType(bill.type))}</div>
+        <div class="kb-hero-amount ${isIncome ? 'income' : 'expense'}">${isIncome ? '+' : '-'}${escapeHtml(fmtMoney(bill.amountYuan))}</div>
       </div>
 
       <div class="kb-detail-section">
         <div class="kb-detail-row">
           <div class="kb-detail-label">状态</div>
           <div class="kb-detail-value">
-            <span class="kb-status-badge" style="background:${status.bg};color:${status.color}">${status.label}</span>
+            <span class="kb-status-badge" style="background:${escapeHtml(status.bg)};color:${escapeHtml(status.color)}">${escapeHtml(status.label)}</span>
           </div>
         </div>
         <div class="kb-detail-row">
@@ -2033,23 +2057,23 @@ async function renderBillDetail() {
         </div>
         <div class="kb-detail-row">
           <div class="kb-detail-label">订单号</div>
-          <div class="kb-detail-value" style="font-family:monospace;font-size:13px">${bill.id || '-'}</div>
+          <div class="kb-detail-value" style="font-family:monospace;font-size:13px">${escapeHtml(bill.id) || '-'}</div>
         </div>
         ${bill.counterparty ? `
           <div class="kb-detail-row">
             <div class="kb-detail-label">对方</div>
-            <div class="kb-detail-value">${bill.counterparty}</div>
+            <div class="kb-detail-value">${escapeHtml(bill.counterparty)}</div>
           </div>
         ` : ''}
         ${bill.remark ? `
           <div class="kb-detail-row">
             <div class="kb-detail-label">备注</div>
-            <div class="kb-detail-value">${bill.remark}</div>
+            <div class="kb-detail-value">${escapeHtml(bill.remark)}</div>
           </div>
         ` : ''}
         <div class="kb-detail-row">
           <div class="kb-detail-label">类型</div>
-          <div class="kb-detail-value">${fmtType(bill.type)} · ${isIncome ? '收入' : '支出'}</div>
+          <div class="kb-detail-value">${escapeHtml(fmtType(bill.type))} · ${isIncome ? '收入' : '支出'}</div>
         </div>
       </div>
 
@@ -2061,7 +2085,7 @@ async function renderBillDetail() {
       relatedItem.onclick = () => navigate('billDetail?id=' + relatedItem.getAttribute('data-bill-id'))
     }
   } catch (e) {
-    document.getElementById('billDetailContent').innerHTML = `<div style="text-align:center;padding:48px 16px"><div style="display:flex;justify-content:center;margin-bottom:12px;opacity:0.4">${icon('empty', 48)}</div><div style="font-size:15px;color:var(--kb-text-secondary)">加载失败：${e.message}</div></div>`
+    document.getElementById('billDetailContent').innerHTML = `<div style="text-align:center;padding:48px 16px"><div style="display:flex;justify-content:center;margin-bottom:12px;opacity:0.4">${icon('empty', 48)}</div><div style="font-size:15px;color:var(--kb-text-secondary)">加载失败：${escapeHtml(e.message)}</div></div>`
   }
 }
 
@@ -2229,18 +2253,18 @@ async function renderWithdraw() {
               <div class="kb-record-icon">${icon('withdraw', 18)}</div>
               <div class="kb-record-info">
                 <div class="kb-record-title">提现到${escapeHtml(r.channelAccount || '账户')}</div>
-                <div class="kb-record-meta">${fmtTime(r.createdAt)}</div>
+                <div class="kb-record-meta">${escapeHtml(fmtTime(r.createdAt))}</div>
               </div>
               <div style="text-align:right">
-                <div class="kb-record-amount">-¥${fmtMoney(r.amountYuan || r.amount / 100)}</div>
-                <div class="kb-record-status ${st.cls}">${st.label}</div>
+                <div class="kb-record-amount">-¥${escapeHtml(fmtMoney(r.amountYuan || r.amount / 100))}</div>
+                <div class="kb-record-status ${escapeHtml(st.cls)}">${escapeHtml(st.label)}</div>
               </div>
             </div>
           `
         }).join('')
       }
     } catch (e) {
-      list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--kb-error);font-size:13px">加载失败：${e.message}</div>`
+      list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--kb-error);font-size:13px">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 }
@@ -2375,14 +2399,14 @@ function renderRedPacket() {
           return `
             <div class="kb-redpacket-item">
               <div class="kb-redpacket-item-left">
-                <div class="kb-redpacket-item-avatar">${initial}</div>
+                <div class="kb-redpacket-item-avatar">${escapeHtml(initial)}</div>
                 <div class="kb-redpacket-item-info">
-                  <div class="kb-name">来自${name}的红包</div>
-                  <div class="kb-meta">${fmtTime(r.createdAt)}${remark ? ' · ' + remark : ''}</div>
+                  <div class="kb-name">来自${escapeHtml(name)}的红包</div>
+                  <div class="kb-meta">${escapeHtml(fmtTime(r.createdAt))}${remark ? ' · ' + escapeHtml(remark) : ''}</div>
                 </div>
               </div>
               <div class="kb-redpacket-item-right">
-                <div class="kb-amount">+${fmtMoney(r.amount / 100)}</div>
+                <div class="kb-amount">+${escapeHtml(fmtMoney(r.amount / 100))}</div>
               </div>
             </div>
           `
@@ -2499,8 +2523,8 @@ async function renderQrCode() {
       const code = await api('/qr-codes/fixed', { method: 'POST', body: JSON.stringify({ amount, remark }) })
       document.getElementById('fixedResult').innerHTML = `
         <div class="kb-qrcode-fixed-result">
-          <div class="kb-code">${code.code}</div>
-          <div class="kb-label">固定金额收款码 · ¥${fmtMoney(amount)}</div>
+          <div class="kb-code">${escapeHtml(code.code)}</div>
+          <div class="kb-label">固定金额收款码 · ¥${escapeHtml(fmtMoney(amount))}</div>
         </div>
       `
     } catch (e) {
@@ -2738,33 +2762,33 @@ async function renderProfile() {
       const incomeCount = billsRes.filter(b => b.direction === 'INCOME').length
 
       document.getElementById('userInfoArea').innerHTML = `
-        <div class="kb-user-avatar">${initials}</div>
+        <div class="kb-user-avatar">${escapeHtml(initials)}</div>
         <div class="kb-user-meta">
           <div class="kb-user-name-row">
             <div class="kb-user-name">${escapeHtml(userRes.nickname) || '未设置昵称'}</div>
             <div class="kb-verify-badge ${isVerified ? 'verified' : ''}">
               ${icon('check', 12)}
-              ${realNameStatus}
+              ${escapeHtml(realNameStatus)}
             </div>
           </div>
-          <div class="kb-user-id">ID: ${shortUserId}</div>
+          <div class="kb-user-id">ID: ${escapeHtml(shortUserId)}</div>
         </div>
       `
 
       document.getElementById('profileContent').innerHTML = `
         <div class="kb-stats-card">
           <button class="kb-stat-item" data-go="wallet">
-            <div class="kb-stat-value">${fmtMoney(accountRes.totalBalanceYuan)}</div>
+            <div class="kb-stat-value">${escapeHtml(fmtMoney(accountRes.totalBalanceYuan))}</div>
             <div class="kb-stat-label">总资产（元）</div>
           </button>
           <div class="kb-stat-divider"></div>
           <button class="kb-stat-item" data-go="bills">
-            <div class="kb-stat-value">${billsRes.length}</div>
+            <div class="kb-stat-value">${escapeHtml(billsRes.length)}</div>
             <div class="kb-stat-label">账单数</div>
           </button>
           <div class="kb-stat-divider"></div>
           <button class="kb-stat-item" data-go="bills">
-            <div class="kb-stat-value">${incomeCount}</div>
+            <div class="kb-stat-value">${escapeHtml(incomeCount)}</div>
             <div class="kb-stat-label">收入笔数</div>
           </button>
         </div>
@@ -2793,7 +2817,7 @@ async function renderProfile() {
               <div class="kb-link-title">实名认证</div>
               <div class="kb-link-desc">${userRes.realName ? escapeHtml(userRes.realName.charAt(0)) + '**' : '未认证'}</div>
             </div>
-            <div class="kb-link-extra" style="color:${isVerified ? 'var(--kb-success)' : 'var(--kb-warning)'}">${realNameStatus}</div>
+            <div class="kb-link-extra" style="color:${isVerified ? 'var(--kb-success)' : 'var(--kb-warning)'}">${escapeHtml(realNameStatus)}</div>
             <div class="kb-link-arrow">${icon('chevronRight', 16)}</div>
           </button>
         </div>
@@ -2866,11 +2890,11 @@ async function renderProfile() {
           const bodyHtml = `
             <div class="form-group">
               <label style="display:block;font-size:12px;font-weight:500;color:var(--kb-text-secondary);margin-bottom:4px">昵称</label>
-              <input class="form-input" id="editNickname" value="${userRes.nickname || ''}" placeholder="请输入昵称" style="padding:10px 14px;font-size:14px">
+              <input class="form-input" id="editNickname" value="${escapeHtml(userRes.nickname) || ''}" placeholder="请输入昵称" style="padding:10px 14px;font-size:14px">
             </div>
             <div class="form-group">
               <label style="display:block;font-size:12px;font-weight:500;color:var(--kb-text-secondary);margin-bottom:4px">邮箱</label>
-              <input class="form-input" id="editEmail" value="${userRes.email || ''}" placeholder="请输入邮箱" style="padding:10px 14px;font-size:14px">
+              <input class="form-input" id="editEmail" value="${escapeHtml(userRes.email) || ''}" placeholder="请输入邮箱" style="padding:10px 14px;font-size:14px">
             </div>
             <button class="btn btn-primary" id="btnSaveProfile" style="margin-top:8px;padding:10px;font-size:14px">保存</button>
           `
@@ -2905,7 +2929,7 @@ async function renderProfile() {
       document.getElementById('profileContent').innerHTML = `
         <div class="kb-profile-error">
           <div class="kb-error-icon">${icon('empty', 56)}</div>
-          <div class="kb-error-text">加载失败：${e.message}</div>
+          <div class="kb-error-text">加载失败：${escapeHtml(e.message)}</div>
           <button class="kb-retry-btn" id="btnRetry">重试</button>
         </div>
       `
@@ -2992,7 +3016,7 @@ async function renderSecurity() {
           <div class="kb-security-item-icon" style="background:#e6f4ff;color:var(--kb-primary)">${icon('phone', 18)}</div>
           <div class="kb-security-item-info">
             <div class="kb-name">${user.phone ? '换绑手机号' : '绑定手机号'}</div>
-            <div class="kb-desc">${user.phone ? `当前：${user.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}` : '绑定手机号用于找回密码和安全验证'}</div>
+            <div class="kb-desc">${user.phone ? `当前：${escapeHtml(user.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2'))}` : '绑定手机号用于找回密码和安全验证'}</div>
           </div>
           <div class="kb-security-item-extra ${user.phone ? 'kb-bound' : ''}">
             ${user.phone ? '已绑定' : '未绑定'} ${icon('chevronRight', 16)}
@@ -3002,7 +3026,7 @@ async function renderSecurity() {
           <div class="kb-security-item-icon" style="background:#fff7e6;color:#fa8c16">${icon('mail', 18)}</div>
           <div class="kb-security-item-info">
             <div class="kb-name">${user.email ? '换绑邮箱' : '绑定邮箱'}</div>
-            <div class="kb-desc">${user.email ? `当前：${user.email.replace(/(.{2}).+(@.+)/, '$1***$2')}` : '绑定邮箱用于接收通知和找回密码'}</div>
+            <div class="kb-desc">${user.email ? `当前：${escapeHtml(user.email.replace(/(.{2}).+(@.+)/, '$1***$2'))}` : '绑定邮箱用于接收通知和找回密码'}</div>
           </div>
           <div class="kb-security-item-extra ${user.email ? 'kb-bound' : ''}">
             ${user.email ? '已绑定' : '未绑定'} ${icon('chevronRight', 16)}
@@ -3059,7 +3083,7 @@ async function renderSecurity() {
 
     document.getElementById('btnBindPhone').onclick = () => {
       const bodyHtml = `
-        ${user.phone ? `<div style="font-size:13px;color:var(--kb-text-secondary);margin-bottom:12px">当前绑定：${user.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</div>` : ''}
+        ${user.phone ? `<div style="font-size:13px;color:var(--kb-text-secondary);margin-bottom:12px">当前绑定：${escapeHtml(user.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2'))}</div>` : ''}
         <div class="form-group">
           <label style="display:block;font-size:12px;font-weight:500;color:var(--kb-text-secondary);margin-bottom:4px">新手机号</label>
           <input class="form-input" id="bindPhoneInput" placeholder="请输入新手机号" maxlength="11" style="padding:10px 14px;font-size:14px">
@@ -3091,7 +3115,7 @@ async function renderSecurity() {
 
     document.getElementById('btnBindEmail').onclick = () => {
       const bodyHtml = `
-        ${user.email ? `<div style="font-size:13px;color:var(--kb-text-secondary);margin-bottom:12px">当前绑定：${user.email.replace(/(.{2}).+(@.+)/, '$1***$2')}</div>` : ''}
+        ${user.email ? `<div style="font-size:13px;color:var(--kb-text-secondary);margin-bottom:12px">当前绑定：${escapeHtml(user.email.replace(/(.{2}).+(@.+)/, '$1***$2'))}</div>` : ''}
         <div class="form-group">
           <label style="display:block;font-size:12px;font-weight:500;color:var(--kb-text-secondary);margin-bottom:4px">新邮箱</label>
           <input class="form-input" id="bindEmailInput" placeholder="请输入新邮箱" style="padding:10px 14px;font-size:14px">
@@ -3129,8 +3153,8 @@ async function renderSecurity() {
           <div class="kb-security-item">
             <div class="kb-security-item-icon" style="background:var(--kb-bg);color:var(--kb-text-secondary)">${icon('settings', 18)}</div>
             <div class="kb-security-item-info">
-              <div class="kb-name" style="font-size:13px">${l.ip || '未知IP'}</div>
-              <div class="kb-desc" style="font-size:11px">${fmtTime(l.createdAt)}${l.success ? '' : ' · 登录失败'}</div>
+              <div class="kb-name" style="font-size:13px">${escapeHtml(l.ip) || '未知IP'}</div>
+              <div class="kb-desc" style="font-size:11px">${escapeHtml(fmtTime(l.createdAt))}${l.success ? '' : ' · 登录失败'}</div>
             </div>
           </div>
         `).join('')
@@ -3138,7 +3162,7 @@ async function renderSecurity() {
     } catch (e) {
     }
   } catch (e) {
-    document.getElementById('securityContent').innerHTML = `<div class="kb-security-card"><div class="kb-security-empty"><div style="font-size:14px;color:var(--kb-danger)">加载失败：${e.message}</div></div></div>`
+    document.getElementById('securityContent').innerHTML = `<div class="kb-security-card"><div class="kb-security-empty"><div style="font-size:14px;color:var(--kb-danger)">加载失败：${escapeHtml(e.message)}</div></div></div>`
   }
 }
 
@@ -3351,36 +3375,36 @@ async function renderMerchantDashboard() {
       container.innerHTML = `
         <div class="m-section-card" style="margin-top:12px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-            <div style="width:48px;height:48px;border-radius:12px;background:${statusColorMap[m.status]}15;display:flex;align-items:center;justify-content:center">
-              <span style="display:inline-flex;align-items:center;color:${statusColorMap[m.status]}">${m.status === 'PENDING' ? icon('lock', 24) : icon('close', 24)}</span>
+            <div style="width:48px;height:48px;border-radius:12px;background:${escapeHtml(statusColorMap[m.status])}15;display:flex;align-items:center;justify-content:center">
+              <span style="display:inline-flex;align-items:center;color:${escapeHtml(statusColorMap[m.status])}">${m.status === 'PENDING' ? icon('lock', 24) : icon('close', 24)}</span>
             </div>
             <div>
-              <div style="font-size:16px;font-weight:600;color:var(--kb-text)">${m.merchantName}</div>
-              <div style="font-size:13px;color:${statusColorMap[m.status]}">${statusMap[m.status]}</div>
+              <div style="font-size:16px;font-weight:600;color:var(--kb-text)">${escapeHtml(m.merchantName)}</div>
+              <div style="font-size:13px;color:${escapeHtml(statusColorMap[m.status])}">${escapeHtml(statusMap[m.status])}</div>
             </div>
           </div>
-          <div class="m-settle-row"><span class="m-settle-label">商户号</span><span class="m-settle-value" style="font-size:12px;font-family:monospace">${m.merchantNo}</span></div>
+          <div class="m-settle-row"><span class="m-settle-label">商户号</span><span class="m-settle-value" style="font-size:12px;font-family:monospace">${escapeHtml(m.merchantNo)}</span></div>
           <div class="m-settle-row"><span class="m-settle-label">商户类型</span><span class="m-settle-value">${m.merchantType === 'ENTERPRISE' ? '企业' : '个人'}</span></div>
-          ${m.rejectReason ? `<div style="background:#fff1f0;border:1px solid #ffccc7;color:#cf1322;padding:10px 14px;border-radius:8px;font-size:13px;margin-top:12px">拒绝原因：${m.rejectReason}</div>` : ''}
+          ${m.rejectReason ? `<div style="background:#fff1f0;border:1px solid #ffccc7;color:#cf1322;padding:10px 14px;border-radius:8px;font-size:13px;margin-top:12px">拒绝原因：${escapeHtml(m.rejectReason)}</div>` : ''}
         </div>
         <div class="m-section-card">
           <div class="m-section-title">修改资料</div>
           <div class="m-create-form">
             <div style="margin-bottom:10px">
               <label style="font-size:12px;color:var(--kb-text-secondary);display:block;margin-bottom:4px">商户名称</label>
-              <input class="form-input" id="editName" value="${m.merchantName}">
+              <input class="form-input" id="editName" value="${escapeHtml(m.merchantName)}">
             </div>
             <div style="margin-bottom:10px">
               <label style="font-size:12px;color:var(--kb-text-secondary);display:block;margin-bottom:4px">联系人姓名</label>
-              <input class="form-input" id="editContactName" value="${m.contactName || ''}">
+              <input class="form-input" id="editContactName" value="${escapeHtml(m.contactName) || ''}">
             </div>
             <div style="margin-bottom:10px">
               <label style="font-size:12px;color:var(--kb-text-secondary);display:block;margin-bottom:4px">联系人手机</label>
-              <input class="form-input" id="editContactPhone" value="${m.contactPhone || ''}">
+              <input class="form-input" id="editContactPhone" value="${escapeHtml(m.contactPhone) || ''}">
             </div>
             <div style="margin-bottom:10px">
               <label style="font-size:12px;color:var(--kb-text-secondary);display:block;margin-bottom:4px">结算账户</label>
-              <input class="form-input" id="editSettlementAccount" value="${m.settleAccount || ''}">
+              <input class="form-input" id="editSettlementAccount" value="${escapeHtml(m.settleAccount) || ''}">
             </div>
             ${m.merchantType === 'ENTERPRISE' ? `
               <div style="margin-bottom:10px">
@@ -3424,23 +3448,23 @@ async function renderMerchantDashboard() {
       <div class="m-stat-row">
         <div class="m-stat-card">
           <div class="m-stat-label">今日交易</div>
-          <div class="m-stat-value" style="color:#722ed1">¥${fmtMoney(dash.today?.amountYuan)}</div>
-          <div class="m-stat-sub">${dash.today?.count || 0} 笔</div>
+          <div class="m-stat-value" style="color:#722ed1">¥${escapeHtml(fmtMoney(dash.today?.amountYuan))}</div>
+          <div class="m-stat-sub">${escapeHtml(dash.today?.count || 0)} 笔</div>
         </div>
         <div class="m-stat-card">
           <div class="m-stat-label">本周交易</div>
-          <div class="m-stat-value" style="color:#1677ff">¥${fmtMoney(dash.week?.amountYuan)}</div>
-          <div class="m-stat-sub">${dash.week?.count || 0} 笔</div>
+          <div class="m-stat-value" style="color:#1677ff">¥${escapeHtml(fmtMoney(dash.week?.amountYuan))}</div>
+          <div class="m-stat-sub">${escapeHtml(dash.week?.count || 0)} 笔</div>
         </div>
         <div class="m-stat-card">
           <div class="m-stat-label">本月交易</div>
-          <div class="m-stat-value" style="color:#52c41a">¥${fmtMoney(dash.month?.amountYuan)}</div>
-          <div class="m-stat-sub">${dash.month?.count || 0} 笔</div>
+          <div class="m-stat-value" style="color:#52c41a">¥${escapeHtml(fmtMoney(dash.month?.amountYuan))}</div>
+          <div class="m-stat-sub">${escapeHtml(dash.month?.count || 0)} 笔</div>
         </div>
         <div class="m-stat-card">
           <div class="m-stat-label">累计交易</div>
-          <div class="m-stat-value" style="color:#fa8c16">¥${fmtMoney(totalAmt)}</div>
-          <div class="m-stat-sub">${(dash.today?.count || 0) + (dash.week?.count || 0) + (dash.month?.count || 0)} 笔</div>
+          <div class="m-stat-value" style="color:#fa8c16">¥${escapeHtml(fmtMoney(totalAmt))}</div>
+          <div class="m-stat-sub">${escapeHtml((dash.today?.count || 0) + (dash.week?.count || 0) + (dash.month?.count || 0))} 笔</div>
         </div>
       </div>
     `
@@ -3509,8 +3533,8 @@ async function renderMerchantDashboard() {
                 <div class="m-order-item" style="cursor:pointer" onclick="navigate('billDetail?id=${b.id}')">
                   <div class="m-order-icon" style="background:#f5f5f5">${icon(typeIcons[b.type] || 'receipt', 20)}</div>
                   <div class="m-order-info">
-                    <div class="m-order-title">${fmtType(b.type)}${b.counterparty ? ' · ' + b.counterparty : ''}</div>
-                    <div class="m-order-meta">${fmtTime(b.createdAt)}${b.remark ? ' · ' + b.remark : ''}</div>
+                    <div class="m-order-title">${fmtType(b.type)}${b.counterparty ? ' · ' + escapeHtml(b.counterparty) : ''}</div>
+                    <div class="m-order-meta">${fmtTime(b.createdAt)}${b.remark ? ' · ' + escapeHtml(b.remark) : ''}</div>
                   </div>
                   <div class="m-order-right">
                     <div class="m-order-amount">${b.direction === 'INCOME' ? '+' : '-'}${b.amountYuan}</div>
@@ -3552,19 +3576,19 @@ async function renderMerchantDashboard() {
         <div class="m-section-title">结算信息</div>
         <div class="m-settle-row">
           <span class="m-settle-label">待结算金额</span>
-          <span class="m-settle-value pending">¥${fmtMoney(pendingSettlement)}</span>
+          <span class="m-settle-value pending">¥${escapeHtml(fmtMoney(pendingSettlement))}</span>
         </div>
         <div class="m-settle-row">
           <span class="m-settle-label">最近结算</span>
-          <span class="m-settle-value">${lastSettlement}</span>
+          <span class="m-settle-value">${escapeHtml(lastSettlement)}</span>
         </div>
         <div class="m-settle-row">
           <span class="m-settle-label">收款费率</span>
-          <span class="m-settle-value">${(m.payRate / 100).toFixed(2)}%</span>
+          <span class="m-settle-value">${escapeHtml((m.payRate / 100).toFixed(2))}%</span>
         </div>
         <div class="m-settle-row">
           <span class="m-settle-label">日限额</span>
-          <span class="m-settle-value">¥${fmtMoney(m.dailyLimitYuan)}</span>
+          <span class="m-settle-value">¥${escapeHtml(fmtMoney(m.dailyLimitYuan))}</span>
         </div>
       </div>
     `
@@ -3617,7 +3641,7 @@ async function renderMerchantDashboard() {
           <div style="background:#f6ffed;border:1px solid #b7eb8f;padding:10px 14px;border-radius:8px;font-size:13px;color:#52c41a;margin-bottom:12px">订单创建成功</div>
           <div style="margin-bottom:10px">
             <label style="font-size:12px;color:var(--kb-text-secondary);display:block;margin-bottom:4px">收银台链接</label>
-            <input class="form-input" id="cashierUrl" value="${res.cashierUrl}" readonly style="font-size:12px">
+            <input class="form-input" id="cashierUrl" value="${escapeHtml(res.cashierUrl)}" readonly style="font-size:12px">
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn btn-secondary" id="btnCopyUrl" style="flex:1">复制链接</button>
@@ -3672,10 +3696,10 @@ async function renderMerchantAdmin() {
       container.innerHTML = list.map((m) => `
         <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:8px">
           <div style="display:flex;justify-content:space-between;width:100%">
-            <div class="bill-type">${m.merchantName}</div>
-            <div class="bill-amount">${statusMap[m.status] || m.status}</div>
+            <div class="bill-type">${escapeHtml(m.merchantName)}</div>
+            <div class="bill-amount">${escapeHtml(statusMap[m.status] || m.status)}</div>
           </div>
-          <div class="bill-time">商户号：${m.merchantNo} · 申请人：${m.contactName || ''} ${m.contactPhone || ''}</div>
+          <div class="bill-time">商户号：${escapeHtml(m.merchantNo)} · 申请人：${escapeHtml(m.contactName) || ''} ${escapeHtml(m.contactPhone) || ''}</div>
           ${m.status === 'PENDING' ? `
             <div style="display:flex;gap:8px;width:100%;margin-top:4px">
               <button class="btn btn-primary" style="flex:1;margin-top:0" onclick="auditMerchant('${m.id}', 'APPROVED')">通过</button>
@@ -3851,9 +3875,9 @@ async function renderCashier() {
     document.getElementById('orderSubject').textContent = order.subject || '订单支付'
 
     const infoRows = `
-      <div class="kb-cashier-info-row"><span class="kb-k">商户</span><span class="kb-v">${order.merchant?.merchantName || '-'}</span></div>
-      <div class="kb-cashier-info-row"><span class="kb-k">订单号</span><span class="kb-v" style="font-size:12px;font-variant-numeric:tabular-nums">${orderNo}</span></div>
-      <div class="kb-cashier-info-row"><span class="kb-k">状态</span><span class="kb-v" style="color:${order.status === 'PENDING' ? 'var(--kb-primary)' : order.status === 'PAID' ? '#52c41a' : 'var(--kb-text-tertiary)'}">${statusMap[order.status] || order.status}</span></div>
+      <div class="kb-cashier-info-row"><span class="kb-k">商户</span><span class="kb-v">${escapeHtml(order.merchant?.merchantName) || '-'}</span></div>
+      <div class="kb-cashier-info-row"><span class="kb-k">订单号</span><span class="kb-v" style="font-size:12px;font-variant-numeric:tabular-nums">${escapeHtml(orderNo)}</span></div>
+      <div class="kb-cashier-info-row"><span class="kb-k">状态</span><span class="kb-v" style="color:${order.status === 'PENDING' ? 'var(--kb-primary)' : order.status === 'PAID' ? '#52c41a' : 'var(--kb-text-tertiary)'}">${escapeHtml(statusMap[order.status] || order.status)}</span></div>
     `
 
     const container = document.getElementById('orderInfo')
@@ -3893,7 +3917,7 @@ async function renderCashier() {
                 <input class="form-input" id="payPassword" type="password" placeholder="请输入6位支付密码" maxlength="6" style="padding-left:42px;letter-spacing:6px;text-align:center;font-size:18px">
               </div>
             </div>
-            <button class="btn btn-primary" id="btnPay" style="height:50px;font-size:16px;font-weight:600">确认支付 ¥${fmtMoney(order.amountYuan)}</button>
+            <button class="btn btn-primary" id="btnPay" style="height:50px;font-size:16px;font-weight:600">确认支付 ¥${escapeHtml(fmtMoney(order.amountYuan))}</button>
           </div>
         `
       } else {
@@ -3903,7 +3927,7 @@ async function renderCashier() {
         `
       }
 
-      container.innerHTML = infoRows + countdownHtml + payMethodsHtml + `<div id="payAction">${actionHtml}</div>`
+      container.innerHTML = infoRows + countdownHtml + payMethodsHtml + `<div id="payAction">${escapeHtml(actionHtml)}</div>`
 
       if (expiryMs > 0) {
         const el = document.getElementById('countdown')
@@ -3955,7 +3979,7 @@ async function renderCashier() {
       container.innerHTML = infoRows + `<div class="kb-cashier-expired">${icon('close', 20, 'var(--kb-text-tertiary)')}<div style="margin-top:8px">该订单已不可支付</div></div>`
     }
   } catch (e) {
-    document.getElementById('orderInfo').innerHTML = `<div class="kb-cashier-expired" style="color:var(--kb-danger)">加载失败：${e.message}</div>`
+    document.getElementById('orderInfo').innerHTML = `<div class="kb-cashier-expired" style="color:var(--kb-danger)">加载失败：${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -3992,7 +4016,7 @@ async function initiateExternalPayment(orderNo, amountYuan, method, subject) {
       qrSection.innerHTML = `
         <div class="kb-cashier-qr-tip">请使用${method === 'wechat' ? '微信' : '支付宝'}扫码支付</div>
         <div class="kb-cashier-qr-canvas"><canvas id="payQrCanvas" width="200" height="200"></canvas></div>
-        <div class="kb-cashier-qr-amount">金额: ¥${fmtMoney(amountYuan)}</div>
+        <div class="kb-cashier-qr-amount">金额: ¥${escapeHtml(fmtMoney(amountYuan))}</div>
       `
       drawSimpleQr('payQrCanvas', result.payUrl)
     } else {
@@ -4029,7 +4053,7 @@ async function initiateExternalPayment(orderNo, amountYuan, method, subject) {
 
     window.addEventListener('hashchange', () => clearInterval(poll), { once: true })
   } catch (e) {
-    qrSection.innerHTML = `<div class="kb-cashier-expired" style="color:var(--kb-danger)">支付发起失败: ${e.message}</div>`
+    qrSection.innerHTML = `<div class="kb-cashier-expired" style="color:var(--kb-danger)">支付发起失败: ${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -4048,7 +4072,7 @@ function showPaySuccess(orderNo) {
       <div class="kb-success-icon">${icon('check', 40)}</div>
       <div class="kb-success-title">支付成功</div>
       <div class="kb-success-desc">订单已完成支付</div>
-      <div class="kb-success-order">订单号：${orderNo}</div>
+      <div class="kb-success-order">订单号：${escapeHtml(orderNo)}</div>
       <button class="kb-success-btn" id="btnBack">返回首页</button>
     </div>
   `
@@ -4215,20 +4239,20 @@ async function renderMerchantApps() {
           <div class="ma-app-card">
             <div class="ma-app-header">
               <div>
-                <div class="ma-app-name">${a.name || '未命名应用'}</div>
-                <div style="font-size:12px;color:var(--kb-text-tertiary);margin-top:2px">AppID: ${appIdShort}</div>
+                <div class="ma-app-name">${escapeHtml(a.name) || '未命名应用'}</div>
+                <div style="font-size:12px;color:var(--kb-text-tertiary);margin-top:2px">AppID: ${escapeHtml(appIdShort)}</div>
               </div>
-              <div class="ma-status-badge" style="background:${sc.bg};color:${sc.color}">
-                <span class="ma-status-dot" style="background:${sc.dot}"></span>
-                ${sc.label}
+              <div class="ma-status-badge" style="background:${escapeHtml(sc.bg)};color:${escapeHtml(sc.color)}">
+                <span class="ma-status-dot" style="background:${escapeHtml(sc.dot)}"></span>
+                ${escapeHtml(sc.label)}
               </div>
             </div>
 
             <div class="ma-field-row">
               <span class="ma-field-label">AppID</span>
               <div style="display:flex;align-items:center">
-                <span class="ma-field-value" id="appid-${idx}">${a.appId || '-'}</span>
-                <button class="ma-copy-btn" onclick="navigator.clipboard.writeText('${a.appId}').then(()=>showToast('已复制', 'success'))">复制</button>
+                <span class="ma-field-value" id="appid-${escapeHtml(idx)}">${escapeHtml(a.appId) || '-'}</span>
+                <button class="ma-copy-btn" onclick="navigator.clipboard.writeText(${jsStr(a.appId)}).then(()=>showToast('已复制', 'success'))">复制</button>
               </div>
             </div>
 
@@ -4251,35 +4275,35 @@ async function renderMerchantApps() {
 
             <div class="ma-field-row">
               <span class="ma-field-label">回调 URL</span>
-              <span class="ma-field-value" style="font-family:inherit;font-size:12px">${a.callbackUrl || '未设置'}</span>
+              <span class="ma-field-value" style="font-family:inherit;font-size:12px">${escapeHtml(a.callbackUrl) || '未设置'}</span>
             </div>
 
             <div class="ma-actions">
-              <button class="btn btn-secondary" style="margin-top:0;font-size:12px;padding:6px 12px" onclick="testApiKey('${a.appId}')">测试接口</button>
-              <button class="btn btn-secondary" style="margin-top:0;font-size:12px;padding:6px 12px" onclick="editAppSettings('${a.appId}', '${a.name || ''}', '${a.callbackUrl || ''}')">设置</button>
-              <button class="btn btn-primary" style="margin-top:0;font-size:12px;padding:6px 12px" onclick="regenerateAppSecret('${a.appId}')">重置密钥</button>
+              <button class="btn btn-secondary" style="margin-top:0;font-size:12px;padding:6px 12px" onclick="testApiKey(${jsStr(a.appId)})">测试接口</button>
+              <button class="btn btn-secondary" style="margin-top:0;font-size:12px;padding:6px 12px" onclick="editAppSettings(${jsStr(a.appId)}, ${jsStr(a.name || '')}, ${jsStr(a.callbackUrl || '')})">设置</button>
+              <button class="btn btn-primary" style="margin-top:0;font-size:12px;padding:6px 12px" onclick="regenerateAppSecret(${jsStr(a.appId)})">重置密钥</button>
             </div>
 
             <div class="ma-usage-card" style="margin:12px -16px -16px;border-radius:0 0 12px 12px;border-top:1px solid var(--kb-border-light)">
               <div style="font-size:12px;font-weight:600;color:var(--kb-text);margin-bottom:6px">使用统计</div>
               <div class="ma-usage-row">
                 <span class="ma-field-label">今日调用</span>
-                <span style="font-size:13px;color:var(--kb-text)">${a.todayCalls || 0} 次</span>
+                <span style="font-size:13px;color:var(--kb-text)">${escapeHtml(a.todayCalls || 0)} 次</span>
               </div>
               <div class="ma-usage-row">
                 <span class="ma-field-label">今日成功</span>
-                <span style="font-size:13px;color:#52c41a">${a.todaySuccess || 0} 次</span>
+                <span style="font-size:13px;color:#52c41a">${escapeHtml(a.todaySuccess || 0)} 次</span>
               </div>
               <div class="ma-usage-row">
                 <span class="ma-field-label">今日失败</span>
-                <span style="font-size:13px;color:#f5222d">${a.todayFail || 0} 次</span>
+                <span style="font-size:13px;color:#f5222d">${escapeHtml(a.todayFail || 0)} 次</span>
               </div>
             </div>
           </div>
         `
       }).join('')
     } catch (e) {
-      document.getElementById('appListContainer').innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${e.message}</div>`
+      document.getElementById('appListContainer').innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 
@@ -4291,9 +4315,9 @@ async function renderMerchantApps() {
         showModal('新密钥已生成', `
           <div style="background:#fff7e6;border:1px solid #ffd591;padding:12px;border-radius:8px;margin-bottom:12px">
             <div style="font-size:13px;color:#874d00;margin-bottom:6px">请立即保存新密钥，关闭后不再显示：</div>
-            <div style="font-family:monospace;font-size:14px;font-weight:600;color:#fa8c16;word-break:break-all">${res.appSecret}</div>
+            <div style="font-family:monospace;font-size:14px;font-weight:600;color:#fa8c16;word-break:break-all">${escapeHtml(res.appSecret)}</div>
           </div>
-          <button class="btn btn-primary" onclick="navigator.clipboard.writeText('${res.appSecret}').then(()=>showToast('已复制', 'success'))" style="width:100%">复制密钥</button>
+          <button class="btn btn-primary" onclick="navigator.clipboard.writeText(${jsStr(res.appSecret)}).then(()=>showToast('已复制', 'success'))" style="width:100%">复制密钥</button>
         `)
       } else {
         showToast('密钥已重置', 'success')
@@ -4306,7 +4330,7 @@ async function renderMerchantApps() {
     showModal('API 测试', `
       <div style="margin-bottom:12px">
         <label style="font-size:12px;color:var(--kb-text-secondary);display:block;margin-bottom:4px">AppID</label>
-        <input class="form-input" id="testAppId" value="${appId}" readonly style="font-size:12px;font-family:monospace">
+        <input class="form-input" id="testAppId" value="${escapeHtml(appId)}" readonly style="font-size:12px;font-family:monospace">
       </div>
       <div style="margin-bottom:12px">
         <label style="font-size:12px;color:var(--kb-text-secondary);display:block;margin-bottom:4px">测试金额（元）</label>
@@ -4336,7 +4360,7 @@ async function renderMerchantApps() {
       } catch (e) {
         resultEl.innerHTML = `
           <div style="background:#fff1f0;border:1px solid #ffccc7;padding:10px;border-radius:8px;font-size:13px;color:#cf1322">
-            测试失败: ${e.message}
+            测试失败: ${escapeHtml(e.message)}
           </div>
         `
       }
@@ -4347,11 +4371,11 @@ async function renderMerchantApps() {
     showModal('应用设置', `
       <div style="margin-bottom:12px">
         <label style="font-size:12px;color:var(--kb-text-secondary);display:block;margin-bottom:4px">应用名称</label>
-        <input class="form-input" id="editAppName" value="${name}">
+        <input class="form-input" id="editAppName" value="${escapeHtml(name)}">
       </div>
       <div style="margin-bottom:12px">
         <label style="font-size:12px;color:var(--kb-text-secondary);display:block;margin-bottom:4px">回调 URL</label>
-        <input class="form-input" id="editAppCallback" value="${callbackUrl}" placeholder="https://example.com/callback">
+        <input class="form-input" id="editAppCallback" value="${escapeHtml(callbackUrl)}" placeholder="https://example.com/callback">
       </div>
       <button class="btn btn-primary" id="btnSaveAppSettings" style="width:100%">保存设置</button>
     `)
@@ -4385,9 +4409,9 @@ async function renderMerchantApps() {
         showModal('应用创建成功', `
           <div style="background:#f6ffed;border:1px solid #b7eb8f;padding:12px;border-radius:8px;margin-bottom:12px">
             <div style="font-size:13px;color:#52c41a;margin-bottom:6px">请立即保存您的 AppSecret：</div>
-            <div style="font-family:monospace;font-size:14px;font-weight:600;color:#fa8c16;word-break:break-all">${res.appSecret}</div>
+            <div style="font-family:monospace;font-size:14px;font-weight:600;color:#fa8c16;word-break:break-all">${escapeHtml(res.appSecret)}</div>
           </div>
-          <button class="btn btn-primary" onclick="navigator.clipboard.writeText('${res.appSecret}').then(()=>showToast('已复制', 'success'))" style="width:100%">复制密钥</button>
+          <button class="btn btn-primary" onclick="navigator.clipboard.writeText(${jsStr(res.appSecret)}).then(()=>showToast('已复制', 'success'))" style="width:100%">复制密钥</button>
         `)
       } else {
         showToast('应用创建成功', 'success')
@@ -4397,7 +4421,7 @@ async function renderMerchantApps() {
   }
 
   try { await load() } catch (e) {
-    document.getElementById('appListContainer').innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${e.message}</div>`
+    document.getElementById('appListContainer').innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -4485,39 +4509,39 @@ async function renderMerchantQrCodes() {
         return `
           <div class="mq-qr-card">
             <div class="mq-qr-display">
-              <div class="mq-qr-code">${q.code}</div>
+              <div class="mq-qr-code">${escapeHtml(q.code)}</div>
               ${q.amountYuan ? `<div class="mq-qr-amount">¥${fmtMoney(q.amountYuan)}</div>` : '<div class="mq-qr-amount" style="color:var(--kb-text-secondary);font-size:16px">任意金额</div>'}
-              ${q.remark ? `<div class="mq-qr-remark">${q.remark}</div>` : ''}
+              ${q.remark ? `<div class="mq-qr-remark">${escapeHtml(q.remark)}</div>` : ''}
             </div>
 
             <div class="mq-field-row">
               <span class="mq-field-label">收款码</span>
               <div style="display:flex;align-items:center;gap:6px">
-                <span class="mq-field-value" style="font-family:monospace;font-size:12px">${q.code}</span>
-                <button class="ma-copy-btn" onclick="navigator.clipboard.writeText('${q.code}').then(()=>showToast('已复制', 'success'))">复制</button>
+                <span class="mq-field-value" style="font-family:monospace;font-size:12px">${escapeHtml(q.code)}</span>
+                <button class="ma-copy-btn" onclick="navigator.clipboard.writeText(${jsStr(q.code)}).then(()=>showToast('已复制', 'success'))">复制</button>
               </div>
             </div>
 
             <div class="mq-field-row">
               <span class="mq-field-label">状态</span>
-              <span class="mq-status-badge" style="background:${sc.bg};color:${sc.color}">${sc.label}</span>
+              <span class="mq-status-badge" style="background:${escapeHtml(sc.bg)};color:${escapeHtml(sc.color)}">${escapeHtml(sc.label)}</span>
             </div>
 
             <div class="mq-field-row">
               <span class="mq-field-label">创建时间</span>
-              <span class="mq-field-value" style="font-size:12px">${fmtTime(q.createdAt)}</span>
+              <span class="mq-field-value" style="font-size:12px">${escapeHtml(fmtTime(q.createdAt))}</span>
             </div>
 
             <div class="mq-actions">
-              <button class="btn btn-secondary" onclick="shareQrCode('${q.code}', ${q.amountYuan || 0}, '${q.remark || ''}')">分享</button>
-              <button class="btn btn-secondary" onclick="downloadQrCode('${q.code}')">下载</button>
-              <button class="btn btn-primary" onclick="deleteQrCode('${q.id}')">删除</button>
+              <button class="btn btn-secondary" onclick="shareQrCode(${jsStr(q.code)}, ${jsNum(q.amountYuan || 0)}, ${jsStr(q.remark || '')})">分享</button>
+              <button class="btn btn-secondary" onclick="downloadQrCode(${jsStr(q.code)})">下载</button>
+              <button class="btn btn-primary" onclick="deleteQrCode(${jsStr(q.id)})">删除</button>
             </div>
           </div>
         `
       }).join('')
     } catch (e) {
-      document.getElementById('qrListContainer').innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${e.message}</div>`
+      document.getElementById('qrListContainer').innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 
@@ -4529,13 +4553,13 @@ async function renderMerchantQrCodes() {
       <div class="mq-share-card">
         <div style="font-size:16px;font-weight:600;color:var(--kb-text);margin-bottom:16px">分享收款码</div>
         <div style="background:#f9f9f9;border:2px dashed var(--kb-border);border-radius:12px;padding:20px;margin-bottom:16px">
-          <div style="font-size:18px;font-weight:700;color:var(--kb-text);font-family:monospace">${code}</div>
+          <div style="font-size:18px;font-weight:700;color:var(--kb-text);font-family:monospace">${escapeHtml(code)}</div>
           ${amount ? `<div style="font-size:22px;font-weight:700;color:#722ed1;margin-top:8px">¥${fmtMoney(amount)}</div>` : '<div style="font-size:14px;color:var(--kb-text-secondary);margin-top:8px">任意金额</div>'}
-          ${remark ? `<div style="font-size:12px;color:var(--kb-text-secondary);margin-top:4px">${remark}</div>` : ''}
+          ${remark ? `<div style="font-size:12px;color:var(--kb-text-secondary);margin-top:4px">${escapeHtml(remark)}</div>` : ''}
         </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-secondary" style="flex:1" onclick="navigator.clipboard.writeText('收款码: ${code}${amount ? ' 金额: ¥' + fmtMoney(amount) : ''}${remark ? ' 备注: ' + remark : ''}').then(()=>{showToast('已复制', 'success');this.closest('.mq-share-overlay').remove()})">复制文本</button>
-          <button class="btn btn-primary" style="flex:1" onclick="navigator.share({title:'收款码',text:'收款码: ${code}${amount ? ' 金额: ¥' + fmtMoney(amount) : ''}'}).catch(()=>{});this.closest('.mq-share-overlay').remove()">发送</button>
+          <button class="btn btn-secondary" style="flex:1" onclick="navigator.clipboard.writeText(${jsStr('收款码: ' + code + (amount ? ' 金额: ¥' + fmtMoney(amount) : '') + (remark ? ' 备注: ' + remark : ''))}).then(()=>{showToast('已复制', 'success');this.closest('.mq-share-overlay').remove()})">复制文本</button>
+          <button class="btn btn-primary" style="flex:1" onclick="navigator.share({title:'收款码',text:${jsStr('收款码: ' + code + (amount ? ' 金额: ¥' + fmtMoney(amount) : ''))}}).catch(()=>{});this.closest('.mq-share-overlay').remove()">发送</button>
         </div>
         <button class="btn btn-text" style="width:100%;margin-top:8px;color:var(--kb-text-secondary)" onclick="this.closest('.mq-share-overlay').remove()">关闭</button>
       </div>
@@ -4601,12 +4625,12 @@ async function renderMerchantQrCodes() {
       if (res.code) {
         showModal('收款码已生成', `
           <div style="background:#f9f9f9;border:2px dashed var(--kb-border);border-radius:12px;padding:20px;text-align:center;margin-bottom:12px">
-            <div style="font-size:18px;font-weight:700;color:var(--kb-text);font-family:monospace">${res.code}</div>
+            <div style="font-size:18px;font-weight:700;color:var(--kb-text);font-family:monospace">${escapeHtml(res.code)}</div>
             ${res.amountYuan ? `<div style="font-size:22px;font-weight:700;color:#722ed1;margin-top:8px">¥${fmtMoney(res.amountYuan)}</div>` : '<div style="font-size:14px;color:var(--kb-text-secondary);margin-top:8px">任意金额</div>'}
           </div>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-secondary" style="flex:1" onclick="navigator.clipboard.writeText('${res.code}').then(()=>showToast('已复制', 'success'))">复制</button>
-            <button class="btn btn-primary" style="flex:1" onclick="shareQrCode('${res.code}', ${res.amountYuan || 0}, '${remark || ''}')">分享</button>
+            <button class="btn btn-secondary" style="flex:1" onclick="navigator.clipboard.writeText(${jsStr(res.code)}).then(()=>showToast('已复制', 'success'))">复制</button>
+            <button class="btn btn-primary" style="flex:1" onclick="shareQrCode(${jsStr(res.code)}, ${jsNum(res.amountYuan || 0)}, ${jsStr(remark || '')})">分享</button>
           </div>
         `)
       } else {
@@ -4633,11 +4657,11 @@ async function renderMerchantReconciliation() {
         <div class="section-title">日期筛选</div>
         <div class="form-group">
           <label class="form-label">开始日期</label>
-          <input class="form-input" type="date" id="reconStart" value="${defaultStart}">
+          <input class="form-input" type="date" id="reconStart" value="${escapeHtml(defaultStart)}">
         </div>
         <div class="form-group">
           <label class="form-label">结束日期</label>
-          <input class="form-input" type="date" id="reconEnd" value="${today}">
+          <input class="form-input" type="date" id="reconEnd" value="${escapeHtml(today)}">
         </div>
         <button class="btn btn-primary" id="btnReconQuery">查询</button>
         <button class="btn btn-secondary" id="btnReconExport" style="margin-top:12px">导出 CSV</button>
@@ -4656,10 +4680,10 @@ async function renderMerchantReconciliation() {
       const data = res.data || []
       document.getElementById('reconSummary').innerHTML = `
         <div class="section-title">汇总</div>
-        <div class="bill-item"><div class="bill-info"><div class="bill-type">笔数</div></div><div class="bill-amount">${summary.count || 0}</div></div>
-        <div class="bill-item"><div class="bill-info"><div class="bill-type">总金额</div></div><div class="bill-amount">¥${fmtMoney(summary.amountYuan)}</div></div>
-        <div class="bill-item"><div class="bill-info"><div class="bill-type">手续费</div></div><div class="bill-amount">¥${fmtMoney(summary.feeYuan)}</div></div>
-        <div class="bill-item"><div class="bill-info"><div class="bill-type">净收入</div></div><div class="bill-amount income">¥${fmtMoney(summary.netYuan)}</div></div>
+        <div class="bill-item"><div class="bill-info"><div class="bill-type">笔数</div></div><div class="bill-amount">${escapeHtml(summary.count || 0)}</div></div>
+        <div class="bill-item"><div class="bill-info"><div class="bill-type">总金额</div></div><div class="bill-amount">¥${escapeHtml(fmtMoney(summary.amountYuan))}</div></div>
+        <div class="bill-item"><div class="bill-info"><div class="bill-type">手续费</div></div><div class="bill-amount">¥${escapeHtml(fmtMoney(summary.feeYuan))}</div></div>
+        <div class="bill-item"><div class="bill-info"><div class="bill-type">净收入</div></div><div class="bill-amount income">¥${escapeHtml(fmtMoney(summary.netYuan))}</div></div>
       `
       const listEl = document.getElementById('reconList')
       if (data.length === 0) {
@@ -4679,7 +4703,7 @@ async function renderMerchantReconciliation() {
         `
       }
     } catch (e) {
-      document.getElementById('reconSummary').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+      document.getElementById('reconSummary').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
       document.getElementById('reconList').innerHTML = ''
     }
   }
@@ -4829,22 +4853,22 @@ async function renderAdminDashboard() {
       <div class="ad-stat-grid">
         <div class="ad-stat-card blue">
           <div class="ad-stat-icon" style="background:#e6f7ff;color:#1677ff">👥</div>
-          <div class="ad-stat-value">${stats.totalUsers || 0}</div>
+          <div class="ad-stat-value">${escapeHtml(stats.totalUsers || 0)}</div>
           <div class="ad-stat-label">用户总数</div>
         </div>
         <div class="ad-stat-card green">
           <div class="ad-stat-icon" style="background:#f6ffed;color:#52c41a">🏪</div>
-          <div class="ad-stat-value">${stats.totalMerchants || 0}</div>
+          <div class="ad-stat-value">${escapeHtml(stats.totalMerchants || 0)}</div>
           <div class="ad-stat-label">商户总数</div>
         </div>
         <div class="ad-stat-card orange">
           <div class="ad-stat-icon" style="background:#fff7e6;color:#fa8c16">📋</div>
-          <div class="ad-stat-value">${stats.todayOrders || 0}</div>
+          <div class="ad-stat-value">${escapeHtml(stats.todayOrders || 0)}</div>
           <div class="ad-stat-label">今日交易</div>
         </div>
         <div class="ad-stat-card purple">
           <div class="ad-stat-icon" style="background:#f9f0ff;color:#722ed1">⏳</div>
-          <div class="ad-stat-value">${(stats.pendingWithdrawals || 0) + (stats.pendingMerchants || 0)}</div>
+          <div class="ad-stat-value">${escapeHtml((stats.pendingWithdrawals || 0) + (stats.pendingMerchants || 0))}</div>
           <div class="ad-stat-label">待审核</div>
         </div>
       </div>
@@ -4940,7 +4964,7 @@ async function renderAdminDashboard() {
     container.innerHTML = `
       <div style="padding:32px;text-align:center">
         <div style="font-size:48px;margin-bottom:12px;opacity:0.4">⚠️</div>
-        <div style="font-size:15px;color:var(--kb-text-secondary)">加载失败：${e.message}</div>
+        <div style="font-size:15px;color:var(--kb-text-secondary)">加载失败：${escapeHtml(e.message)}</div>
         <button class="btn btn-primary" style="margin-top:16px" onclick="renderAdminDashboard()">重试</button>
       </div>
     `
@@ -5060,24 +5084,24 @@ async function renderAdminUsers() {
         return `
           <div class="au-user-card">
             <div class="au-user-top">
-              <div class="au-user-avatar" style="background:${avatarColor}">${initials}</div>
+              <div class="au-user-avatar" style="background:${escapeHtml(avatarColor)}">${escapeHtml(initials)}</div>
               <div class="au-user-info">
-                <div class="au-user-name">${u.nickname || '未设置昵称'}</div>
-                <div class="au-user-meta">${u.phone || u.email || ''} · 注册 ${fmtTime(u.createdAt)}</div>
+                <div class="au-user-name">${escapeHtml(u.nickname) || '未设置昵称'}</div>
+                <div class="au-user-meta">${escapeHtml(u.phone || u.email) || ''} · 注册 ${escapeHtml(fmtTime(u.createdAt))}</div>
               </div>
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-                <span class="au-status-badge" style="background:${sc.bg};color:${sc.color}">
-                  <span class="au-status-dot" style="background:${sc.dot}"></span>
-                  ${sc.label}
+                <span class="au-status-badge" style="background:${escapeHtml(sc.bg)};color:${escapeHtml(sc.color)}">
+                  <span class="au-status-dot" style="background:${escapeHtml(sc.dot)}"></span>
+                  ${escapeHtml(sc.label)}
                 </span>
-                <span class="au-risk-badge" style="background:${rc.bg};color:${rc.color}">风险: ${rc.label}</span>
+                <span class="au-risk-badge" style="background:${escapeHtml(rc.bg)};color:${escapeHtml(rc.color)}">风险: ${escapeHtml(rc.label)}</span>
               </div>
             </div>
 
             <div class="au-user-actions">
-              <button class="btn btn-secondary" onclick="showUserDetail('${u.id}')">详情</button>
-              <button class="btn btn-secondary" onclick="adjustUserAccount('${u.id}')">调账</button>
-              <button class="btn btn-secondary" onclick="changeUserRiskLevel('${u.id}')">风险</button>
+              <button class="btn btn-secondary" onclick="showUserDetail(${jsStr(u.id)})">详情</button>
+              <button class="btn btn-secondary" onclick="adjustUserAccount(${jsStr(u.id)})">调账</button>
+              <button class="btn btn-secondary" onclick="changeUserRiskLevel(${jsStr(u.id)})">风险</button>
               ${u.status !== 'ACTIVE' ? `<button class="btn btn-primary" onclick="changeUserStatus('${u.id}', 'ACTIVE')">正常</button>` : ''}
               ${u.status !== 'FROZEN' ? `<button class="btn btn-secondary" onclick="changeUserStatus('${u.id}', 'FROZEN')">冻结</button>` : ''}
             </div>
@@ -5085,19 +5109,19 @@ async function renderAdminUsers() {
         `
       }).join('') + `
         <div class="au-pagination">
-          <span>共 ${total} 条 / ${totalPages} 页</span>
-          <button ${currentPage <= 1 ? 'disabled' : ''} onclick="adminUsersPage(${currentPage - 1})">上一页</button>
+          <span>共 ${escapeHtml(total)} 条 / ${escapeHtml(totalPages)} 页</span>
+          <button ${currentPage <= 1 ? 'disabled' : ''} onclick="adminUsersPage(${jsNum(currentPage - 1)})">上一页</button>
           ${Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
             const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
             const p = start + i
             if (p > totalPages) return ''
             return `<button class="${p === currentPage ? 'active' : ''}" onclick="adminUsersPage(${p})">${p}</button>`
           }).join('')}
-          <button ${currentPage >= totalPages ? 'disabled' : ''} onclick="adminUsersPage(${currentPage + 1})">下一页</button>
+          <button ${currentPage >= totalPages ? 'disabled' : ''} onclick="adminUsersPage(${jsNum(currentPage + 1)})">下一页</button>
         </div>
       `
     } catch (e) {
-      container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${e.message}</div>`
+      container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 
@@ -5111,22 +5135,22 @@ async function renderAdminUsers() {
       const identity = u.identity || {}
       showModal('用户详情', `
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--kb-border-light)">
-          <div style="width:48px;height:48px;border-radius:12px;background:var(--kb-primary);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:600">${(u.nickname || 'U').charAt(0).toUpperCase()}</div>
+          <div style="width:48px;height:48px;border-radius:12px;background:var(--kb-primary);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:600">${escapeHtml((u.nickname || 'U').charAt(0).toUpperCase())}</div>
           <div>
-            <div style="font-size:16px;font-weight:600;color:var(--kb-text)">${u.nickname || '-'}</div>
-            <div style="font-size:12px;color:var(--kb-text-tertiary)">${u.phone || u.email || '-'}</div>
+            <div style="font-size:16px;font-weight:600;color:var(--kb-text)">${escapeHtml(u.nickname) || '-'}</div>
+            <div style="font-size:12px;color:var(--kb-text-tertiary)">${escapeHtml(u.phone || u.email) || '-'}</div>
           </div>
         </div>
-        <div class="ma-field-row"><span class="ma-field-label">用户ID</span><span class="ma-field-value" style="font-size:11px">${u.id}</span></div>
-        <div class="ma-field-row"><span class="ma-field-label">账户状态</span><span class="au-status-badge" style="background:${statusConfig[u.status]?.bg || '#f5f5f5'};color:${statusConfig[u.status]?.color || '#666'}">${u.status}</span></div>
-        <div class="ma-field-row"><span class="ma-field-label">风险等级</span><span class="au-risk-badge" style="background:${riskConfig[u.riskLevel]?.bg || '#f6ffed'};color:${riskConfig[u.riskLevel]?.color || '#52c41a'}">${riskConfig[u.riskLevel]?.label || u.riskLevel || 'LOW'}</span></div>
-        <div class="ma-field-row"><span class="ma-field-label">实名状态</span><span class="ma-field-value">${statusMap[u.realNameStatus] || u.realNameStatus || '未认证'}</span></div>
-        <div class="ma-field-row"><span class="ma-field-label">真实姓名</span><span class="ma-field-value">${identity.realName || '-'}</span></div>
-        <div class="ma-field-row"><span class="ma-field-label">身份证号</span><span class="ma-field-value">${identity.realName ? maskIdCard(identity.idCard) : '-'}</span></div>
-        <div class="ma-field-row"><span class="ma-field-label">可用余额</span><span class="ma-field-value">¥${fmtMoney(acc.availableBalanceYuan)}</span></div>
-        <div class="ma-field-row"><span class="ma-field-label">冻结余额</span><span class="ma-field-value">¥${fmtMoney(acc.frozenBalanceYuan)}</span></div>
-        <div class="ma-field-row"><span class="ma-field-label">总资产</span><span class="ma-field-value" style="font-weight:600;color:#722ed1">¥${fmtMoney(acc.totalBalanceYuan)}</span></div>
-        <div class="ma-field-row"><span class="ma-field-label">注册时间</span><span class="ma-field-value">${fmtTime(u.createdAt)}</span></div>
+        <div class="ma-field-row"><span class="ma-field-label">用户ID</span><span class="ma-field-value" style="font-size:11px">${escapeHtml(u.id)}</span></div>
+        <div class="ma-field-row"><span class="ma-field-label">账户状态</span><span class="au-status-badge" style="background:${escapeHtml(statusConfig[u.status]?.bg) || '#f5f5f5'};color:${escapeHtml(statusConfig[u.status]?.color) || '#666'}">${escapeHtml(u.status)}</span></div>
+        <div class="ma-field-row"><span class="ma-field-label">风险等级</span><span class="au-risk-badge" style="background:${escapeHtml(riskConfig[u.riskLevel]?.bg) || '#f6ffed'};color:${escapeHtml(riskConfig[u.riskLevel]?.color) || '#52c41a'}">${escapeHtml(riskConfig[u.riskLevel]?.label || u.riskLevel) || 'LOW'}</span></div>
+        <div class="ma-field-row"><span class="ma-field-label">实名状态</span><span class="ma-field-value">${escapeHtml(statusMap[u.realNameStatus] || u.realNameStatus) || '未认证'}</span></div>
+        <div class="ma-field-row"><span class="ma-field-label">真实姓名</span><span class="ma-field-value">${escapeHtml(identity.realName) || '-'}</span></div>
+        <div class="ma-field-row"><span class="ma-field-label">身份证号</span><span class="ma-field-value">${identity.realName ? escapeHtml(maskIdCard(identity.idCard)) : '-'}</span></div>
+        <div class="ma-field-row"><span class="ma-field-label">可用余额</span><span class="ma-field-value">¥${escapeHtml(fmtMoney(acc.availableBalanceYuan))}</span></div>
+        <div class="ma-field-row"><span class="ma-field-label">冻结余额</span><span class="ma-field-value">¥${escapeHtml(fmtMoney(acc.frozenBalanceYuan))}</span></div>
+        <div class="ma-field-row"><span class="ma-field-label">总资产</span><span class="ma-field-value" style="font-weight:600;color:#722ed1">¥${escapeHtml(fmtMoney(acc.totalBalanceYuan))}</span></div>
+        <div class="ma-field-row"><span class="ma-field-label">注册时间</span><span class="ma-field-value">${escapeHtml(fmtTime(u.createdAt))}</span></div>
       `)
     } catch (e) { showToast(e.message || '操作失败', 'error') }
   }
@@ -5206,7 +5230,7 @@ async function renderAdminUsers() {
   }
 
   try { await load() } catch (e) {
-    document.getElementById('userListContainer').innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${e.message}</div>`
+    document.getElementById('userListContainer').innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -5301,12 +5325,12 @@ async function renderAdminMerchants() {
           <div class="am-merchant-card">
             <div class="am-merchant-top">
               <div>
-                <div class="am-merchant-name">${m.merchantName || '未命名'}</div>
-                <div class="am-merchant-no">${m.merchantNo || '-'}</div>
+                <div class="am-merchant-name">${escapeHtml(m.merchantName) || '未命名'}</div>
+                <div class="am-merchant-no">${escapeHtml(m.merchantNo) || '-'}</div>
               </div>
-              <span class="am-status-badge" style="background:${sc.bg};color:${sc.color}">
-                <span class="am-status-dot" style="background:${sc.dot}"></span>
-                ${sc.label}
+              <span class="am-status-badge" style="background:${escapeHtml(sc.bg)};color:${escapeHtml(sc.color)}">
+                <span class="am-status-dot" style="background:${escapeHtml(sc.dot)}"></span>
+                ${escapeHtml(sc.label)}
               </span>
             </div>
 
@@ -5316,11 +5340,11 @@ async function renderAdminMerchants() {
             </div>
             <div class="am-field-row">
               <span class="am-field-label">联系人</span>
-              <span class="am-field-value">${m.contactName || '-'} ${m.contactPhone || ''}</span>
+              <span class="am-field-value">${escapeHtml(m.contactName) || '-'} ${escapeHtml(m.contactPhone) || ''}</span>
             </div>
             <div class="am-field-row">
               <span class="am-field-label">结算账户</span>
-              <span class="am-field-value" style="font-size:12px">${m.settleAccount || '-'}</span>
+              <span class="am-field-value" style="font-size:12px">${escapeHtml(m.settleAccount) || '-'}</span>
             </div>
             ${m.payRate != null ? `
               <div class="am-field-row">
@@ -5383,19 +5407,19 @@ async function renderAdminMerchants() {
         `
       }).join('') + `
         <div class="am-pagination">
-          <span>共 ${total} 条 / ${totalPages} 页</span>
-          <button ${currentPage <= 1 ? 'disabled' : ''} onclick="adminMerchantsPage(${currentPage - 1})">上一页</button>
+          <span>共 ${escapeHtml(total)} 条 / ${escapeHtml(totalPages)} 页</span>
+          <button ${currentPage <= 1 ? 'disabled' : ''} onclick="adminMerchantsPage(${jsNum(currentPage - 1)})">上一页</button>
           ${Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
             const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
             const p = start + i
             if (p > totalPages) return ''
             return `<button class="${p === currentPage ? 'active' : ''}" onclick="adminMerchantsPage(${p})">${p}</button>`
           }).join('')}
-          <button ${currentPage >= totalPages ? 'disabled' : ''} onclick="adminMerchantsPage(${currentPage + 1})">下一页</button>
+          <button ${currentPage >= totalPages ? 'disabled' : ''} onclick="adminMerchantsPage(${jsNum(currentPage + 1)})">下一页</button>
         </div>
       `
     } catch (e) {
-      container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${e.message}</div>`
+      container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 
@@ -5424,15 +5448,15 @@ async function renderAdminMerchants() {
     showModal('修改费率配置', `
       <div style="margin-bottom:10px">
         <label style="font-size:12px;color:var(--kb-text-secondary);display:block;margin-bottom:4px">收款费率（%）</label>
-        <input class="form-input" id="editPayRate" type="number" step="0.01" value="${(payRate / 100).toFixed(2)}" placeholder="如 0.60">
+        <input class="form-input" id="editPayRate" type="number" step="0.01" value="${escapeHtml((payRate / 100).toFixed(2))}" placeholder="如 0.60">
       </div>
       <div style="margin-bottom:10px">
         <label style="font-size:12px;color:var(--kb-text-secondary);display:block;margin-bottom:4px">提现费率（%）</label>
-        <input class="form-input" id="editWithdrawRate" type="number" step="0.01" value="${(withdrawRate / 100).toFixed(2)}" placeholder="如 1.00">
+        <input class="form-input" id="editWithdrawRate" type="number" step="0.01" value="${escapeHtml((withdrawRate / 100).toFixed(2))}" placeholder="如 1.00">
       </div>
       <div style="margin-bottom:12px">
         <label style="font-size:12px;color:var(--kb-text-secondary);display:block;margin-bottom:4px">日限额（元）</label>
-        <input class="form-input" id="editDailyLimit" type="number" value="${dailyLimit || ''}" placeholder="留空表示无限制">
+        <input class="form-input" id="editDailyLimit" type="number" value="${escapeHtml(dailyLimit) || ''}" placeholder="留空表示无限制">
       </div>
       <button class="btn btn-primary" id="btnSaveRate" style="width:100%">保存配置</button>
     `)
@@ -5464,7 +5488,7 @@ async function renderAdminMerchants() {
   })
 
   try { await load() } catch (e) {
-    document.getElementById('merchantListContainer').innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${e.message}</div>`
+    document.getElementById('merchantListContainer').innerHTML = `<div style="padding:32px;text-align:center;color:var(--kb-error)">加载失败：${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -5488,17 +5512,17 @@ async function renderAdminWithdrawals() {
       container.innerHTML = list.map((w) => `
         <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:8px">
           <div style="display:flex;justify-content:space-between;width:100%">
-            <div class="bill-type">提现 ¥${fmtMoney(w.amountYuan)}</div>
-            <div class="bill-amount">${w.status}</div>
+            <div class="bill-type">提现 ¥${escapeHtml(fmtMoney(w.amountYuan))}</div>
+            <div class="bill-amount">${escapeHtml(w.status)}</div>
           </div>
-          <div class="bill-time">用户：${w.user?.nickname || w.user?.phone || w.userId || ''} · 到账账户：${w.channelAccount || ''} · ${fmtTime(w.createdAt)}</div>
+          <div class="bill-time">用户：${escapeHtml(w.user?.nickname || w.user?.phone || w.userId) || ''} · 到账账户：${escapeHtml(w.channelAccount) || ''} · ${escapeHtml(fmtTime(w.createdAt))}</div>
           <div style="display:flex;gap:8px;width:100%;margin-top:4px">
-            <button class="btn btn-primary" style="flex:1;margin-top:0" onclick="approveWithdrawal('${w.id}')">通过</button>
-            <button class="btn btn-secondary" style="flex:1;margin-top:0" onclick="showRejectWithdrawal('${w.id}')">拒绝</button>
+            <button class="btn btn-primary" style="flex:1;margin-top:0" onclick="approveWithdrawal(${jsStr(w.id)})">通过</button>
+            <button class="btn btn-secondary" style="flex:1;margin-top:0" onclick="showRejectWithdrawal(${jsStr(w.id)})">拒绝</button>
           </div>
-          <div id="reject-withdrawal-${w.id}" style="display:none;width:100%">
-            <input class="form-input" id="reason-withdrawal-${w.id}" placeholder="请输入拒绝原因" style="margin-top:8px">
-            <button class="btn btn-primary" style="margin-top:8px" onclick="rejectWithdrawal('${w.id}')">确认拒绝</button>
+          <div id="reject-withdrawal-${escapeHtml(w.id)}" style="display:none;width:100%">
+            <input class="form-input" id="reason-withdrawal-${escapeHtml(w.id)}" placeholder="请输入拒绝原因" style="margin-top:8px">
+            <button class="btn btn-primary" style="margin-top:8px" onclick="rejectWithdrawal(${jsStr(w.id)})">确认拒绝</button>
           </div>
         </div>
       `).join('')
@@ -5540,7 +5564,7 @@ async function renderAdminWithdrawals() {
   try {
     await load()
   } catch (e) {
-    document.getElementById('withdrawalList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+    document.getElementById('withdrawalList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -5563,11 +5587,11 @@ async function renderAdminRiskEvents() {
       container.innerHTML = list.map((r) => `
         <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:8px">
           <div style="display:flex;justify-content:space-between;width:100%">
-            <div class="bill-type">${r.type || '风险事件'}</div>
-            <div class="bill-amount">${r.level || '低'}</div>
+            <div class="bill-type">${escapeHtml(r.type) || '风险事件'}</div>
+            <div class="bill-amount">${escapeHtml(r.level) || '低'}</div>
           </div>
-          <div class="bill-time">用户：${r.userId || r.user?.id || ''} · ${r.description || ''}</div>
-          <div class="bill-time">状态：${r.handled ? '已处理' : '未处理'} · ${fmtTime(r.createdAt)}</div>
+          <div class="bill-time">用户：${r.userId || r.user?.id || ''} · ${escapeHtml(r.description) || ''}</div>
+          <div class="bill-time">状态：${r.handled ? '已处理' : '未处理'} · ${escapeHtml(fmtTime(r.createdAt))}</div>
           ${!r.handled ? `
             <div style="display:flex;gap:8px;width:100%;margin-top:4px">
               <button class="btn btn-primary" style="flex:1;margin-top:0" onclick="handleRiskEvent('${r.id}')">标记已处理</button>
@@ -5592,7 +5616,7 @@ async function renderAdminRiskEvents() {
   try {
     await load()
   } catch (e) {
-    document.getElementById('riskList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+    document.getElementById('riskList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -5660,7 +5684,7 @@ async function renderAdminConfigs() {
   try {
     await load()
   } catch (e) {
-    document.getElementById('configList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+    document.getElementById('configList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -5703,11 +5727,11 @@ async function renderAdminOrders() {
       container.innerHTML = list.map((o) => `
         <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:8px">
           <div style="display:flex;justify-content:space-between;width:100%">
-            <div class="bill-type">¥${fmtMoney(o.amountYuan)} · ${o.merchant?.merchantName || '-'}</div>
-            <div class="bill-amount">${statusMap[o.status] || o.status}</div>
+            <div class="bill-type">¥${escapeHtml(fmtMoney(o.amountYuan))} · ${escapeHtml(o.merchant?.merchantName) || '-'}</div>
+            <div class="bill-amount">${escapeHtml(statusMap[o.status] || o.status)}</div>
           </div>
-          <div class="bill-time">订单号：${o.orderNo} · 商品：${o.subject || '-'}</div>
-          <div class="bill-time">手续费：¥${fmtMoney(o.feeYuan)} · 创建：${fmtTime(o.createdAt)}${o.paidAt ? ' · 支付：' + fmtTime(o.paidAt) : ''}</div>
+          <div class="bill-time">订单号：${escapeHtml(o.orderNo)} · 商品：${escapeHtml(o.subject) || '-'}</div>
+          <div class="bill-time">手续费：¥${escapeHtml(fmtMoney(o.feeYuan))} · 创建：${escapeHtml(fmtTime(o.createdAt))}${o.paidAt ? ' · 支付：' + fmtTime(o.paidAt) : ''}</div>
         </div>
       `).join('')
     }
@@ -5717,7 +5741,7 @@ async function renderAdminOrders() {
   try {
     await load()
   } catch (e) {
-    document.getElementById('orderList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+    document.getElementById('orderList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -5768,11 +5792,11 @@ async function renderAdminFinance() {
       <div class="card">
         <div class="form-group">
           <label class="form-label">开始日期</label>
-          <input class="form-input" type="date" id="overviewStart" value="${defaultStart}">
+          <input class="form-input" type="date" id="overviewStart" value="${escapeHtml(defaultStart)}">
         </div>
         <div class="form-group">
           <label class="form-label">结束日期</label>
-          <input class="form-input" type="date" id="overviewEnd" value="${today}">
+          <input class="form-input" type="date" id="overviewEnd" value="${escapeHtml(today)}">
         </div>
         <button class="btn btn-primary" id="btnQueryOverview">查询</button>
       </div>
@@ -5787,28 +5811,28 @@ async function renderAdminFinance() {
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:12px">
             <div class="card" style="text-align:center">
               <div class="bill-time">流水总额</div>
-              <div class="bill-amount">¥${fmtMoney(d.totalTurnoverYuan)}</div>
+              <div class="bill-amount">¥${escapeHtml(fmtMoney(d.totalTurnoverYuan))}</div>
             </div>
             <div class="card" style="text-align:center">
               <div class="bill-time">净收入</div>
-              <div class="bill-amount income">¥${fmtMoney(d.netIncomeYuan)}</div>
+              <div class="bill-amount income">¥${escapeHtml(fmtMoney(d.netIncomeYuan))}</div>
             </div>
             <div class="card" style="text-align:center">
               <div class="bill-time">手续费收入</div>
-              <div class="bill-amount income">¥${fmtMoney(d.totalFeeYuan)}</div>
+              <div class="bill-amount income">¥${escapeHtml(fmtMoney(d.totalFeeYuan))}</div>
             </div>
             <div class="card" style="text-align:center">
               <div class="bill-time">总资产</div>
-              <div class="bill-amount">¥${fmtMoney(d.totalAssetsYuan)}</div>
+              <div class="bill-amount">¥${escapeHtml(fmtMoney(d.totalAssetsYuan))}</div>
             </div>
             <div class="card" style="text-align:center">
               <div class="bill-time">交易笔数</div>
-              <div class="bill-amount">${d.transactionCount || 0} 笔</div>
+              <div class="bill-amount">${escapeHtml(d.transactionCount || 0)} 笔</div>
             </div>
           </div>
         `
       } catch (e) {
-        document.getElementById('overviewCards').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+        document.getElementById('overviewCards').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
       }
     }
     document.getElementById('btnQueryOverview').onclick = load
@@ -5820,11 +5844,11 @@ async function renderAdminFinance() {
       <div class="card">
         <div class="form-group">
           <label class="form-label">开始日期</label>
-          <input class="form-input" type="date" id="startDate" value="${defaultStart}">
+          <input class="form-input" type="date" id="startDate" value="${escapeHtml(defaultStart)}">
         </div>
         <div class="form-group">
           <label class="form-label">结束日期</label>
-          <input class="form-input" type="date" id="endDate" value="${today}">
+          <input class="form-input" type="date" id="endDate" value="${escapeHtml(today)}">
         </div>
         <button class="btn btn-primary" id="btnQueryDaily">查询</button>
         <button class="btn btn-secondary" id="btnExportDaily" style="margin-left:8px">导出 CSV</button>
@@ -5844,15 +5868,15 @@ async function renderAdminFinance() {
           list.innerHTML = data.map((d) => `
             <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:4px">
               <div style="display:flex;justify-content:space-between;width:100%">
-                <div class="bill-type">${d.date}</div>
-                <div class="bill-amount">${d.transactionCount || 0} 笔</div>
+                <div class="bill-type">${escapeHtml(d.date)}</div>
+                <div class="bill-amount">${escapeHtml(d.transactionCount || 0)} 笔</div>
               </div>
-              <div class="bill-time">总收入 ¥${fmtMoney(d.totalIncomeYuan)} · 总支出 ¥${fmtMoney(d.totalExpenseYuan)} · 手续费 ¥${fmtMoney(d.totalFeeYuan)}</div>
+              <div class="bill-time">总收入 ¥${escapeHtml(fmtMoney(d.totalIncomeYuan))} · 总支出 ¥${escapeHtml(fmtMoney(d.totalExpenseYuan))} · 手续费 ¥${escapeHtml(fmtMoney(d.totalFeeYuan))}</div>
             </div>
           `).join('')
         }
       } catch (e) {
-        document.getElementById('dailyList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+        document.getElementById('dailyList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
       }
     }
     document.getElementById('btnQueryDaily').onclick = load
@@ -5875,16 +5899,16 @@ async function renderAdminFinance() {
         list.innerHTML = data.map((d) => `
           <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:4px">
             <div style="display:flex;justify-content:space-between;width:100%">
-              <div class="bill-type">${d.merchantName || '未知商户'}</div>
-              <div class="bill-amount">${d.orderCount || 0} 单</div>
+              <div class="bill-type">${escapeHtml(d.merchantName) || '未知商户'}</div>
+              <div class="bill-amount">${escapeHtml(d.orderCount || 0)} 单</div>
             </div>
-            <div class="bill-time">商户号：${d.merchantNo || ''}</div>
-            <div class="bill-time">订单金额 ¥${fmtMoney(d.totalAmountYuan)} · 手续费 ¥${fmtMoney(d.totalFeeYuan)} · 结算金额 ¥${fmtMoney(d.settledAmountYuan)}</div>
+            <div class="bill-time">商户号：${escapeHtml(d.merchantNo) || ''}</div>
+            <div class="bill-time">订单金额 ¥${escapeHtml(fmtMoney(d.totalAmountYuan))} · 手续费 ¥${escapeHtml(fmtMoney(d.totalFeeYuan))} · 结算金额 ¥${escapeHtml(fmtMoney(d.settledAmountYuan))}</div>
           </div>
         `).join('')
       }
     } catch (e) {
-      content.innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+      content.innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 
@@ -5904,15 +5928,15 @@ async function renderAdminFinance() {
         list.innerHTML = data.map((d) => `
           <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:4px">
             <div style="display:flex;justify-content:space-between;width:100%">
-              <div class="bill-type">${d.date}</div>
-              <div class="bill-amount income">+¥${fmtMoney(d.totalFeeYuan)}</div>
+              <div class="bill-type">${escapeHtml(d.date)}</div>
+              <div class="bill-amount income">+¥${escapeHtml(fmtMoney(d.totalFeeYuan))}</div>
             </div>
-            <div class="bill-time">支付手续费 ¥${fmtMoney(d.paymentFeeYuan)} · 提现手续费 ¥${fmtMoney(d.withdrawalFeeYuan)}</div>
+            <div class="bill-time">支付手续费 ¥${escapeHtml(fmtMoney(d.paymentFeeYuan))} · 提现手续费 ¥${escapeHtml(fmtMoney(d.withdrawalFeeYuan))}</div>
           </div>
         `).join('')
       }
     } catch (e) {
-      content.innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+      content.innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 
@@ -5935,15 +5959,15 @@ async function renderAdminFinance() {
           list.innerHTML = data.map((d) => `
             <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:4px">
               <div style="display:flex;justify-content:space-between;width:100%">
-                <div class="bill-type">${d.date}</div>
-                <div class="bill-amount">${d.transactionCount || 0} 笔</div>
+                <div class="bill-type">${escapeHtml(d.date)}</div>
+                <div class="bill-amount">${escapeHtml(d.transactionCount || 0)} 笔</div>
               </div>
-              <div class="bill-time">总资产 ¥${fmtMoney(d.totalAssetsYuan)} · 总收入 ¥${fmtMoney(d.totalIncomeYuan)} · 总支出 ¥${fmtMoney(d.totalExpenseYuan)} · 手续费 ¥${fmtMoney(d.totalFeeYuan)}</div>
+              <div class="bill-time">总资产 ¥${escapeHtml(fmtMoney(d.totalAssetsYuan))} · 总收入 ¥${escapeHtml(fmtMoney(d.totalIncomeYuan))} · 总支出 ¥${escapeHtml(fmtMoney(d.totalExpenseYuan))} · 手续费 ¥${escapeHtml(fmtMoney(d.totalFeeYuan))}</div>
             </div>
           `).join('')
         }
       } catch (e) {
-        document.getElementById('snapshotList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+        document.getElementById('snapshotList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
       }
     }
     document.getElementById('btnExportSnapshot').onclick = () => {
@@ -5957,7 +5981,7 @@ async function renderAdminFinance() {
         <div class="card" style="width:320px;max-width:90vw">
           <div class="form-group">
             <label class="form-label">快照日期</label>
-            <input class="form-input" type="date" id="snapshotDate" value="${todayStr}">
+            <input class="form-input" type="date" id="snapshotDate" value="${escapeHtml(todayStr)}">
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn btn-primary" id="btnConfirmGenerate">生成</button>
@@ -5993,7 +6017,7 @@ async function renderAdminReconciliation() {
       <div class="card">
         <div class="form-group">
           <label class="form-label">对账日期</label>
-          <input class="form-input" type="date" id="reconDate" value="${fmtDate(new Date())}">
+          <input class="form-input" type="date" id="reconDate" value="${escapeHtml(fmtDate(new Date()))}">
         </div>
         <button class="btn btn-primary" id="btnRunRecon">执行对账</button>
       </div>
@@ -6025,17 +6049,17 @@ async function renderAdminReconciliation() {
           return `
             <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:4px">
               <div style="display:flex;justify-content:space-between;width:100%">
-                <div class="bill-type">${r.date}</div>
+                <div class="bill-type">${escapeHtml(r.date)}</div>
                 <div class="bill-amount ${r.status === 'SUCCESS' ? 'income' : 'expense'}">${r.status === 'SUCCESS' ? '成功' : '失败'}</div>
               </div>
-              <div class="bill-time">差异信息：${diffInfo}</div>
-              <div class="bill-time">操作人：${r.checkedBy || '-'} · ${fmtTime(r.checkedAt)}</div>
+              <div class="bill-time">差异信息：${escapeHtml(diffInfo)}</div>
+              <div class="bill-time">操作人：${escapeHtml(r.checkedBy) || '-'} · ${escapeHtml(fmtTime(r.checkedAt))}</div>
             </div>
           `
         }).join('')
       }
     } catch (e) {
-      document.getElementById('reportList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+      document.getElementById('reportList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 
@@ -6082,24 +6106,24 @@ async function renderAdminIdentity() {
         container.innerHTML = list.map((i) => `
           <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:8px">
             <div style="display:flex;justify-content:space-between;width:100%">
-              <div class="bill-type">${i.realName} · ${i.user?.nickname || i.user?.phone || i.user?.email || ''}</div>
+              <div class="bill-type">${escapeHtml(i.realName)} · ${escapeHtml(i.user?.nickname || i.user?.phone || i.user?.email) || ''}</div>
               <div class="bill-amount">审核中</div>
             </div>
-            <div class="bill-time">身份证号：${maskIdCard(i.idCard)} · 提交时间：${fmtTime(i.createdAt)}</div>
+            <div class="bill-time">身份证号：${escapeHtml(maskIdCard(i.idCard))} · 提交时间：${escapeHtml(fmtTime(i.createdAt))}</div>
             <div style="display:flex;gap:8px;width:100%;margin-top:4px">
-              <button class="btn btn-primary" style="flex:1;margin-top:0" onclick="approveIdentity('${i.id}')">通过</button>
-              <button class="btn btn-secondary" style="flex:1;margin-top:0" onclick="showRejectIdentity('${i.id}')">拒绝</button>
+              <button class="btn btn-primary" style="flex:1;margin-top:0" onclick="approveIdentity(${jsStr(i.id)})">通过</button>
+              <button class="btn btn-secondary" style="flex:1;margin-top:0" onclick="showRejectIdentity(${jsStr(i.id)})">拒绝</button>
             </div>
-            <div id="reject-identity-${i.id}" style="display:none;width:100%">
-              <input class="form-input" id="reason-identity-${i.id}" placeholder="请输入拒绝原因" style="margin-top:8px">
-              <button class="btn btn-primary" style="margin-top:8px" onclick="rejectIdentity('${i.id}')">确认拒绝</button>
+            <div id="reject-identity-${escapeHtml(i.id)}" style="display:none;width:100%">
+              <input class="form-input" id="reason-identity-${escapeHtml(i.id)}" placeholder="请输入拒绝原因" style="margin-top:8px">
+              <button class="btn btn-primary" style="margin-top:8px" onclick="rejectIdentity(${jsStr(i.id)})">确认拒绝</button>
             </div>
           </div>
         `).join('') + renderPagination(total, curPage, limit, (p) => navigateWithParams(p))
         bindPagination((p) => navigateWithParams(p))
       }
     } catch (e) {
-      document.getElementById('identityList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+      document.getElementById('identityList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 
@@ -6138,7 +6162,7 @@ async function renderAdminIdentity() {
   try {
     await load()
   } catch (e) {
-    document.getElementById('identityList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+    document.getElementById('identityList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -6178,17 +6202,17 @@ async function renderAdminLoginLogs() {
         container.innerHTML = list.map((l) => `
           <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:4px">
             <div style="display:flex;justify-content:space-between;width:100%">
-              <div class="bill-type">${l.user?.nickname || l.user?.phone || l.user?.email || l.userId || '未知用户'}</div>
+              <div class="bill-type">${escapeHtml(l.user?.nickname || l.user?.phone || l.user?.email || l.userId) || '未知用户'}</div>
               <div class="bill-amount ${l.success ? 'income' : 'expense'}">${l.success ? '成功' : '失败'}</div>
             </div>
-            <div class="bill-time">IP：${l.ip || '-'} · ${fmtTime(l.createdAt)}</div>
-            <div class="bill-time">UA：${l.userAgent || '-'}${l.reason ? ' · 原因：' + l.reason : ''}</div>
+            <div class="bill-time">IP：${escapeHtml(l.ip) || '-'} · ${escapeHtml(fmtTime(l.createdAt))}</div>
+            <div class="bill-time">UA：${escapeHtml(l.userAgent) || '-'}${l.reason ? ' · 原因：' + escapeHtml(l.reason) : ''}</div>
           </div>
         `).join('') + renderPagination(total, curPage, limit, (p) => navigateWithParams(p))
         bindPagination((p) => navigateWithParams(p))
       }
     } catch (e) {
-      document.getElementById('logList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+      document.getElementById('logList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 
@@ -6204,7 +6228,7 @@ async function renderAdminLoginLogs() {
   try {
     await load()
   } catch (e) {
-    document.getElementById('logList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+    document.getElementById('logList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -6263,10 +6287,10 @@ async function renderAdminAuditLogs() {
         container.innerHTML = list.map((l) => `
           <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:4px">
             <div style="display:flex;justify-content:space-between;width:100%">
-              <div class="bill-type">${l.action || '-'}</div>
-              <div class="bill-time">${fmtTime(l.createdAt)}</div>
+              <div class="bill-type">${escapeHtml(l.action) || '-'}</div>
+              <div class="bill-time">${escapeHtml(fmtTime(l.createdAt))}</div>
             </div>
-            <div class="bill-time">管理员：${l.adminId || '-'}${l.target ? ' · 对象：' + l.target : ''}</div>
+            <div class="bill-time">管理员：${escapeHtml(l.adminId) || '-'}${l.target ? ' · 对象：' + l.target : ''}</div>
             ${l.ip || l.userAgent ? `<div class="bill-time">IP：${l.ip || '-'}${l.userAgent ? ' · UA：' + l.userAgent : ''}</div>` : ''}
             ${l.detail ? `<div class="bill-time" style="word-break:break-all;white-space:pre-wrap">详情：${fmtDetail(l.detail)}</div>` : ''}
           </div>
@@ -6274,7 +6298,7 @@ async function renderAdminAuditLogs() {
         bindPagination((p) => navigateWithParams(p))
       }
     } catch (e) {
-      document.getElementById('auditList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+      document.getElementById('auditList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 
@@ -6296,7 +6320,7 @@ async function renderAdminAuditLogs() {
   try {
     await load()
   } catch (e) {
-    document.getElementById('auditList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+    document.getElementById('auditList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -6332,19 +6356,19 @@ async function renderAdminRiskRules() {
       container.innerHTML = rules.map((r) => `
         <div class="bill-item" style="align-items:flex-start;flex-direction:column;gap:8px">
           <div style="display:flex;justify-content:space-between;width:100%">
-            <div class="bill-type">${r.name}（${r.code}）</div>
+            <div class="bill-type">${escapeHtml(r.name)}（${escapeHtml(r.code)}）</div>
             <div class="bill-amount ${r.enabled ? 'income' : 'expense'}">${r.enabled ? '启用' : '停用'}</div>
           </div>
-          <div class="bill-time">动作：${actionMap[r.action] || r.action}</div>
-          <div class="bill-time">参数：${fmtParams(r.params)}</div>
+          <div class="bill-time">动作：${escapeHtml(actionMap[r.action] || r.action)}</div>
+          <div class="bill-time">参数：${escapeHtml(fmtParams(r.params))}</div>
           <div style="display:flex;gap:8px;width:100%;margin-top:4px">
-            <button class="btn btn-secondary" style="flex:1;margin-top:0;min-width:80px" onclick="editRiskRule('${r.code}')">编辑</button>
-            <button class="btn ${r.enabled ? 'btn-secondary' : 'btn-primary'}" style="flex:1;margin-top:0;min-width:80px" onclick="toggleRiskRule('${r.code}', ${!r.enabled})">${r.enabled ? '停用' : '启用'}</button>
+            <button class="btn btn-secondary" style="flex:1;margin-top:0;min-width:80px" onclick="editRiskRule(${jsStr(r.code)})">编辑</button>
+            <button class="btn ${r.enabled ? 'btn-secondary' : 'btn-primary'}" style="flex:1;margin-top:0;min-width:80px" onclick="toggleRiskRule(${jsStr(r.code)}, ${jsBool(!r.enabled)})">${r.enabled ? '停用' : '启用'}</button>
           </div>
         </div>
       `).join('')
     } catch (e) {
-      document.getElementById('ruleList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+      document.getElementById('ruleList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 
@@ -6446,7 +6470,7 @@ async function renderAdminRiskRules() {
   try {
     await load()
   } catch (e) {
-    document.getElementById('ruleList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+    document.getElementById('ruleList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
   }
 }
 
@@ -6503,18 +6527,18 @@ async function renderAdminChannels() {
         <div style="border:1px solid #ddd;border-radius:8px;padding:12px;margin-bottom:8px;position:relative">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div>
-              <strong>${ch.name}</strong> <span style="color:#666;font-size:13px">(${ch.code})</span>
+              <strong>${escapeHtml(ch.name)}</strong> <span style="color:#666;font-size:13px">(${escapeHtml(ch.code)})</span>
               <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;margin-left:8px;
                 background:${ch.enabled ? '#e6f7e6' : '#fff3e0'};color:${ch.enabled ? '#16a34a' : '#e67e22'}">
                 ${ch.enabled ? '已启用' : '未启用'}
               </span>
             </div>
             <div>
-              <button onclick="editChannel('${ch.code}')" style="margin-right:4px">编辑</button>
-              <button onclick="toggleChannel('${ch.code}', ${!ch.enabled})" style="background:${ch.enabled ? '#e67e22' : '#16a34a'}">
+              <button onclick="editChannel(${jsStr(ch.code)})" style="margin-right:4px">编辑</button>
+              <button onclick="toggleChannel(${jsStr(ch.code)}, ${jsBool(!ch.enabled)})" style="background:${ch.enabled ? '#e67e22' : '#16a34a'}">
                 ${ch.enabled ? '停用' : '启用'}
               </button>
-              <button onclick="deleteChannel('${ch.code}')" style="background:#e74c3c;margin-left:4px">删除</button>
+              <button onclick="deleteChannel(${jsStr(ch.code)})" style="background:#e74c3c;margin-left:4px">删除</button>
             </div>
           </div>
           <div style="margin-top:8px;font-size:13px;color:#666">
@@ -6523,13 +6547,13 @@ async function renderAdminChannels() {
         </div>
       `).join('')
     } catch (e) {
-      document.getElementById('channelList').innerHTML = `<div class="empty">加载失败：${e.message}</div>`
+      document.getElementById('channelList').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`
     }
   }
 
   window.showAddChannel = () => {
     const options = Object.entries(channelTemplates).map(([code, t]) =>
-      `<option value="${code}">${t.name}</option>`
+      `<option value="${escapeHtml(code)}">${escapeHtml(t.name)}</option>`
     ).join('')
     const overlay = document.createElement('div')
     overlay.className = 'modal-overlay'
@@ -6539,7 +6563,7 @@ async function renderAdminChannels() {
         <div class="form-group">
           <label>选择渠道</label>
           <select id="addChannelCode" onchange="onAddChannelChange()">
-            ${options}
+            ${escapeHtml(options)}
           </select>
         </div>
         <div id="addChannelFields"></div>
@@ -6559,7 +6583,7 @@ async function renderAdminChannels() {
     if (!tmpl) return
     document.getElementById('addChannelFields').innerHTML = tmpl.fields.map(f => `
       <div class="form-group">
-        <label>${f.label}</label>
+        <label>${escapeHtml(f.label)}</label>
         ${f.type === 'textarea'
           ? `<textarea id="ch_${f.key}" placeholder="${f.placeholder || ''}" rows="3" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px"></textarea>`
           : `<input type="text" id="ch_${f.key}" placeholder="${f.placeholder || ''}" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">`
@@ -6605,7 +6629,7 @@ async function renderAdminChannels() {
     overlay.className = 'modal-overlay'
     overlay.innerHTML = `
       <div class="modal">
-        <h3>编辑 ${ch.name}</h3>
+        <h3>编辑 ${escapeHtml(ch.name)}</h3>
         ${tmpl ? tmpl.fields.map(f => {
           let currentVal = ''
           try {
@@ -6624,11 +6648,11 @@ async function renderAdminChannels() {
         }).join('') : '<p>自定义配置 (JSON)</p><textarea id="ch_rawConfig" rows="6" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">' + ch.config + '</textarea>'}
         <div class="form-group">
           <label>优先级 (数字越大优先级越高)</label>
-          <input type="number" id="ch_priority" value="${ch.priority}" min="0">
+          <input type="number" id="ch_priority" value="${escapeHtml(ch.priority)}" min="0">
         </div>
         <div style="display:flex;gap:8px;margin-top:12px">
           <button onclick="this.closest('.modal-overlay').remove()">取消</button>
-          <button onclick="doEditChannel('${code}')">保存</button>
+          <button onclick="doEditChannel(${jsStr(code)})">保存</button>
         </div>
       </div>
     `
@@ -6825,7 +6849,7 @@ async function renderBankCards() {
     document.getElementById('cardList').innerHTML = `
       <div class="kb-bankcards-empty">
         <div class="kb-bankcards-empty-icon">${icon('empty', 40)}</div>
-        <div class="kb-bankcards-empty-text">加载失败：${e.message}</div>
+        <div class="kb-bankcards-empty-text">加载失败：${escapeHtml(e.message)}</div>
       </div>
     `
   }
