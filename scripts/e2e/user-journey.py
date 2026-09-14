@@ -62,6 +62,18 @@ ts = int(time.time()) % 100000
 PHONE_A, PHONE_B = f"139{ts:05d}001", f"139{ts:05d}002"
 PW_A, PW_B = "UserA#2026xyz", "UserB#2026xyz"
 
+# 身份证需通过 GB 11643 校验位验证（DTO 已启用 IsIdCard），动态生成保证唯一
+_ID_WEIGHTS = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
+_ID_CODES = "10X98765432"
+
+def make_id_card(seq: int) -> str:
+    seq %= 10000  # 前缀固定 17 位：13 位日期前缀 + 4 位序号
+    prefix = f"1101011990030{seq:04d}"
+    s = sum(int(prefix[i]) * _ID_WEIGHTS[i] for i in range(17))
+    return prefix + _ID_CODES[s % 11]
+
+ID_A, ID_B = make_id_card(ts), make_id_card(ts + 1)
+
 # 01 注册 A
 st, d = api("POST", "/auth/register", json={"nickname": "场景测试甲", "phone": PHONE_A, "password": PW_A})
 step(1, "用户A注册", st in (200, 201) or "已" in str(d), str(d)[:80])
@@ -88,10 +100,10 @@ step(6, "B 获取个人信息", st == 200 and bool(uidB), f"uid={uidB}")
 
 # 07/08 实名
 st, d = api("POST", "/users/verify-identity", tokA,
-            json={"realName": "张甲", "idCard": f"1101011990030{ts:05d}", "payPassword": "123456"})
+            json={"realName": "张甲", "idCard": ID_A, "payPassword": "123456"})
 step(7, "A 提交实名", st in (200, 201) or "已" in str(d), str(d)[:100])
 st, d = api("POST", "/users/verify-identity", tokB,
-            json={"realName": "李乙", "idCard": f"1101011990031{ts:05d}", "payPassword": "123456"})
+            json={"realName": "李乙", "idCard": ID_B, "payPassword": "123456"})
 step(8, "B 提交实名", st in (200, 201) or "已" in str(d), str(d)[:100])
 
 # 09 管理员登录 + 审核实名

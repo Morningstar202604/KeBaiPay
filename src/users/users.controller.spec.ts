@@ -45,7 +45,7 @@ describe('UsersController', () => {
 
   it('verifyIdentity 透传 user.id 和 dto 到 service', async () => {
     const user = { id: 'u1' }
-    const dto = { realName: '张三', idCard: '110101199003073847', payPassword: '123456' }
+    const dto = { realName: '张三', idCard: '110101199003073845', payPassword: '123456' }
     await controller.verifyIdentity(user as any, dto as any)
 
     expect(mockService.verifyIdentity).toHaveBeenCalledWith('u1', dto)
@@ -53,7 +53,7 @@ describe('UsersController', () => {
 
   it('resetPayPassword 透传 user.id 和 dto 到 service', async () => {
     const user = { id: 'u1' }
-    const dto = { realName: '张三', idCard: '110101199003073847', newPayPassword: '654321' }
+    const dto = { realName: '张三', idCard: '110101199003073845', newPayPassword: '654321' }
     await controller.resetPayPassword(user as any, dto as any)
 
     expect(mockService.resetPayPassword).toHaveBeenCalledWith('u1', dto)
@@ -112,7 +112,7 @@ describe('UsersController (HTTP)', () => {
   it('verify-identity 缺 realName 返回 400', () => {
     return request(app.getHttpServer())
       .post('/users/verify-identity')
-      .send({ idCard: '110101199003073847', payPassword: '123456' })
+      .send({ idCard: '110101199003073845', payPassword: '123456' })
       .expect(400)
   })
 
@@ -126,42 +126,42 @@ describe('UsersController (HTTP)', () => {
   it('verify-identity 缺 payPassword 返回 400', () => {
     return request(app.getHttpServer())
       .post('/users/verify-identity')
-      .send({ realName: '张三', idCard: '110101199003073847' })
+      .send({ realName: '张三', idCard: '110101199003073845' })
       .expect(400)
   })
 
   it('verify-identity payPassword 非数字返回 400', () => {
     return request(app.getHttpServer())
       .post('/users/verify-identity')
-      .send({ realName: '张三', idCard: '110101199003073847', payPassword: 'abcdef' })
+      .send({ realName: '张三', idCard: '110101199003073845', payPassword: 'abcdef' })
       .expect(400)
   })
 
   it('verify-identity 参数合法返回 201', () => {
     return request(app.getHttpServer())
       .post('/users/verify-identity')
-      .send({ realName: '张三', idCard: '110101199003073847', payPassword: '123456' })
+      .send({ realName: '张三', idCard: '110101199003073845', payPassword: '123456' })
       .expect(201)
   })
 
   it('reset-pay-password 缺 newPayPassword 返回 400', () => {
     return request(app.getHttpServer())
       .post('/users/reset-pay-password')
-      .send({ realName: '张三', idCard: '110101199003073847' })
+      .send({ realName: '张三', idCard: '110101199003073845' })
       .expect(400)
   })
 
   it('reset-pay-password newPayPassword 长度非 6 位返回 400', () => {
     return request(app.getHttpServer())
       .post('/users/reset-pay-password')
-      .send({ realName: '张三', idCard: '110101199003073847', newPayPassword: '12345' })
+      .send({ realName: '张三', idCard: '110101199003073845', newPayPassword: '12345' })
       .expect(400)
   })
 
   it('reset-pay-password 参数合法返回 201', () => {
     return request(app.getHttpServer())
       .post('/users/reset-pay-password')
-      .send({ realName: '张三', idCard: '110101199003073847', newPayPassword: '654321' })
+      .send({ realName: '张三', idCard: '110101199003073845', newPayPassword: '654321' })
       .expect(201)
   })
 })

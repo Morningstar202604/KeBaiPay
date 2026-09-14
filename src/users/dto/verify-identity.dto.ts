@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, MinLength, MaxLength, Matches } from 'class-validator'
+import { IsIdCard } from '../../common/validators/id-card'
 
 // 支付密码强度策略：6 位纯数字（与银行惯例一致），避免弱密码（如 123456、abcdef）
 const PAY_PASSWORD_REGEX = /^\d{6}$/
@@ -10,10 +11,11 @@ export class VerifyIdentityDto {
   @MaxLength(30)
   realName!: string
 
+  // GB 11643 校验位 + 日期合法性校验；格式合法 ≠ 号码真实存在，
+  // 姓名与号码的对应关系由实名核验服务或人工审核确认
   @IsString()
   @IsNotEmpty()
-  @MinLength(15)
-  @MaxLength(18)
+  @IsIdCard()
   idCard!: string
 
   @IsString()

@@ -147,7 +147,7 @@ describe('UsersService', () => {
   })
 
   describe('verifyIdentity 实名认证', () => {
-    const dto = { realName: '张三', idCard: '110101199001011234', payPassword: TEST_PAY_PWD }
+    const dto = { realName: '张三', idCard: '110101199001011237', payPassword: TEST_PAY_PWD }
 
     it('用户不存在报错', async () => {
       prisma.user.findUnique.mockResolvedValue(null)
@@ -232,7 +232,7 @@ describe('UsersService', () => {
   })
 
   describe('resetPayPassword 重置支付密码', () => {
-    const dto = { realName: '张三', idCard: '110101199001011234', newPayPassword: '654321' }
+    const dto = { realName: '张三', idCard: '110101199001011237', newPayPassword: '654321' }
 
     it('未找到实名信息报错', async () => {
       prisma.identityVerification.findUnique.mockResolvedValue(null)
@@ -242,7 +242,7 @@ describe('UsersService', () => {
     it('实名信息不匹配报错', async () => {
       prisma.identityVerification.findUnique.mockResolvedValue({
         realName: '李四',
-        idCard: '110101199001011234',
+        idCard: '110101199001011237',
         status: RealNameStatus.VERIFIED,
       })
       await expect(service.resetPayPassword('u1', dto)).rejects.toThrow(BadRequestException)
@@ -253,7 +253,7 @@ describe('UsersService', () => {
       // 不允许重置支付密码，避免未实名用户绕过审核
       prisma.identityVerification.findUnique.mockResolvedValue({
         realName: '张三',
-        idCard: '110101199001011234',
+        idCard: '110101199001011237',
         status: RealNameStatus.REJECTED,
       })
       await expect(service.resetPayPassword('u1', dto)).rejects.toThrow(BadRequestException)
@@ -262,7 +262,7 @@ describe('UsersService', () => {
     it('实名信息匹配则更新密码', async () => {
       prisma.identityVerification.findUnique.mockResolvedValue({
         realName: '张三',
-        idCard: '110101199001011234',
+        idCard: '110101199001011237',
         status: RealNameStatus.VERIFIED,
       })
       prisma.user.update.mockResolvedValue({ id: 'u1', payPassword: FAKE_HASH_654321 })
