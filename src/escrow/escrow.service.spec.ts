@@ -355,4 +355,197 @@ describe('EscrowService', () => {
       expect(prisma.escrowOrder.updateMany).toHaveBeenCalledTimes(2)
     })
   })
+
+  // ============ 退款链路（v0.3.2 补测） ============
+
+  describe('requestRefund 买家申请退款', () => {
+    const shippedOrder = {
+      id: 'e1', orderNo: 'E1', buyerId: 'u1', sellerId: 'u2',
+      amount: 5000, status: EscrowStatus.SHIPPED, refundReason: null,
+    }
+
+    it('订单不存在 -> 404', async () => {
+      prisma.escrowOrder.findUnique.mockResolvedValue(null)
+      await expect(service.requestRefund('u1', 'E404', '没收到货')).rejects.toThrow(NotFoundException)
+    })
+
+    it('非买家申请 -> 403', async () => {
+      prisma.escrowOrder.findUnique.mockResolvedValue(shippedOrder)
+      await expect(service.requestRefund('u9', 'E1', '没收到货')).rejects.toThrow(ForbiddenException)
+    })
+
+    it('仅 SHIPPED 状态可申请（PAID 直接退款应走 cancel 语义外路径）', async () => {
+      prisma.escrowOrder.findUnique.mockResolvedValue({ ...shippedOrder, status: EscrowStatus.PAID })
+      await expect(service.requestRefund('u1', 'E1', '没收到货')).rejects.toThrow(BadRequestException)
+    })
+
+    it('条件更新抢空（并发重复申请）-> ESCROW_ALREADY_HANDLED', async () => {
+      prisma.escrowOrder.findUnique.mockResolvedValue(shippedOrder)
+      prisma.escrowOrder.updateMany.mockResolvedValue({ count: 0 })
+      await expect(service.requestRefund('u1', 'E1', '没收到货')).rejects.toThrow(
+        new RegExp(KBErrorCodes.ESCROW_ALREADY_HANDLED),
+      )
+    })
+
+    it('正常申请：SHIPPED -> REFUND_REQUESTED 并记录原因', async () => {
+      prisma.escrowOrder.findUnique
+        .mockResolvedValueOnce(shippedOrder)
+        .mockResolvedValueOnce({ ...shippedOrder, status: EscrowStatus.REFUND_REQUESTED, refundReason: '没收到货' })
+      const result = await service.requestRefund('u1', 'E1', '没收到货')
+      expect(result).toMatchObject({ status: EscrowStatus.REFUND_REQUESTED })
+      // 守卫条件：只有仍是 SHIPPED 才允许改
+      expect(prisma.escrowOrder.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'e1', status: EscrowStatus.SHIPPED }),
+          data: expect.objectContaining({ status: EscrowStatus.REFUND_REQUESTED, refundReason: '没收到货' }),
+        }),
+      )
+    })
+  })
+
+  describe('resolveRefund 卖家处理退款', () => {
+    const requestedOrder = {
+      id: 'e1', orderNo: 'E1', buyerId: 'u1', sellerId: 'u2', subject: '测试商品',
+      amount: 5000, status: EscrowStatus.REFUND_REQUESTED, refundReason: '没收到货',
+      buyer: { nickname: '买家甲' }, seller: { nickname: '卖家乙' },
+    }
+
+    it('订单不存在 -> 404', async () => {
+      prisma.escrowOrder.findUnique.mockResolvedValue(null)
+      await expect(service.resolveRefund('u2', 'E404', 'APPROVE_REFUND')).rejects.toThrow(NotFoundException)
+    })
+
+    it('非卖家处理 -> 403', async () => {
+      prisma.escrowOrder.findUnique.mockResolvedValue(requestedOrder)
+      await expect(service.resolveRefund('u9', 'E1', 'APPROVE_REFUND')).rejects.toThrow(ForbiddenException)
+    })
+
+    it('状态非 REFUND_REQUESTED -> 400（防止对已处理订单二次裁决）', async () => {
+      prisma.escrowOrder.findUnique.mockResolvedValue({ ...requestedOrder, status: EscrowStatus.RECEIVED })
+      await expect(service.resolveRefund('u2', 'E1', 'APPROVE_REFUND')).rejects.toThrow(BadRequestException)
+    })
+
+    it('同意退款：买家冻结 -> 买家可用（带冻结余额守卫），写退款分录与账单', async () => {
+      prisma.escrowOrder.findUnique
+        .mockResolvedValueOnce(requestedOrder)                                  // 订单读取
+        .mockResolvedValueOnce({ ...requestedOrder, status: EscrowStatus.REFUNDED }) // 最终返回
+      prisma.account.findUnique
+        .mockResolvedValueOnce({ id: 'b-acc', availableBalance: 100, frozenBalance: 5000 })  // 买家账户
+        .mockResolvedValueOnce({ id: 'b-acc', availableBalance: 5100, frozenBalance: 0 })    // 退款后
+      prisma.account.updateMany.mockResolvedValue({ count: 1 })
+      prisma.escrowOrder.updateMany.mockResolvedValue({ count: 1 })
+
+      const result = await service.resolveRefund('u2', 'E1', 'APPROVE_REFUND')
+      expect(result).toMatchObject({ status: EscrowStatus.REFUNDED })
+
+      // 买家冻结释放：available +amount / frozen -amount，带 gte 守卫
+      expect(prisma.account.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'b-acc', frozenBalance: { gte: 5000 } }),
+          data: expect.objectContaining({
+            availableBalance: { increment: 5000 },
+            frozenBalance: { decrement: 5000 },
+          }),
+        }),
+      )
+      // 主分录 + 冻结对手分录
+      expect(prisma.accountLedger.create).toHaveBeenCalledTimes(2)
+      // 买家账单一条（INCOME 退款）
+      expect(prisma.bill.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ userId: 'u1', direction: 'INCOME', amount: 5000 }),
+        }),
+      )
+      // 卖家不应入账
+      expect(prisma.account.update).not.toHaveBeenCalled()
+    })
+
+    it('拒绝退款：买家冻结扣减 + 卖家放款入账，状态回到 RECEIVED', async () => {
+      prisma.escrowOrder.findUnique
+        .mockResolvedValueOnce(requestedOrder)
+        .mockResolvedValueOnce({ ...requestedOrder, status: EscrowStatus.RECEIVED })
+      prisma.account.findUnique
+        .mockResolvedValueOnce({ id: 'b-acc', availableBalance: 100, frozenBalance: 5000 })  // 买家
+        .mockResolvedValueOnce({ id: 's-acc', availableBalance: 200 })                       // 卖家
+        .mockResolvedValueOnce({ id: 'b-acc', availableBalance: 100, frozenBalance: 0 })     // 更新后的买家
+      prisma.account.updateMany.mockResolvedValue({ count: 1 })
+      prisma.account.update.mockResolvedValue({ id: 's-acc', availableBalance: 5200 })
+      prisma.escrowOrder.updateMany.mockResolvedValue({ count: 1 })
+
+      const result = await service.resolveRefund('u2', 'E1', 'REJECT_REFUND')
+      expect(result).toMatchObject({ status: EscrowStatus.RECEIVED })
+
+      // 买家冻结扣减（资金离开买家总资产）
+      expect(prisma.account.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'b-acc', frozenBalance: { gte: 5000 } }),
+          data: expect.objectContaining({
+            frozenBalance: { decrement: 5000 },
+            totalBalance: { decrement: 5000 },
+          }),
+        }),
+      )
+      // 卖家放款入账
+      expect(prisma.account.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 's-acc' },
+          data: expect.objectContaining({
+            availableBalance: { increment: 5000 },
+            totalBalance: { increment: 5000 },
+          }),
+        }),
+      )
+      // 买家分录 + 卖家分录 + 卖家账单
+      expect(prisma.accountLedger.create).toHaveBeenCalledTimes(2)
+      expect(prisma.bill.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ userId: 'u2', type: 'ESCROW_INCOME' }),
+        }),
+      )
+    })
+
+    it('买家冻结余额异常（不足以释放）-> FROZEN_BALANCE_INSUFFICIENT，事务回滚防负余额', async () => {
+      prisma.escrowOrder.findUnique.mockResolvedValue(requestedOrder)
+      prisma.account.findUnique.mockResolvedValue({ id: 'b-acc', availableBalance: 100, frozenBalance: 10 })
+      prisma.account.updateMany.mockResolvedValue({ count: 0 })
+
+      await expect(service.resolveRefund('u2', 'E1', 'APPROVE_REFUND')).rejects.toThrow(
+        new RegExp(KBErrorCodes.FROZEN_BALANCE_INSUFFICIENT),
+      )
+    })
+  })
+
+  describe('autoConfirm 自动确认收货调度', () => {
+    it('无候选订单返回 0', async () => {
+      prisma.escrowOrder.findMany.mockResolvedValue([])
+      expect(await service.autoConfirm()).toBe(0)
+    })
+
+    it('超时候选逐单调 confirm 放款，计数成功条数', async () => {
+      prisma.escrowOrder.findMany.mockResolvedValue([
+        { id: 'e1', orderNo: 'E1', buyerId: 'u1' },
+        { id: 'e2', orderNo: 'E2', buyerId: 'u1' },
+      ])
+      const confirmSpy = jest.spyOn(service, 'confirm').mockResolvedValue({} as never)
+      const n = await service.autoConfirm()
+      expect(n).toBe(2)
+      expect(confirmSpy).toHaveBeenCalledTimes(2)
+      expect(confirmSpy).toHaveBeenCalledWith('u1', 'E1')
+      confirmSpy.mockRestore()
+    })
+
+    it('单条 confirm 失败不阻断整批（继续处理后续订单）', async () => {
+      prisma.escrowOrder.findMany.mockResolvedValue([
+        { id: 'e1', orderNo: 'E1', buyerId: 'u1' },
+        { id: 'e2', orderNo: 'E2', buyerId: 'u1' },
+      ])
+      const confirmSpy = jest.spyOn(service, 'confirm')
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValueOnce({} as never)
+      const n = await service.autoConfirm()
+      expect(n).toBe(1)
+      expect(confirmSpy).toHaveBeenCalledTimes(2)
+      confirmSpy.mockRestore()
+    })
+  })
 })
