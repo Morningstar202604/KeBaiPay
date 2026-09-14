@@ -135,6 +135,8 @@ npm install && npx prisma migrate deploy && npx prisma db seed && npm run start:
 | [API 参考](docs/API_REFERENCE.md) | [专家评审与路线图](docs/EXPERT_PANEL_ASSESSMENT.md) | [上线检查清单](docs/PRODUCTION_READINESS.md) |
 | [SDK 指南](docs/SDK_GUIDE.md) | [代码健康报告](docs/CODE_HEALTH_REPORT.md) | [故障排查](docs/TROUBLESHOOT.md) |
 | [用户手册](docs/USER_MANUAL.md) | [版本管理规范](docs/VERSIONING.md) | [更新日志](docs/CHANGELOG.md) |
+| [用户服务协议](docs/legal/user-agreement.md) | [隐私政策](docs/legal/privacy-policy.md) | [商户服务协议](docs/legal/merchant-agreement.md) |
+| [退款与争议规则](docs/legal/refund-policy.md) | [合规声明](docs/legal/compliance-statement.md) | [商业授权](docs/legal/commercial-license.md) |
 
 - 完整 OpenAPI 3.0 规范（220 个端点）：[`docs/openapi.json`](docs/openapi.json)
 - 商户 5 步接入第一笔收款：见 [QUICKSTART](docs/QUICKSTART.md)
