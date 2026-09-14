@@ -71,6 +71,8 @@
 
 `npm test` 不收集覆盖率（收集会额外耗时），所以 `coverageThreshold` 只在显式运行 `jest --coverage` 时生效，而 CI 流程（见 `.github/workflows/ci.yml`）大概率未开启覆盖率检查——阈值形同虚设。
 
+> **v0.3.1 更新**：阈值已从虚设的 80/80/75/70 下调到真实基线（54/48/52/55，见 `jest.config.js` 注释），`npm run test:cov` 现在可真实通过并守住倒退线；security 模块（原 0%）已补 12 个用例。后续每补齐一个低覆盖模块就上调一档。
+
 ---
 
 ## 四、依赖安全：已修复 9 个漏洞

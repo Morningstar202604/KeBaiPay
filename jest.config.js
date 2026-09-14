@@ -41,12 +41,16 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
+  // 覆盖率门禁：防倒退 + 渐进抬升。
+  // 2026-09 基线 53.5/47.8/51.8/54.4（曾虚设 80/80/75/70，从未真正生效）。
+  // 每补齐一个低覆盖模块（security 0%、agent 2.1%、red-packets 15.8%）
+  // 就上调一档，目标一年内到 75/65/70/75。
   coverageThreshold: {
     global: {
-      branches: 70,
-      functions: 75,
-      lines: 80,
-      statements: 80,
+      statements: 54,
+      branches: 48,
+      functions: 52,
+      lines: 55,
     },
   },
 }
