@@ -54,6 +54,7 @@ export const KBErrorCodes = {
   EMAIL_ALREADY_BOUND: 'KB223',
   SMS_CODE_INVALID: 'KB224',
   MERCHANT_APP_NAME_REQUIRED: 'KB225',
+  REALNAME_VERIFY_FAILED: 'KB226',
 
   // 商户
   MERCHANT_ALREADY_APPLIED: 'KB301',
@@ -308,6 +309,7 @@ export const KBErrorMessages: Record<KBErrorCode, string> = {
   [KBErrorCodes.EMAIL_ALREADY_BOUND]: '该邮箱已被其他账号绑定',
   [KBErrorCodes.SMS_CODE_INVALID]: '短信验证码错误或已过期',
   [KBErrorCodes.MERCHANT_APP_NAME_REQUIRED]: '应用名称不能为空',
+  [KBErrorCodes.REALNAME_VERIFY_FAILED]: '实名核验未通过，请确认姓名与身份证号一致',
 
   [KBErrorCodes.MERCHANT_ALREADY_APPLIED]: '已申请过商户',
   [KBErrorCodes.MERCHANT_INFO_NOT_FOUND]: '商户信息不存在',

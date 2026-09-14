@@ -1,5 +1,5 @@
 import { businessDayKey } from '../common/date-helpers'
-import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
@@ -20,6 +20,8 @@ import {
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
@@ -160,6 +162,8 @@ export class UsersService {
 
     // 提交人工审核：状态置 PENDING，不直接通过
     // payPasswordHash 暂存到 identityVerification，不写入 user 表
+    await this.preCheckRealname(dto.realName, dto.idCard)
+
     const [identity] = await this.prisma.$transaction([
       this.prisma.identityVerification.upsert({
         where: { userId },
@@ -189,6 +193,38 @@ export class UsersService {
     ])
 
     return this.autoApproveInSandbox(identity, payPasswordHash)
+  }
+
+  /**
+   * 实名自动核验入口（可选配置，默认关闭）：
+   * - 未配置 REALNAME_VERIFY_PROVIDER（默认）→ 直接返回，走既有 PENDING 人工审核流程
+   * - 配置了渠道（aliyun / tencent 等）→ 调用对应二要素核验，不通过则拒绝提交
+   *
+   * 注意：IsIdCard 仅校验号码格式，姓名与号码的对应关系必须依赖本入口或人工审核。
+   * 接入新渠道时在此处补充具体 API 调用即可（入参即 realName/idCard 二要素），调用方签名不变。
+   */
+  private async preCheckRealname(realName: string, idCard: string): Promise<void> {
+    const provider = (
+      this.configService.get<string>('REALNAME_VERIFY_PROVIDER') || ''
+    )
+      .trim()
+      .toLowerCase()
+    if (!provider) return
+
+    this.logger.log(`实名自动核验: provider=${provider}, name=${realName}`)
+
+    // 二要素核验请求体（预留）：各渠道对接时直接使用
+    // aliyun  → 阿里云 cloudauth 二要素核验（需配置 ALIYUN_REALNAME_ACCESS_KEY_ID/SECRET）
+    // tencent → 腾讯云 faceid 二要素核验（需配置 TENCENT_REALNAME_SECRET_ID/SECRET_KEY）
+    const payload = { name: realName, idNumber: idCard }
+    this.logger.debug(`实名核验请求参数已就绪: ${JSON.stringify({ ...payload, idNumber: '***' })}`)
+
+    throw new BadRequestException(
+      kbError(
+        KBErrorCodes.INVALID_PARAMETER,
+        `实名核验渠道 ${provider} 尚未完成对接，请先实现核验调用或移除 REALNAME_VERIFY_PROVIDER 配置改回人工审核`,
+      ),
+    )
   }
 
   /**
