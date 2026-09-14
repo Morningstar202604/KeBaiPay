@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer'
 import { IsNumber, IsOptional, IsString, Min } from 'class-validator'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 export class CreateMerchantQrCodeDto {
   @IsNumber()
@@ -8,6 +9,6 @@ export class CreateMerchantQrCodeDto {
   amount!: number
 
   @IsOptional()
-  @IsString()
+  @IsSafeText(0, 100)
   remark?: string
 }

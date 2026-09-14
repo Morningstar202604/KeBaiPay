@@ -13,6 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator'
 import { Type } from 'class-transformer'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 /** 批量转账单个明细 */
 export class BatchTransferItemDto {
@@ -28,8 +29,7 @@ export class BatchTransferItemDto {
   amount!: number
 
   @IsOptional()
-  @IsString()
-  @MaxLength(128)
+  @IsSafeText(0, 128)
   remark?: string
 }
 
@@ -43,8 +43,7 @@ export class CreateBatchTransferDto {
   items!: BatchTransferItemDto[]
 
   @IsOptional()
-  @IsString()
-  @MaxLength(256)
+  @IsSafeText(0, 256)
   remark?: string
 
   @IsString()

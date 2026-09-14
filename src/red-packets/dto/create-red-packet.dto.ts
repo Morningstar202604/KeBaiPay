@@ -1,6 +1,7 @@
 import { IsNumber, IsString, IsOptional, IsPositive, IsNotEmpty, Min, Max, MaxLength, IsEnum, IsInt, MinLength } from 'class-validator'
 import { Type } from 'class-transformer'
 import { RedPacketType } from '../../common/enums'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 export class CreateRedPacketDto {
   @IsNumber()
@@ -11,8 +12,7 @@ export class CreateRedPacketDto {
   amount!: number
 
   @IsOptional()
-  @IsString()
-  @MaxLength(80)
+  @IsSafeText(0, 80)
   remark?: string
 
   @IsString()

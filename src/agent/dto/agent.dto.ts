@@ -1,5 +1,6 @@
 import { IsString, IsNotEmpty, IsOptional, IsIn, IsArray, IsInt, Min } from 'class-validator'
 import { AGENT_SCENARIOS } from '../../common/constants'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 /** 创建智能体 */
 export class CreateAgentDto {
@@ -76,8 +77,8 @@ export class StartConversationDto {
   @IsNotEmpty()
   scenario!: string
 
-  @IsString()
   @IsOptional()
+  @IsSafeText(0, 64)
   title?: string
 
   @IsOptional()

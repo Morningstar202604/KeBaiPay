@@ -1,5 +1,6 @@
 import { IsNumber, IsString, IsOptional, IsPositive, Min, Max } from 'class-validator'
 import { Type } from 'class-transformer'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 export class CreateFixedCodeDto {
   @IsNumber()
@@ -10,6 +11,6 @@ export class CreateFixedCodeDto {
   amount!: number
 
   @IsOptional()
-  @IsString()
+  @IsSafeText(0, 100)
   remark?: string
 }

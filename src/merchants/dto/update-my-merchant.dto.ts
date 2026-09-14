@@ -1,12 +1,13 @@
 import { IsOptional, IsString } from 'class-validator'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 export class UpdateMyMerchantDto {
   @IsOptional()
-  @IsString()
+  @IsSafeText(0, 50)
   merchantName?: string
 
   @IsOptional()
-  @IsString()
+  @IsSafeText(0, 30)
   contactName?: string
 
   @IsOptional()

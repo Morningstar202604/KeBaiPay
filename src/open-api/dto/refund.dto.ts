@@ -6,6 +6,7 @@ import {
   IsString,
   Min,
 } from 'class-validator'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 export class RefundDto {
   @IsString()
@@ -19,7 +20,7 @@ export class RefundDto {
   amount?: number
 
   @IsOptional()
-  @IsString()
+  @IsSafeText(0, 200)
   reason?: string
 
   @IsOptional()

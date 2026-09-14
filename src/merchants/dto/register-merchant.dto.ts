@@ -1,9 +1,9 @@
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator'
 import { MerchantType } from '../../common/enums'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 export class RegisterMerchantDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsSafeText(1, 50)
   merchantName!: string
 
   @IsOptional()
@@ -11,7 +11,7 @@ export class RegisterMerchantDto {
   merchantType?: MerchantType
 
   @IsOptional()
-  @IsString()
+  @IsSafeText(0, 30)
   contactName?: string
 
   @IsOptional()

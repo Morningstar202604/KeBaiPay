@@ -9,6 +9,7 @@ import {
   MaxLength,
 } from 'class-validator'
 import { Type } from 'class-transformer'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 /** 绑定邀请关系（被邀请人调用） */
 export class BindReferralDto {
@@ -41,9 +42,7 @@ export class ListReferralDto {
 
 /** 取消邀请 */
 export class CancelReferralDto {
-  @IsString()
-  @IsNotEmpty({ message: '取消原因不能为空' })
-  @MaxLength(256)
+  @IsSafeText(1, 256)
   reason!: string
 }
 

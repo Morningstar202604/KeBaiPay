@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer'
 import { IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 export class TransferDto {
   @IsString()
@@ -12,7 +13,7 @@ export class TransferDto {
   amount!: number
 
   @IsOptional()
-  @IsString()
+  @IsSafeText(0, 100)
   remark?: string
 
   @IsOptional()

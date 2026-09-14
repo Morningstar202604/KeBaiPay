@@ -12,6 +12,7 @@ import {
   ArrayMaxSize,
 } from 'class-validator'
 import { Type } from 'class-transformer'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 /** 单个分账接收方 */
 export class SplitReceiverDto {
@@ -26,8 +27,7 @@ export class SplitReceiverDto {
   amount!: number
 
   @IsOptional()
-  @IsString()
-  @MaxLength(256)
+  @IsSafeText(0, 256)
   remark?: string
 }
 
@@ -45,8 +45,7 @@ export class CreateSplitDto {
   receivers!: SplitReceiverDto[]
 
   @IsOptional()
-  @IsString()
-  @MaxLength(256)
+  @IsSafeText(0, 256)
   remark?: string
 
   @IsOptional()

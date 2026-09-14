@@ -10,6 +10,7 @@ import {
   IsBoolean,
 } from 'class-validator'
 import { Type } from 'class-transformer'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 /** 发送站内消息（管理员/系统内部调用） */
 export class SendMessageDto {
@@ -21,9 +22,7 @@ export class SendMessageDto {
   @IsIn(['SYSTEM', 'TRANSACTION', 'PROMOTION', 'RISK'])
   category!: string
 
-  @IsString()
-  @IsNotEmpty({ message: '标题不能为空' })
-  @MaxLength(128)
+  @IsSafeText(1, 128)
   title!: string
 
   @IsString()
@@ -79,9 +78,7 @@ export class BroadcastMessageDto {
   @IsIn(['SYSTEM', 'TRANSACTION', 'PROMOTION', 'RISK'])
   category!: string
 
-  @IsString()
-  @IsNotEmpty({ message: '标题不能为空' })
-  @MaxLength(128)
+  @IsSafeText(1, 128)
   title!: string
 
   @IsString()

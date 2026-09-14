@@ -1,10 +1,9 @@
 import { IsString, IsNotEmpty, MaxLength, IsOptional } from 'class-validator'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 /** 买家申请退款 / 买家发起争议 */
 export class EscrowReasonDto {
-  @IsString()
-  @IsNotEmpty({ message: '原因不能为空' })
-  @MaxLength(512)
+  @IsSafeText(1, 512)
   reason!: string
 }
 
@@ -17,7 +16,6 @@ export class EscrowResolveDto {
   decision!: string
 
   @IsOptional()
-  @IsString()
-  @MaxLength(512)
+  @IsSafeText(0, 512)
   reason?: string
 }

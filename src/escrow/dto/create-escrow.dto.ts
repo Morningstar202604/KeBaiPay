@@ -9,6 +9,7 @@ import {
   MaxLength,
 } from 'class-validator'
 import { Type } from 'class-transformer'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 /**
  * 买家创建担保订单
@@ -26,9 +27,7 @@ export class CreateEscrowDto {
   @Type(() => Number)
   amount!: number
 
-  @IsString()
-  @IsNotEmpty({ message: '标题不能为空' })
-  @MaxLength(128)
+  @IsSafeText(1, 128)
   subject!: string
 
   @IsOptional()

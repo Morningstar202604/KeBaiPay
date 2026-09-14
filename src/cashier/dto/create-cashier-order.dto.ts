@@ -8,6 +8,7 @@ import {
   Max,
   Min,
 } from 'class-validator'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 export class CreateCashierOrderDto {
   @IsString()
@@ -20,8 +21,7 @@ export class CreateCashierOrderDto {
   @Type(() => Number)
   amount!: number
 
-  @IsString()
-  @IsNotEmpty()
+  @IsSafeText(1, 64)
   subject!: string
 
   @IsOptional()

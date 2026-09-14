@@ -7,12 +7,12 @@ import {
   MaxLength,
 } from 'class-validator'
 import { Type } from 'class-transformer'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 /** 创建风控审计会话 */
 export class CreateRiskAuditSessionDto {
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
+  @IsSafeText(0, 100)
   title?: string
 }
 

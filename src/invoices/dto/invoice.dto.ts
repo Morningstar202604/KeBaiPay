@@ -9,6 +9,7 @@ import {
   MaxLength,
 } from 'class-validator'
 import { Type } from 'class-transformer'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 /** 创建发票申请 */
 export class CreateInvoiceDto {
@@ -16,9 +17,7 @@ export class CreateInvoiceDto {
   @IsIn(['NORMAL', 'SPECIAL'])
   type!: string
 
-  @IsString()
-  @IsNotEmpty({ message: '发票抬头不能为空' })
-  @MaxLength(128)
+  @IsSafeText(1, 128)
   title!: string
 
   @IsOptional()
@@ -52,8 +51,7 @@ export class CreateInvoiceDto {
   amount!: number  // 单位：分
 
   @IsOptional()
-  @IsString()
-  @MaxLength(256)
+  @IsSafeText(0, 256)
   remark?: string
 }
 

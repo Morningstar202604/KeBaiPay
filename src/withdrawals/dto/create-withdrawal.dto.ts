@@ -1,5 +1,6 @@
 import { IsNumber, IsString, IsOptional, IsPositive, IsNotEmpty, Min, Max, MaxLength, Matches } from 'class-validator'
 import { Type } from 'class-transformer'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 export class CreateWithdrawalDto {
   @IsNumber()
@@ -20,7 +21,7 @@ export class CreateWithdrawalDto {
   channelAccount?: string
 
   @IsOptional()
-  @IsString()
+  @IsSafeText(0, 100)
   remark?: string
 
   @IsOptional()

@@ -7,6 +7,7 @@ import {
   Matches,
   Min,
 } from 'class-validator'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 export class CreateOpenApiOrderDto {
   @IsString()
@@ -18,8 +19,7 @@ export class CreateOpenApiOrderDto {
   @Type(() => Number)
   amount!: number
 
-  @IsString()
-  @IsNotEmpty()
+  @IsSafeText(1, 64)
   subject!: string
 
   @IsOptional()

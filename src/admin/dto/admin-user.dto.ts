@@ -7,6 +7,7 @@ import {
   MinLength,
 } from 'class-validator'
 import { AdminRole, AdminStatus } from '../../common/enums'
+import { IsSafeText } from '../../common/validators/safe-text'
 
 export class CreateAdminUserDto {
   @IsString()
@@ -25,13 +26,13 @@ export class CreateAdminUserDto {
   role!: AdminRole
 
   @IsOptional()
-  @IsString()
+  @IsSafeText(0, 32)
   nickname?: string
 }
 
 export class UpdateAdminUserDto {
   @IsOptional()
-  @IsString()
+  @IsSafeText(0, 32)
   nickname?: string
 
   @IsOptional()
