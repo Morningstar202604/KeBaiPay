@@ -141,6 +141,17 @@ export class SecurityValidatorService {
       }
     }
 
+    // 生产环境 METRICS_TOKEN 必须配置：/metrics 暴露订单量、资金流水等经营数据，
+    // 且未鉴权时可被外部持续抓取（信息泄露 + 资源消耗）
+    if (isProduction) {
+      const metricsToken = this.configService.get<string>('METRICS_TOKEN')
+      if (!metricsToken) {
+        errors.push('生产环境必须配置 METRICS_TOKEN（/metrics 端点鉴权）')
+      } else if (metricsToken.length < 24) {
+        errors.push('METRICS_TOKEN 长度不足 24 位，生产环境不安全')
+      }
+    }
+
     // 生产环境有错误则拒绝启动
     if (errors.length > 0) {
       for (const e of errors) {

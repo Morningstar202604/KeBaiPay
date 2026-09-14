@@ -32,6 +32,12 @@ export class MetricsController {
   @Header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
   async metrics(@Req() req: Request): Promise<string> {
     const expected = this.configService.get<string>('METRICS_TOKEN')
+    // 纵深防御：生产环境未配置 token 时直接拒绝（SecurityValidator 会在启动时拦截，
+    // 这里兜底防止绕过启动校验的部署方式）
+    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development')
+    if (!expected && nodeEnv === 'production') {
+      throw new UnauthorizedException('metrics token is required in production')
+    }
     if (expected) {
       const auth = req.headers.authorization || ''
       // L1 修复：哈希后常量时间比较，避免逐字节短路泄露前缀匹配长度
