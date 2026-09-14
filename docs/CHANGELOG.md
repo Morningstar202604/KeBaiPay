@@ -197,6 +197,16 @@
 - 新增 `@IsSafeText` 7 用例、metrics 生产鉴权补测。
 - 全量 **1244 tests / 80 suites** 通过。
 
+### 0.3.2 追加（2026-09-14 晚：功能缺口修复 + 安卓白屏修复）
+
+- **fix(users) 实名身份证号校验**：`idCard` 从"仅校验长度 15-18 位"升级为 GB 11643 校验位 + 出生日期合法性校验（ISO 7064:1983 MOD 11-2），18 位与 15 位旧证均支持；e2e 脚本测试身份证同步改为带合法校验位的动态生成。
+- **feat(auth) 注册短信验证码开关**：`SMS_PROVIDER` 配置为真实渠道时，手机号注册必须携带 `smsCode` 并通过 `POST /sms/send`（scene=register）校验（KB224）；未配置（mock）时维持免验证码注册，本地开发零影响。
+- **feat(users) 实名自动核验入口**：预留 `REALNAME_VERIFY_PROVIDER` 配置位（默认空 = 人工审核现状）；配置渠道后提交实名触发二要素核验，渠道未对接前明确报错而非静默放行，新增错误码 KB226。
+- **feat(unionpay) 真实网关 HTTP 入口**：`httpPost` 可选注入 `HttpService`（与 Stripe 连接器同款模式），模块装配后生产环境走真实 form-urlencoded 调用；未注入时 sandbox 模拟不受影响。
+- **fix(android) APK 白屏修复**：打包时资源引用带服务器部署前缀 `/h5/`，在 Capacitor WebView（根路径加载）下 404 白屏。新增 `VITE_APP_BASE` 构建变量（`vite.config.ts` base 与 `vue-router` history base 同源覆盖），安卓构建注入 `VITE_APP_BASE=/`；服务器 H5 部署默认行为不变。已重新打包并静态验证（引用路径、API 注入、根路径加载冒烟全 200）。
+- **test(e2e) 部署验收脚本**：`scripts/e2e/user-journey.py` 模拟双用户跑通注册→实名→审核→充值→红包→转账→担保→提现全链路 35 项断言，复式记账守恒精确闭环。
+- 测试基线更新：**1261 tests / 81 suites** 全部通过（新增校验器 11 + 验证码分支 5 + 银联 1）。
+
 ---
 
 ## 版本 0.3.1（2026-09-14）
