@@ -70,7 +70,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Run unit tests
-        run: npm test -- --passWithNoTests
+        run: npm run test:cov
 
   e2e:
     runs-on: ubuntu-latest
