@@ -1,6 +1,8 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import Components from 'unplugin-vue-components/vite'
+import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 // KeBaiPay 管理后台
 export default defineConfig(({ mode }) => {
@@ -8,7 +10,11 @@ export default defineConfig(({ mode }) => {
   const prod = mode === 'production'
 
   return {
-    plugins: [vue()],
+    plugins: [
+      vue(),
+      // Element Plus 按需引入：el-* 组件与 v-loading 等指令自动注册
+      Components({ resolvers: [ElementPlusResolver()] }),
+    ],
     base: prod ? '/admin/' : '/',
     resolve: {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
