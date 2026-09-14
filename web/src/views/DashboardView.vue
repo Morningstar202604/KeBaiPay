@@ -48,15 +48,23 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import type { EChartsType } from 'echarts/core'
+import { BarChart } from 'echarts/charts'
+import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import type { DashboardData, MerchantInfo } from '@/types'
 import { fetchDashboard, fetchMerchantInfo } from '@/api/modules'
+
+// echarts 按需注册：柱状图 + tooltip/legend/grid + canvas 渲染器
+// 替代全量 `import * as echarts from 'echarts'`，Dashboard chunk 从 1.13MB 降一个量级
+echarts.use([BarChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
 const dashboard = ref<DashboardData | null>(null)
 const merchant = ref<MerchantInfo | null>(null)
 const noMerchant = ref(false)
 const chartEl = ref<HTMLDivElement>()
-let chart: echarts.ECharts | null = null
+let chart: EChartsType | null = null
 
 const periods = computed(() => {
   const d = dashboard.value

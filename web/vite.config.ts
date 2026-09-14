@@ -1,6 +1,8 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import Components from 'unplugin-vue-components/vite'
+import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 // KeBaiPay 商户后台
 // - 开发模式：VITE_API_BASE 指向后端（默认 http://localhost:3001）
@@ -10,7 +12,11 @@ export default defineConfig(({ mode }) => {
   const prod = mode === 'production'
 
   return {
-    plugins: [vue()],
+    plugins: [
+      vue(),
+      // Element Plus 按需引入：el-* 组件与 v-loading 等指令自动注册
+      Components({ resolvers: [ElementPlusResolver()] }),
+    ],
     base: prod ? '/portal/' : '/',
     resolve: {
       alias: {
