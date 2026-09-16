@@ -1,3 +1,4 @@
+import { IsPayPassword } from '../../common/validators/pay-password'
 import {
   IsArray,
   IsNumber,
@@ -49,6 +50,7 @@ export class CreateBatchTransferDto {
   @IsString()
   @IsNotEmpty({ message: '支付密码不能为空' })
   @MaxLength(64)
+  @IsPayPassword()
   payPassword!: string
 
   @IsOptional()

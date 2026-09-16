@@ -1,3 +1,4 @@
+import { IsPayPassword } from '../../common/validators/pay-password'
 import { IsString, IsNumber, IsOptional, IsPositive, IsNotEmpty, Min, Max, MaxLength } from 'class-validator'
 import { Type } from 'class-transformer'
 import { IsSafeText } from '../../common/validators/safe-text'
@@ -21,7 +22,7 @@ export class PayByQrCodeDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(6)
+  @IsPayPassword()
   payPassword!: string
 
   @IsOptional()

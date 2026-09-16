@@ -1,3 +1,4 @@
+import { IsPayPassword } from '../../common/validators/pay-password'
 import {
   IsString,
   IsOptional,
@@ -16,6 +17,7 @@ export class SubscribeDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @IsPayPassword()
   payPassword!: string
 }
 

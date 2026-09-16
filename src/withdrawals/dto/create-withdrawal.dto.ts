@@ -1,6 +1,7 @@
-import { IsNumber, IsString, IsOptional, IsPositive, IsNotEmpty, Min, Max, MaxLength, Matches } from 'class-validator'
+import { IsNumber, IsString, IsOptional, IsPositive, IsNotEmpty, Min, Max, Matches } from 'class-validator'
 import { Type } from 'class-transformer'
 import { IsSafeText } from '../../common/validators/safe-text'
+import { IsPayPassword } from '../../common/validators/pay-password'
 
 export class CreateWithdrawalDto {
   @IsNumber()
@@ -10,9 +11,7 @@ export class CreateWithdrawalDto {
   @Type(() => Number)
   amount!: number
 
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(6)
+  @IsPayPassword()
   payPassword!: string
 
   @IsOptional()

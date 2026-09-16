@@ -1,3 +1,4 @@
+import { IsPayPassword } from '../../common/validators/pay-password'
 import { IsNumber, IsString, IsOptional, IsPositive, IsNotEmpty, Min, Max, MaxLength, IsEnum, IsInt, MinLength } from 'class-validator'
 import { Type } from 'class-transformer'
 import { RedPacketType } from '../../common/enums'
@@ -17,7 +18,7 @@ export class CreateRedPacketDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(6)
+  @IsPayPassword()
   payPassword!: string
 
   /**

@@ -1,6 +1,7 @@
-import { IsString, IsNumber, IsOptional, IsPositive, IsNotEmpty, Min, Max, MaxLength } from 'class-validator'
+import { IsString, IsNumber, IsOptional, IsPositive, IsNotEmpty, Min, Max } from 'class-validator'
 import { Type } from 'class-transformer'
 import { IsSafeText } from '../../common/validators/safe-text'
+import { IsPayPassword } from '../../common/validators/pay-password'
 
 export class TransferDto {
   @IsString()
@@ -18,9 +19,7 @@ export class TransferDto {
   @IsSafeText(0, 100)
   remark?: string
 
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(6)
+  @IsPayPassword()
   payPassword!: string
 
   @IsOptional()

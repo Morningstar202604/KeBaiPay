@@ -1,8 +1,6 @@
-import { IsString, IsNotEmpty, MinLength, MaxLength, Matches } from 'class-validator'
+import { IsString, IsNotEmpty, MinLength, MaxLength } from 'class-validator'
 import { IsIdCard } from '../../common/validators/id-card'
-
-// 支付密码强度策略：6 位纯数字（与银行惯例一致），避免弱密码（如 123456、abcdef）
-const PAY_PASSWORD_REGEX = /^\d{6}$/
+import { IsPayPassword } from '../../common/validators/pay-password'
 
 export class VerifyIdentityDto {
   @IsString()
@@ -18,10 +16,6 @@ export class VerifyIdentityDto {
   @IsIdCard()
   idCard!: string
 
-  @IsString()
-  @IsNotEmpty()
-  @Matches(PAY_PASSWORD_REGEX, {
-    message: '支付密码必须为 6 位纯数字',
-  })
+  @IsPayPassword()
   payPassword!: string
 }

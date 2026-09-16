@@ -1,5 +1,6 @@
-import { IsNumber, IsString, IsOptional, IsPositive, IsNotEmpty, Min, Max, MaxLength } from 'class-validator'
+import { IsNumber, IsOptional, IsPositive, Min, Max, IsString, IsNotEmpty } from 'class-validator'
 import { Type } from 'class-transformer'
+import { IsPayPassword } from '../../common/validators/pay-password'
 
 export class RechargeDto {
   @IsNumber()
@@ -9,9 +10,7 @@ export class RechargeDto {
   @Type(() => Number)
   amount!: number
 
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(6)
+  @IsPayPassword()
   payPassword!: string
 
   @IsOptional()

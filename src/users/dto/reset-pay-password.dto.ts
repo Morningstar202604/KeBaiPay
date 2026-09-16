@@ -1,7 +1,6 @@
-import { IsString, IsNotEmpty, MinLength, MaxLength, Matches } from 'class-validator'
-
-// 支付密码强度策略：6 位纯数字（与银行惯例一致），避免弱密码（如 123456、abcdef）
-const PAY_PASSWORD_REGEX = /^\d{6}$/
+import { IsString, IsNotEmpty, MinLength, MaxLength } from 'class-validator'
+import { IsIdCard } from '../../common/validators/id-card'
+import { IsPayPassword } from '../../common/validators/pay-password'
 
 export class ResetPayPasswordDto {
   @IsString()
@@ -10,16 +9,13 @@ export class ResetPayPasswordDto {
   @MaxLength(30)
   realName!: string
 
+  // 与服务端 resetPayPassword 的库内比对保持一致：先按 GB 11643 校验格式，
+  // 再由 usersService 比对库中已实名留存的姓名+号码，两者都通过才允许重置
   @IsString()
   @IsNotEmpty()
-  @MinLength(15)
-  @MaxLength(18)
+  @IsIdCard()
   idCard!: string
 
-  @IsString()
-  @IsNotEmpty()
-  @Matches(PAY_PASSWORD_REGEX, {
-    message: '支付密码必须为 6 位纯数字',
-  })
+  @IsPayPassword()
   newPayPassword!: string
 }
