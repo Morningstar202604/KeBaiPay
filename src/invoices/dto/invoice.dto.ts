@@ -15,6 +15,7 @@ import { IsSafeText } from '../../common/validators/safe-text'
 export class CreateInvoiceDto {
   @IsString()
   @IsIn(['NORMAL', 'SPECIAL'])
+  @MaxLength(64)
   type!: string
 
   @IsSafeText(1, 128)

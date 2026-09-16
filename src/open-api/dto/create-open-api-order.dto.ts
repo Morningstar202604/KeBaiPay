@@ -6,12 +6,14 @@ import {
   IsString,
   Matches,
   Min,
+  MaxLength,
 } from 'class-validator'
 import { IsSafeText } from '../../common/validators/safe-text'
 
 export class CreateOpenApiOrderDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   merchantOrderNo!: string
 
   @IsNumber()

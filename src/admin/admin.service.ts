@@ -809,6 +809,174 @@ export class AdminService {
     })
   }
 
+  /**
+   * 大额调账阈值（元）：|amount| >= 阈值的调账触发双人复核。
+   * 可用 LARGE_ADJUSTMENT_THRESHOLD_YUAN 环境变量覆盖，默认 50000（5 万元）。
+   */
+  private largeAdjustmentThresholdYuan(): number {
+    const raw = Number(process.env.LARGE_ADJUSTMENT_THRESHOLD_YUAN)
+    return Number.isFinite(raw) && raw > 0 ? raw : 50000
+  }
+
+  /**
+   * 调账入口（带双人复核策略）：
+   * - 小额：立即执行 adjustAccount，返回 { status: 'EXECUTED', result }；
+   * - 大额（|amount| >= 阈值）：只建审批单，不动资金，返回 { status: 'PENDING_APPROVAL' }，
+   *   由第二名管理员（不得为发起人）调用 approveAdjustment 后才真正入账。
+   * 审批单记录带符号金额（分），执行时按原方向还原。
+   */
+  async adjustAccountWithPolicy(
+    userId: string,
+    amount: number,
+    reason: string,
+    adminId: string,
+    auditMeta?: AuditMeta,
+  ) {
+    if (!amount || amount === 0) {
+      throw new BadRequestException(kbError(KBErrorCodes.ADJUSTMENT_AMOUNT_INVALID))
+    }
+    const threshold = this.largeAdjustmentThresholdYuan()
+    if (Math.abs(amount) >= threshold) {
+      const amountFen = Math.round(amount * 100)
+      const approval = await this.prisma.adjustmentApproval.create({
+        data: {
+          targetUserId: userId,
+          amountFen,
+          reason,
+          initiatorAdminId: adminId,
+        },
+      })
+      await this.auditLog.log({
+        adminId,
+        action: 'ACCOUNT_ADJUST_APPROVAL_REQUESTED',
+        target: userId,
+        detail: {
+          approvalId: approval.id,
+          amountYuan: amount,
+          reason,
+          thresholdYuan: threshold,
+        },
+        ip: auditMeta?.ip,
+        userAgent: auditMeta?.userAgent,
+      })
+      return { status: 'PENDING_APPROVAL' as const, approvalId: approval.id, thresholdYuan: threshold }
+    }
+    const result = await this.adjustAccount(userId, amount, reason, adminId, auditMeta)
+    return { status: 'EXECUTED' as const, result }
+  }
+
+  /** 审批单列表（默认按创建时间倒序） */
+  async listAdjustmentApprovals(query: { status?: string; page?: number; limit?: number }) {
+    const page = query.page && query.page > 0 ? query.page : 1
+    const limit = query.limit && query.limit > 0 ? Math.min(query.limit, 100) : 20
+    return this.prisma.adjustmentApproval.findMany({
+      where: query.status ? { status: query.status } : undefined,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    })
+  }
+
+  /**
+   * 批准并执行大额调账：
+   * 1. 校验 PENDING 且审批人非发起人（双人复核的核心约束）；
+   * 2. updateMany 条件置 EXECUTING 作为乐观锁声明，防止两名管理员并发双执行；
+   * 3. 执行真实调账（adjustAccount，含自己的分布式锁/事务/账本/审计）；
+   * 4. 标记 EXECUTED；执行失败则回滚声明到 PENDING 允许重试。
+   */
+  async approveAdjustment(id: string, approverAdminId: string, auditMeta?: AuditMeta) {
+    const approval = await this.prisma.adjustmentApproval.findUnique({ where: { id } })
+    if (!approval) {
+      throw new NotFoundException(kbError(KBErrorCodes.ORDER_NOT_FOUND, '审批单不存在'))
+    }
+    if (approval.status !== 'PENDING') {
+      throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '审批单不是待审批状态'))
+    }
+    if (approval.initiatorAdminId === approverAdminId) {
+      throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '发起人不能审批自己的调账申请'))
+    }
+
+    // 乐观锁声明执行权：仅第一个把 PENDING → EXECUTING 的请求会继续
+    const claimed = await this.prisma.adjustmentApproval.updateMany({
+      where: { id, status: 'PENDING' },
+      data: { status: 'EXECUTING', approverAdminId, decidedAt: new Date() },
+    })
+    if (claimed.count === 0) {
+      throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '审批单已被处理'))
+    }
+
+    const amountYuan = approval.amountFen / 100
+    try {
+      const result = await this.adjustAccount(
+        approval.targetUserId,
+        amountYuan,
+        `${approval.reason}（双人复核，发起人:${approval.initiatorAdminId}，审批人:${approverAdminId}）`,
+        approverAdminId,
+        auditMeta,
+      )
+      const updated = await this.prisma.adjustmentApproval.update({
+        where: { id },
+        data: { status: 'EXECUTED', executedAt: new Date() },
+      })
+      await this.auditLog.log({
+        adminId: approverAdminId,
+        action: 'ACCOUNT_ADJUST_APPROVAL_APPROVED',
+        target: approval.targetUserId,
+        detail: {
+          approvalId: id,
+          amountYuan,
+          initiatorAdminId: approval.initiatorAdminId,
+        },
+        ip: auditMeta?.ip,
+        userAgent: auditMeta?.userAgent,
+      })
+      return updated
+    } catch (err) {
+      // 执行失败：退还执行权，审批单回到 PENDING 允许修正后重试
+      await this.prisma.adjustmentApproval
+        .updateMany({ where: { id, status: 'EXECUTING' }, data: { status: 'PENDING' } })
+        .catch(() => undefined)
+      throw err
+    }
+  }
+
+  /** 驳回大额调账申请（仅 PENDING 可驳回） */
+  async rejectAdjustment(
+    id: string,
+    approverAdminId: string,
+    decisionReason: string | undefined,
+    auditMeta?: AuditMeta,
+  ) {
+    const approval = await this.prisma.adjustmentApproval.findUnique({ where: { id } })
+    if (!approval) {
+      throw new NotFoundException(kbError(KBErrorCodes.ORDER_NOT_FOUND, '审批单不存在'))
+    }
+    if (approval.initiatorAdminId === approverAdminId) {
+      throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '发起人不能审批自己的调账申请'))
+    }
+    const updated = await this.prisma.adjustmentApproval.updateMany({
+      where: { id, status: 'PENDING' },
+      data: {
+        status: 'REJECTED',
+        approverAdminId,
+        decisionReason,
+        decidedAt: new Date(),
+      },
+    })
+    if (updated.count === 0) {
+      throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '审批单不是待审批状态'))
+    }
+    await this.auditLog.log({
+      adminId: approverAdminId,
+      action: 'ACCOUNT_ADJUST_APPROVAL_REJECTED',
+      target: approval.targetUserId,
+      detail: { approvalId: id, amountYuan: approval.amountFen / 100, decisionReason },
+      ip: auditMeta?.ip,
+      userAgent: auditMeta?.userAgent,
+    })
+    return { id, status: 'REJECTED' }
+  }
+
   async adjustAccount(
     userId: string,
     amount: number,

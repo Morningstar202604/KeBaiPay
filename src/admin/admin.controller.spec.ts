@@ -16,6 +16,10 @@ describe('AdminController', () => {
     approveIdentity: jest.fn().mockResolvedValue({ id: 'i1' }),
     rejectIdentity: jest.fn().mockResolvedValue({ id: 'i1' }),
     adjustAccount: jest.fn().mockResolvedValue({ success: true }),
+    adjustAccountWithPolicy: jest.fn().mockResolvedValue({ status: 'EXECUTED', result: { success: true } }),
+    listAdjustmentApprovals: jest.fn().mockResolvedValue([]),
+    approveAdjustment: jest.fn().mockResolvedValue({ id: 'ap1', status: 'EXECUTED' }),
+    rejectAdjustment: jest.fn().mockResolvedValue({ id: 'ap1', status: 'REJECTED' }),
     logAction: jest.fn().mockResolvedValue(undefined),
   }
   const mockWithdrawalsService = {
@@ -138,12 +142,29 @@ describe('AdminController', () => {
     })
   })
 
-  it('adjustAccount 透传 userId/amount/reason/adminId/auditMeta', async () => {
+  it('adjustAccount 透传 userId/amount/reason/adminId/auditMeta 到带策略入口', async () => {
     const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
     const dto = { amount: 100, reason: '补偿' }
     const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
     await controller.adjustAccount('u1', dto as any, admin as any, req as any)
-    expect(mockAdminService.adjustAccount).toHaveBeenCalledWith('u1', 100, '补偿', 'a1', {
+    expect(mockAdminService.adjustAccountWithPolicy).toHaveBeenCalledWith('u1', 100, '补偿', 'a1', {
+      ip: '127.0.0.1',
+      userAgent: 'jest',
+    })
+  })
+
+  it('大额调账审批三路由透传', async () => {
+    const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
+    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
+    await controller.listAdjustments({ status: 'PENDING' } as any)
+    expect(mockAdminService.listAdjustmentApprovals).toHaveBeenCalledWith({ status: 'PENDING' })
+    await controller.approveAdjustment('ap1', admin as any, req as any)
+    expect(mockAdminService.approveAdjustment).toHaveBeenCalledWith('ap1', 'a1', {
+      ip: '127.0.0.1',
+      userAgent: 'jest',
+    })
+    await controller.rejectAdjustment('ap1', { reason: '依据不足' } as any, admin as any, req as any)
+    expect(mockAdminService.rejectAdjustment).toHaveBeenCalledWith('ap1', 'a1', '依据不足', {
       ip: '127.0.0.1',
       userAgent: 'jest',
     })

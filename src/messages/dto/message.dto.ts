@@ -20,6 +20,7 @@ export class SendMessageDto {
 
   @IsString()
   @IsIn(['SYSTEM', 'TRANSACTION', 'PROMOTION', 'RISK'])
+  @MaxLength(64)
   category!: string
 
   @IsSafeText(1, 128)
@@ -76,6 +77,7 @@ export class ListMessageDto {
 export class BroadcastMessageDto {
   @IsString()
   @IsIn(['SYSTEM', 'TRANSACTION', 'PROMOTION', 'RISK'])
+  @MaxLength(64)
   category!: string
 
   @IsSafeText(1, 128)

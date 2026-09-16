@@ -50,6 +50,7 @@ export class CancelReferralDto {
 export class TriggerRewardDto {
   @IsString()
   @IsNotEmpty({ message: '触发交易号不能为空' })
+  @MaxLength(64)
   transactionNo!: string
 
   @IsOptional()

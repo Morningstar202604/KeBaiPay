@@ -20,6 +20,7 @@ import { IsSafeText } from '../../common/validators/safe-text'
 export class BatchTransferItemDto {
   @IsString()
   @IsNotEmpty({ message: '收款方 ID 不能为空' })
+  @MaxLength(64)
   toUserId!: string
 
   @IsNumber()

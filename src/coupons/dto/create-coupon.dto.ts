@@ -21,6 +21,7 @@ export class CreateCouponDto {
 
   @IsString()
   @IsIn(['FIXED', 'PERCENT'])
+  @MaxLength(64)
   type!: string
 
   // FIXED: 元（0.01-1000）；PERCENT: 百分比 1-99
@@ -58,6 +59,7 @@ export class CreateCouponDto {
 export class UpdateCouponStatusDto {
   @IsString()
   @IsIn(['ACTIVE', 'DISABLED'])
+  @MaxLength(64)
   status!: string
 }
 
@@ -65,6 +67,7 @@ export class UpdateCouponStatusDto {
 export class UseUserCouponDto {
   @IsString()
   @IsNotEmpty({ message: '订单号不能为空' })
+  @MaxLength(64)
   orderNo!: string
 
   // 实际订单金额（元），用于校验是否满足满减门槛

@@ -35,6 +35,8 @@ import { AuditMerchantDto } from './dto/audit-merchant.dto'
 import { HandleRiskEventDto } from './dto/handle-risk-event.dto'
 import { UpdateMerchantConfigDto } from './dto/update-merchant-config.dto'
 import { AdjustAccountDto } from './dto/adjust-account.dto'
+import { ListAdjustmentsQueryDto } from './dto/list-adjustments-query.dto'
+import { RejectAdjustmentDto } from './dto/reject-adjustment.dto'
 import { RejectIdentityDto } from './dto/reject-identity.dto'
 import { kbError, KBErrorCodes } from '../common/error-codes'
 import { RejectWithdrawalDto } from './dto/reject-withdrawal.dto'
@@ -368,21 +370,59 @@ export class AdminController {
 
   @Post('accounts/:userId/adjust')
   @RequirePermissions('account:adjust')
-  @ApiOperation({ summary: '人工调账', description: '管理员手动调整用户账户余额' })
-  @ApiResponse({ status: 200, description: '调账成功' })
+  @ApiOperation({
+    summary: '人工调账',
+    description:
+      '管理员手动调整用户账户余额。|amount| >= 大额阈值（默认 5 万元）时不立即执行，' +
+      '创建审批单返回 PENDING_APPROVAL，需第二名管理员调用 /admin/adjustments/:id/approve 批准后执行',
+  })
+  @ApiResponse({ status: 200, description: '小额调账直接执行（EXECUTED）' })
+  @ApiResponse({ status: 200, description: '大额调账创建审批单（PENDING_APPROVAL）' })
   adjustAccount(
     @Param('userId') userId: string,
     @Body() dto: AdjustAccountDto,
     @AdminCurrentUser() admin: AdminCurrentUserType,
     @Req() req: Request,
   ) {
-    return this.adminService.adjustAccount(
+    return this.adminService.adjustAccountWithPolicy(
       userId,
       dto.amount,
       dto.reason,
       admin.sub,
       this.extractAuditMeta(req),
     )
+  }
+
+  @Get('adjustments')
+  @RequirePermissions('account:adjust')
+  @ApiOperation({ summary: '大额调账审批单列表', description: '可按 status 过滤（PENDING/EXECUTING/EXECUTED/REJECTED）' })
+  listAdjustments(@Query() query: ListAdjustmentsQueryDto) {
+    return this.adminService.listAdjustmentApprovals(query)
+  }
+
+  @Post('adjustments/:id/approve')
+  @RequirePermissions('account:adjust')
+  @ApiOperation({ summary: '批准并执行大额调账', description: '审批人不得为发起人；批准后立即执行调账' })
+  @ApiResponse({ status: 200, description: '已批准并执行' })
+  @ApiResponse({ status: 403, description: '发起人不能审批自己的申请' })
+  approveAdjustment(
+    @Param('id') id: string,
+    @AdminCurrentUser() admin: AdminCurrentUserType,
+    @Req() req: Request,
+  ) {
+    return this.adminService.approveAdjustment(id, admin.sub, this.extractAuditMeta(req))
+  }
+
+  @Post('adjustments/:id/reject')
+  @RequirePermissions('account:adjust')
+  @ApiOperation({ summary: '驳回大额调账申请' })
+  rejectAdjustment(
+    @Param('id') id: string,
+    @Body() dto: RejectAdjustmentDto,
+    @AdminCurrentUser() admin: AdminCurrentUserType,
+    @Req() req: Request,
+  ) {
+    return this.adminService.rejectAdjustment(id, admin.sub, dto.reason, this.extractAuditMeta(req))
   }
 
   @Get('audit-logs')

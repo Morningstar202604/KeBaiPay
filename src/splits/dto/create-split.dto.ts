@@ -18,6 +18,7 @@ import { IsSafeText } from '../../common/validators/safe-text'
 export class SplitReceiverDto {
   @IsString()
   @IsNotEmpty({ message: '收款方 ID 不能为空' })
+  @MaxLength(64)
   receiverId!: string
 
   @IsNumber()
@@ -35,6 +36,7 @@ export class SplitReceiverDto {
 export class CreateSplitDto {
   @IsString()
   @IsNotEmpty({ message: '源订单号不能为空' })
+  @MaxLength(64)
   sourceOrderNo!: string
 
   @IsArray()

@@ -5,12 +5,14 @@ import {
   IsOptional,
   IsString,
   Min,
+  MaxLength,
 } from 'class-validator'
 import { IsSafeText } from '../../common/validators/safe-text'
 
 export class RefundDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   orderNo!: string
 
   @IsOptional()

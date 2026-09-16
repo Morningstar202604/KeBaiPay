@@ -31,6 +31,7 @@ export class CreateSubscriptionPlanDto {
 
   @IsString()
   @IsIn(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'])
+  @MaxLength(64)
   period!: string
 
   @IsOptional()

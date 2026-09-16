@@ -18,6 +18,7 @@ import { IsSafeText } from '../../common/validators/safe-text'
 export class CreateEscrowDto {
   @IsString()
   @IsNotEmpty({ message: '收款方 ID 不能为空' })
+  @MaxLength(64)
   sellerId!: string
 
   @IsNumber()

@@ -7,12 +7,14 @@ import {
   IsString,
   Max,
   Min,
+  MaxLength,
 } from 'class-validator'
 import { IsSafeText } from '../../common/validators/safe-text'
 
 export class CreateCashierOrderDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   merchantOrderNo!: string
 
   @IsNumber()

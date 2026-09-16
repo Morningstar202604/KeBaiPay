@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsIn, IsArray, IsInt, Min } from 'class-validator'
+import { IsString, IsNotEmpty, IsOptional, IsIn, IsArray, IsInt, Min, MaxLength } from 'class-validator'
 import { AGENT_SCENARIOS } from '../../common/constants'
 import { IsSafeText } from '../../common/validators/safe-text'
 
@@ -6,6 +6,7 @@ import { IsSafeText } from '../../common/validators/safe-text'
 export class CreateAgentDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   name!: string
 
   @IsString()
@@ -13,6 +14,7 @@ export class CreateAgentDto {
   description?: string
 
   @IsIn(AGENT_SCENARIOS as readonly string[])
+  @MaxLength(64)
   scenario!: string
 
   @IsArray()
@@ -45,6 +47,7 @@ export class UpdateAgentDto {
 export class AuthorizeAgentDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   agentId!: string
 
   @IsArray()
@@ -64,10 +67,12 @@ export class AuthorizeAgentDto {
 export class LoginAgentDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   agentId!: string
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   authId!: string
 }
 
@@ -75,6 +80,7 @@ export class LoginAgentDto {
 export class StartConversationDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   scenario!: string
 
   @IsOptional()
@@ -89,6 +95,7 @@ export class StartConversationDto {
 export class SendMessageDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(4000)
   content!: string
 
   @IsString()
@@ -100,6 +107,7 @@ export class SendMessageDto {
 export class ConfirmOpDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   opLogId!: string
 
   @IsIn(['CONFIRM', 'REJECT'])

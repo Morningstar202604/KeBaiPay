@@ -368,6 +368,29 @@ model AdminUser {
   @@map("admin_users")
 }
 
+/// 管理员调账双人复核：|amount| >= 阈值（LARGE_ADJUSTMENT_THRESHOLD_YUAN，默认 5 万元）的
+/// 调账不立即执行，先建审批单，由第二名管理员（不得为发起人）批准后执行。
+/// amount_fen 为带符号金额（分），负数表示扣款，与执行时语义一致。
+model AdjustmentApproval {
+  id               String    @id @default(uuid())
+  targetUserId     String    @map("target_user_id")
+  amountFen        Int       @map("amount_fen")
+  reason           String
+  initiatorAdminId String    @map("initiator_admin_id")
+  status           String    @default("PENDING")
+  approverAdminId  String?   @map("approver_admin_id")
+  decisionReason   String?   @map("decision_reason")
+  decidedAt        DateTime? @map("decided_at")
+  executedAt       DateTime? @map("executed_at")
+  transactionId    String?   @map("transaction_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([targetUserId])
+  @@map("adjustment_approvals")
+}
+
 model LoginLog {
   id        String   @id @default(uuid())
   userId    String?  @map("user_id")

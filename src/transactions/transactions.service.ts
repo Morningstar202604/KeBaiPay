@@ -19,6 +19,7 @@ import { UsersService } from '../users/users.service'
 import { RedisService } from '../redis/redis.service'
 import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
 import { PaymentChannelBridge } from '../payment-channels/payment-channel.bridge'
+import type { OrderQueryResult } from '../payment-channels/payment-channel.interface'
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { JournalService } from '../finance/journal.service'
 import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
@@ -217,14 +218,7 @@ export class TransactionsService {
         }
 
         if (result.status === 'FAILED') {
-          await tx.transactionOrder.update({
-            where: { id: order.id },
-            data: {
-              ...(channelOrderNoMissing ? { channelOrderNo: result.channelOrderNo } : {}),
-              status: TransactionStatus.FAILED,
-              completedAt: new Date(),
-            },
-          })
+          await this.markRechargeFailed(tx, order, result.channelOrderNo, channelOrderNoMissing)
           return { response: channel.buildRechargeCallbackSuccess(), risk: null }
         }
 
@@ -243,64 +237,14 @@ export class TransactionsService {
           )
         }
 
-        const account = await tx.account.findUnique({
-          where: { userId: order.toUserId! },
-        })
-        if (!account) throw new NotFoundException(kbError(KBErrorCodes.ACCOUNT_NOT_FOUND))
-
-        const updatedAccount = await tx.account.update({
-          where: { id: account.id },
-          data: {
-            availableBalance: { increment: order.amount },
-            totalBalance: { increment: order.amount },
-          },
-        })
-
-        await tx.transactionOrder.update({
-          where: { id: order.id },
-          data: {
-            ...(channelOrderNoMissing ? { channelOrderNo: result.channelOrderNo } : {}),
-            status: TransactionStatus.SUCCESS,
-            completedAt: new Date(),
-          },
-        })
-
-        await tx.accountLedger.create({
-          data: {
-            accountId: account.id,
-            transactionId: order.id,
-            type: LedgerType.RECHARGE,
-            amount: order.amount,
-            // H2: balanceBefore 由更新后真实余额反推，避免事务内并发导致陈旧读取
-            balanceBefore: updatedAccount.availableBalance - order.amount,
-            balanceAfter: updatedAccount.availableBalance,
-            direction: Direction.DEBIT,
-            remark: '余额充值',
-          },
-        })
-
-        await tx.bill.create({
-          data: {
-            userId: order.toUserId!,
-            transactionId: order.id,
-            type: BillType.RECHARGE,
-            direction: BillDirection.INCOME,
-            amount: order.amount,
-            remark: '余额充值',
-          },
-        })
-
-        // 复式记账：借渠道资金=amount，贷用户=amount
-        const journalId = generateOrderNo('J')
-        await this.journalService.createEntries(tx, [
-          { journalId, accountCode: 'CHANNEL_FUND', debit: order.amount, memo: `充值入账 ${order.orderNo}` },
-          { journalId, accountCode: `USER:${order.toUserId}`, credit: order.amount, memo: `充值入账 ${order.orderNo}` },
-        ])
-
-        return {
-          response: channel.buildRechargeCallbackSuccess(),
-          risk: { userId: order.toUserId!, amount: order.amount },
-        }
+        // 成功：入账（金额一致性校验见上；入账/记账逻辑统一收敛到 applyRechargeSuccess，
+        // 与 PENDING 自动补单 reconcilePendingRecharge 共用，避免两份代码漂移）
+        const risk = await this.applyRechargeSuccess(
+          tx,
+          order,
+          channelOrderNoMissing ? result.channelOrderNo : null,
+        )
+        return { response: channel.buildRechargeCallbackSuccess(), risk }
       })
     // 风控频率在事务提交后记录（此前 fire-and-forget 发生在事务内，
     // 与提交竞跑：可能入账未提交而频率已计入）
@@ -315,5 +259,192 @@ export class TransactionsService {
     }
     return txResult.response
     })
+  }
+
+  /**
+   * 标记充值订单失败（回调与自动补单共用）
+   * backfillChannelOrderNo 非空时补录渠道单号（订单 channelOrderNo 缺失的兜底场景）
+   */
+  private async markRechargeFailed(
+    tx: Prisma.TransactionClient,
+    order: { id: string; orderNo: string },
+    channelOrderNo: string,
+    channelOrderNoMissing: boolean,
+  ): Promise<void> {
+    await tx.transactionOrder.update({
+      where: { id: order.id },
+      data: {
+        ...(channelOrderNoMissing ? { channelOrderNo } : {}),
+        status: TransactionStatus.FAILED,
+        completedAt: new Date(),
+      },
+    })
+  }
+
+  /**
+   * 充值入账（回调与自动补单共用）：
+   * 原子加余额 → 订单置 SUCCESS → 流水 → 账单 → 复式记账。
+   * 金额一致性校验由调用方完成（回调核对实付金额，补单核对渠道查单金额）。
+   * 返回风控上下文。
+   */
+  private async applyRechargeSuccess(
+    tx: Prisma.TransactionClient,
+    order: { id: string; orderNo: string; amount: number; toUserId: string | null },
+    backfillChannelOrderNo: string | null,
+  ): Promise<{ userId: string; amount: number }> {
+    const account = await tx.account.findUnique({
+      where: { userId: order.toUserId! },
+    })
+    if (!account) throw new NotFoundException(kbError(KBErrorCodes.ACCOUNT_NOT_FOUND))
+
+    const updatedAccount = await tx.account.update({
+      where: { id: account.id },
+      data: {
+        availableBalance: { increment: order.amount },
+        totalBalance: { increment: order.amount },
+      },
+    })
+
+    await tx.transactionOrder.update({
+      where: { id: order.id },
+      data: {
+        ...(backfillChannelOrderNo ? { channelOrderNo: backfillChannelOrderNo } : {}),
+        status: TransactionStatus.SUCCESS,
+        completedAt: new Date(),
+      },
+    })
+
+    await tx.accountLedger.create({
+      data: {
+        accountId: account.id,
+        transactionId: order.id,
+        type: LedgerType.RECHARGE,
+        amount: order.amount,
+        // H2: balanceBefore 由更新后真实余额反推，避免事务内并发导致陈旧读取
+        balanceBefore: updatedAccount.availableBalance - order.amount,
+        balanceAfter: updatedAccount.availableBalance,
+        direction: Direction.DEBIT,
+        remark: '余额充值',
+      },
+    })
+
+    await tx.bill.create({
+      data: {
+        userId: order.toUserId!,
+        transactionId: order.id,
+        type: BillType.RECHARGE,
+        direction: BillDirection.INCOME,
+        amount: order.amount,
+        remark: '余额充值',
+      },
+    })
+
+    // 复式记账：借渠道资金=amount，贷用户=amount
+    const journalId = generateOrderNo('J')
+    await this.journalService.createEntries(tx, [
+      { journalId, accountCode: 'CHANNEL_FUND', debit: order.amount, memo: `充值入账 ${order.orderNo}` },
+      { journalId, accountCode: `USER:${order.toUserId}`, credit: order.amount, memo: `充值入账 ${order.orderNo}` },
+    ])
+
+    return { userId: order.toUserId!, amount: order.amount }
+  }
+
+  /**
+   * PENDING 充值订单自动补单：主动向渠道查单，按真实状态收敛订单。
+   *
+   * 安全不变量（与回调路径完全一致）：
+   * - 与 handleRechargeCallback 共用同一把锁 `recharge:callback:{orderNo}`，
+   *   回调与补单互斥，不会双入账；
+   * - 事务内二次校验终态，回调抢先完成则本次跳过（幂等）；
+   * - H2 金额核对：渠道查单金额必须与订单金额一致，fail-closed
+   *  （查单未返回金额同样拒绝入账，留给人工处理）。
+   */
+  async reconcilePendingRecharge(order: {
+    id: string
+    orderNo: string
+    channel: string
+    channelOrderNo: string | null
+    amount: number
+    toUserId: string | null
+  }): Promise<'CREDITED' | 'MARKED_FAILED' | 'STILL_PENDING' | 'SKIPPED'> {
+    // 无渠道单号无法查单（渠道调用成功后、持久化 channelOrderNo 前崩溃的极端场景），留人工
+    if (!order.channelOrderNo) return 'SKIPPED'
+
+    const channel = this.channelRegistry.getChannel(order.channel)
+    const channelConfig = await this.channelRegistry.getEnabledConfig(order.channel)
+
+    // 查单在锁外执行（纯网络调用），失败视为未确认，订单保持 PENDING 等下一轮
+    let query: OrderQueryResult
+    try {
+      query = await channel.queryOrder(order.channelOrderNo, channelConfig.config)
+    } catch (err) {
+      this.logger.warn(
+        `自动补单查单失败：订单 ${order.orderNo} 渠道 ${order.channel}：${err instanceof Error ? err.message : String(err)}`,
+      )
+      return 'STILL_PENDING'
+    }
+
+    const txResult = await this.redis.withLock(
+      `recharge:callback:${order.orderNo}`,
+      REDIS_LOCK_TTL_SECONDS,
+      async () => {
+        return this.prisma.$transaction(async (tx) => {
+          const current = await tx.transactionOrder.findUnique({
+            where: { orderNo: order.orderNo },
+          })
+          // 订单不存在或已终态（回调抢先完成）：幂等跳过
+          if (!current || current.status !== TransactionStatus.PENDING) return { action: 'SKIPPED' as const }
+          // 渠道与订单渠道不匹配属数据异常，不入账，留人工
+          if (current.channel !== order.channel) {
+            this.logger.error(
+              `自动补单渠道不一致：订单 ${order.orderNo} 订单渠道=${current.channel} 查询渠道=${order.channel}，跳过`,
+            )
+            return { action: 'SKIPPED' as const }
+          }
+
+          if (query.status === 'PENDING') return { action: 'STILL_PENDING' as const }
+
+          if (query.status === 'FAILED' || query.status === 'CLOSED') {
+            await this.markRechargeFailed(tx, current, query.channelOrderNo, !current.channelOrderNo)
+            this.logger.log(
+              `自动补单：订单 ${order.orderNo} 渠道查询为 ${query.status}，已置为 FAILED`,
+            )
+            return { action: 'MARKED_FAILED' as const }
+          }
+
+          // SUCCESS：H2 同规则金额核对，fail-closed（未返回金额同样拒绝）
+          if (!query.totalAmount || query.totalAmount !== current.amount) {
+            this.logger.error(
+              `自动补单金额不一致：订单 ${order.orderNo} 订单金额=${current.amount} 渠道查询金额=${query.totalAmount}，拒绝入账，留人工核实`,
+            )
+            return { action: 'SKIPPED' as const }
+          }
+
+          const risk = await this.applyRechargeSuccess(
+            tx,
+            current,
+            !current.channelOrderNo ? query.channelOrderNo : null,
+          )
+          this.logger.log(
+            `自动补单：订单 ${order.orderNo} 渠道确认已支付，补单入账 ${order.amount} 分`,
+          )
+          return { action: 'CREDITED' as const, risk }
+        })
+      },
+    )
+
+    // 风控记录在事务提交后异步补记（与回调路径一致）
+    if ('risk' in txResult && txResult.risk) {
+      this.riskEngine
+        .recordTransaction({
+          userId: txResult.risk.userId,
+          type: 'RECHARGE',
+          amount: txResult.risk.amount,
+        })
+        .catch((err) => {
+          this.logger.warn(`recordTransaction(RECHARGE) 失败: ${err?.message || err}`)
+        })
+    }
+    return txResult.action
   }
 }
