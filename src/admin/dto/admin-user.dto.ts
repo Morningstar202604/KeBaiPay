@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  MaxLength,
   MinLength,
 } from 'class-validator'
 import { AdminRole, AdminStatus } from '../../common/enums'
@@ -20,6 +21,7 @@ export class CreateAdminUserDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(8, { message: '密码长度不能少于 8 位' })
+  @MaxLength(64, { message: '密码长度不能超过 64 位' })
   password!: string
 
   @IsEnum(AdminRole, { message: '无效的角色类型' })
@@ -48,17 +50,20 @@ export class ResetAdminPasswordDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(8, { message: '密码长度不能少于 8 位' })
+  @MaxLength(64, { message: '密码长度不能超过 64 位' })
   newPassword!: string
 }
 
 export class ChangeAdminPasswordDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(64)
   oldPassword!: string
 
   @IsString()
   @IsNotEmpty()
   @MinLength(8, { message: '密码长度不能少于 8 位' })
+  @MaxLength(64, { message: '密码长度不能超过 64 位' })
   newPassword!: string
 }
 

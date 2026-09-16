@@ -51,7 +51,13 @@ export class WebhooksService {
 
     const startTime = Date.now()
     return this.redis.withLock(lockKey, 30, async () => {
-      // 1. 幂等性检查
+      // 1. 验证签名 —— 必须先于幂等检查（纵深防御）：
+      //    若幂等命中直接返回 200，伪造回调就能借"订单已终态"绕过验签探测；
+      //    验签先行保证任何未通过签名校验的请求一律 400，无论订单状态如何。
+      //    验签失败在 verifySignature 内部落 SIGNATURE_* 日志，不进入 PROCESS_ERROR 分支。
+      await this.verifySignature(channelCode, rawBody, headers, 'recharge')
+
+      // 2. 幂等性检查
       const idempotencyKey = this.generateIdempotencyKey(channelCode, rawBody, 'recharge')
       const processed = await this.redis.get(idempotencyKey)
       if (processed) {
@@ -60,9 +66,6 @@ export class WebhooksService {
       }
 
       try {
-        // 2. 验证签名
-        await this.verifySignature(channelCode, rawBody, headers, 'recharge')
-
         // 3. 处理回调
         const result = await this.transactionsService.handleRechargeCallback(
           channelCode,
@@ -112,7 +115,10 @@ export class WebhooksService {
 
     const startTime = Date.now()
     return this.redis.withLock(lockKey, 30, async () => {
-      // 1. 幂等性检查
+      // 1. 验证签名 —— 先于幂等检查（与充值回调同理，纵深防御）
+      await this.verifySignature(channelCode, rawBody, headers, 'payout')
+
+      // 2. 幂等性检查
       const idempotencyKey = this.generateIdempotencyKey(channelCode, rawBody, 'payout')
       const processed = await this.redis.get(idempotencyKey)
       if (processed) {
@@ -121,9 +127,6 @@ export class WebhooksService {
       }
 
       try {
-        // 2. 验证签名
-        await this.verifySignature(channelCode, rawBody, headers, 'payout')
-
         // 3. 处理回调
         const result = await this.withdrawalsService.handlePayoutCallback(
           channelCode,
@@ -172,7 +175,10 @@ export class WebhooksService {
 
     const startTime = Date.now()
     return this.redis.withLock(lockKey, 30, async () => {
-      // 1. 幂等性检查
+      // 1. 验证签名 —— 先于幂等检查（与充值回调同理，纵深防御）
+      await this.verifySignature(channelCode, rawBody, headers, 'refund')
+
+      // 2. 幂等性检查
       const idempotencyKey = this.generateIdempotencyKey(channelCode, rawBody, 'refund')
       const processed = await this.redis.get(idempotencyKey)
       if (processed) {
@@ -181,9 +187,6 @@ export class WebhooksService {
       }
 
       try {
-        // 2. 验证签名
-        await this.verifySignature(channelCode, rawBody, headers, 'refund')
-
         // 3. 处理回调
         const result = await this.refundService.handleRefundCallback(
           channelCode,

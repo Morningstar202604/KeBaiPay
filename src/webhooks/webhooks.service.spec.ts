@@ -141,6 +141,38 @@ describe('WebhooksService', () => {
   })
 
   describe('verifySignature 渠道实现了 verifyWebhookSignature', () => {
+    it('幂等命中但签名无效时仍拒绝：验签优先于幂等检查（纵深防御）', async () => {
+      // 已处理过的订单 + 伪造签名 => 不能借幂等兜底返回 200，必须 400
+      redis.get.mockResolvedValue('1')
+      channelRegistry.getChannel.mockReturnValue({
+        verifyWebhookSignature: jest.fn().mockReturnValue(false),
+      })
+      await expect(
+        service.handleRechargeCallback('alipay', 'out_trade_no=O1', {}),
+      ).rejects.toBeInstanceOf(BadRequestException)
+      expect(transactions.handleRechargeCallback).not.toHaveBeenCalled()
+      expect(prisma.webhookLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'SIGNATURE_FAILED' }),
+        }),
+      )
+    })
+
+    it('验签失败只落 SIGNATURE_* 一次，不重复记 PROCESS_ERROR', async () => {
+      redis.get.mockResolvedValue(null)
+      channelRegistry.getChannel.mockReturnValue({
+        verifyWebhookSignature: jest.fn().mockReturnValue(false),
+      })
+      await expect(
+        service.handleRechargeCallback('alipay', 'out_trade_no=O1', {}),
+      ).rejects.toBeInstanceOf(BadRequestException)
+      const statuses = prisma.webhookLog.create.mock.calls.map(
+        (c: any[]) => c[0]?.data?.status,
+      )
+      expect(statuses).toContain('SIGNATURE_FAILED')
+      expect(statuses).not.toContain('PROCESS_ERROR')
+    })
+
     it('验签返回 false 时抛 BadRequestException 并落库 SIGNATURE_FAILED', async () => {
       channelRegistry.getChannel.mockReturnValue({
         verifyWebhookSignature: jest.fn().mockReturnValue(false),

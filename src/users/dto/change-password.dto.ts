@@ -4,6 +4,7 @@ import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator'
 export class ChangePasswordDto {
   @IsString()
   @IsNotEmpty({ message: '原密码不能为空' })
+  @MaxLength(64, { message: '原密码最长 64 位' })
   oldPassword!: string
 
   @IsString()

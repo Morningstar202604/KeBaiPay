@@ -826,6 +826,11 @@ export class AdminService {
     const isDebit = amount > 0 // 加款：余额增加 → DEBIT
     const amountFen = yuanToFen(Math.abs(amount))
     const absFen = amountFen
+    // 亚分防护：|amount| < 0.005 会被 yuanToFen 四舍五入成 0 分，
+    // 若不拦截将产生一条金额为 0 的调账流水（账本脏数据）
+    if (absFen === 0) {
+      throw new BadRequestException(kbError(KBErrorCodes.ADJUSTMENT_AMOUNT_INVALID))
+    }
 
     // H2: 管理员调账加 Redis 分布式锁，防止并发调账导致账本 balanceBefore/After 失真或余额异常
     return this.redis.withLock(

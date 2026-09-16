@@ -6,6 +6,8 @@ import { IsSafeText } from '../../common/validators/safe-text'
 export class PayByQrCodeDto {
   @IsString()
   @IsNotEmpty()
+  // 真实收款码由 generateQrCode() 生成（"KB-" 前缀，约 20 字符），64 位上限足以兼容并防滥用
+  @MaxLength(64)
   code!: string
 
   @IsOptional()
