@@ -4,15 +4,15 @@
 
 **能自己跑起来的一套支付中台：钱包、收单、开放 API、对账、AI 智能体，五层打通**
 
-`NestJS 11` · `TypeScript 6` · `Prisma 7` · `PostgreSQL 16` · `Redis 7` · `Vue 3` · `MCP`
+`NestJS 11` · `TypeScript` · `Prisma 7` · `PostgreSQL 16` · `Redis 7` · `Vue 3` · `MCP`
 
-[![CI](https://github.com/x33834/KeBaiPay/actions/workflows/ci.yml/badge.svg)](https://github.com/x33834/KeBaiPay/actions/workflows/ci.yml)
 [![version](https://img.shields.io/badge/version-0.3.2-0FA968)](docs/CHANGELOG.md)
 [![node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](package.json)
-[![tests](https://img.shields.io/badge/tests-1244%20passing-0FA968)](docs/CHANGELOG.md)
+[![tests](https://img.shields.io/badge/tests-1293%20passing-0FA968)](docs/CHANGELOG.md)
+[![coverage](https://img.shields.io/badge/coverage-55.6%25-0FA968)](docs/CODE_HEALTH_REPORT.md)
 [![license](https://img.shields.io/badge/license-MIT-0FA968)](LICENSE)
 
-[快速开始](#-快速开始) · [它能做什么](#-它能做什么) · [界面预览](#-界面预览) · [为什么值得一看](#-为什么值得一看) · [文档](#-文档) · [镜像仓库](#-镜像仓库)
+[快速开始](#-快速开始) · [系统架构](#-系统架构) · [资金安全工程](#-资金安全工程) · [界面预览](#-界面预览) · [功能矩阵](#-功能矩阵) · [文档](#-文档) · [镜像仓库](#-镜像仓库)
 
 </div>
 
@@ -20,19 +20,57 @@
 
 ## 📖 这到底是什么
 
-一个**可以私有化部署的支付系统参考实现**。不是玩具 demo——微信/支付宝 SDK 直连、复式记账、分布式锁、幂等键、审计哈希链这些工业级该有的东西都在，220 个 API 端点、41 个业务模块、1244 个单元测试。
+一个**可以私有化部署的支付系统参考实现**。不是玩具 demo——微信/支付宝 SDK 直连、复式记账、分布式锁、幂等键、审计哈希链这些工业级该有的东西都在，**192 个 OpenAPI 端点、41 个业务模块、1293 个单元测试**。
 
 三条命令跑起来，你就有了一个有钱包、能收单、能对账、还能让 AI 帮你管钱的完整系统。
 
 ```bash
-git clone https://github.com/x33834/KeBaiPay.git && cd KeBaiPay
+git clone https://gitcode.com/badhope/KeBaiPay.git && cd KeBaiPay
 cp .env.example .env && docker compose -f docker-compose.dev.yml up -d
 npm install && npx prisma migrate deploy && npx prisma db seed && npm run start:dev
 ```
 
 打开 <http://localhost:3001>。测试账号 `13800000001` / `Abc12345`（余额 10000 元，支付密码 `123456`），管理后台 <http://localhost:3001/admin> 用 `admin` / `ChangeAdmin2026`。
 
-> 国内拉取慢？把第一行换成 GitCode 或 Gitee 镜像，见 [镜像仓库](#-镜像仓库)。
+> 国内拉取慢？仓库已托管在 GitCode / Gitee 镜像，见 [镜像仓库](#-镜像仓库)。
+
+---
+
+## 🏗 系统架构
+
+```mermaid
+flowchart TB
+    subgraph Client["客户端 / 接入方"]
+      H5["用户端 H5"]
+      Portal["商户门户 Portal"]
+      Admin["管理后台 Admin"]
+      MCP["AI Agent · MCP Server"]
+    end
+    subgraph Gateway["接入层"]
+      OpenAPI["开放 API · HMAC-SHA256"]
+      Webhook["渠道回调 · 验签优先"]
+      Cashier["收银台 / 收款码"]
+    end
+    subgraph Core["核心业务域"]
+      Wallet["钱包 · 复式记账"]
+      Tx["交易 · 充值/提现/转账"]
+      Split["分账 · 批量 · 订阅"]
+      Escrow["担保 · 红包 · 优惠券"]
+    end
+    subgraph Infra["基础设施与安全"]
+      Ledger["审计哈希链"]
+      Lock["Redis 分布式锁 · 看门狗"]
+      Channel["双抽象渠道层\n微信/支付宝/mock"]
+      DB[("PostgreSQL 16")]
+      Cache[("Redis 7")]
+    end
+    Client --> Gateway --> Core --> Infra
+    Channel --> DB
+    Core -. 审计 .-> Ledger
+    Core -. 并发锁 .-> Lock
+```
+
+**四层并发防御**（同一笔钱不会被重复扣/入账）：分布式锁解决并发进入 → 数据库事务解决中间态 → 条件原子更新 `updateMany` 解决并发写入 → 幂等键唯一约束解决重试。每一层变更都有测试兜底。
 
 ---
 
@@ -54,6 +92,37 @@ npm install && npx prisma migrate deploy && npx prisma db seed && npm run start:
 - **多渠道对账聚合** — 自动拉单 → 匹配 → 差异工作流 → CSV 导出
 - **AI Agent 层** — Vercel AI SDK 接任意 OpenAI 兼容模型，内置 MCP Server 与独立 stdio 进程两种形态
 - **可观测性** — Prometheus `/metrics`、OpenTelemetry 零开销接入、结构化日志 traceId 全链路
+
+---
+
+## 🔐 资金安全工程（重点）
+
+支付系统最怕两件事：**钱算错** 和 **接口被刷穿**。以下能力均已落地并配测试，是本项目的核心卖点。
+
+| 防护 | 做法 | 效果 |
+|---|---|---|
+| **大额调账双人复核** | 管理员单笔 `\|amount\| ≥ LARGE_ADJUSTMENT_THRESHOLD_YUAN`（默认 5 万）时，不直接动账，先建审批单；第二名管理员批准后按**锁定价**执行 | 单人无法擅自大额调账；发起人自批返回 **403**；乐观锁抢占防并发重复执行 |
+| **掉单自愈（PENDING 自动补单）** | 定时任务对超时充值订单主动查渠道 `queryRecharge`，与回调共用同一把分布式锁 | 渠道回调丢失也能自动入账；**金额不符/缺失一律拒绝入账（fail-closed）** |
+| **全平台支付密码/身份证统一校验** | 11 个入口复用同一套 `@IsPayPassword` / `@IsIdCard` / `@IsSafeText` 装饰器 | 一处规则，全平台一致，杜绝绕过 |
+| **调账金额边界 + 凭证长度** | DTO 加 `@Min(-500000)@Max(500000)@IsNumber({maxDecimalPlaces:2})`；42 处凭证/内部 ID 补 `@MaxLength` | 拒绝亚分金额与超界调账，规避 bcrypt 输入边界 DoS |
+| **Webhook 验签优先** | 验签在幂等检查**之前**，伪造回调无论订单状态一律 400 | 重放已终态订单的伪造回调不再被幂等缓存放行 |
+
+```mermaid
+sequenceDiagram
+    participant A as 管理员A（发起）
+    participant S as 后端
+    participant DB as DB
+    participant B as 管理员B（复核）
+    A->>S: 调账 60,000（超阈值）
+    S->>DB: 创建审批单（锁定金额=60000.00）
+    Note over DB: 资金未变动，状态 PENDING_APPROVAL
+    A->>S: 自己批准
+    S-->>A: 403 发起人不能审批自己的调账申请
+    B->>S: 批准审批单
+    S->>DB: 按锁定价执行调账 → EXECUTED
+```
+
+> 资金路径上还有一条**不可绕过的硬规则**：回调/查单返回的金额必须与订单金额完全一致，否则 fail-closed 拒绝入账——任何单边、错账都不会静默落账。
 
 ---
 
@@ -122,6 +191,7 @@ npm install && npx prisma migrate deploy && npx prisma db seed && npm run start:
 | 商户入驻/应用/Webhook 重试 | ✅ | 批量转账 + 崩溃恢复 | ✅ |
 | 开放 API + 零依赖 Node SDK | ✅ | 订阅计费 / 分账 | ✅ |
 | 微信/支付宝官方 SDK 直连 | ✅ | 优惠券 / 邀请返现 / 发票 | ✅ |
+| 大额调账双人复核 | ✅ | 充值掉单自动补单 | ✅ |
 | AI Agent + MCP + 二次确认 | ✅ | Stripe / 银联 Connector | 🚧 骨架 |
 | KYC 双端 UI / 渠道配置中心 | ✅ | 小程序 SDK / 多币种 | 📋 规划中 |
 
@@ -138,19 +208,19 @@ npm install && npx prisma migrate deploy && npx prisma db seed && npm run start:
 | [用户服务协议](docs/legal/user-agreement.md) | [隐私政策](docs/legal/privacy-policy.md) | [商户服务协议](docs/legal/merchant-agreement.md) |
 | [退款与争议规则](docs/legal/refund-policy.md) | [合规声明](docs/legal/compliance-statement.md) | [商业授权](docs/legal/commercial-license.md) |
 
-- 完整 OpenAPI 3.0 规范（220 个端点）：[`docs/openapi.json`](docs/openapi.json)
+- 完整 OpenAPI 3.0 规范（192 个端点）：[`docs/openapi.json`](docs/openapi.json)
 - 商户 5 步接入第一笔收款：见 [QUICKSTART](docs/QUICKSTART.md)
 
 ---
 
 ## 🌏 镜像仓库
 
-三平台同步维护，任选一个：
+三平台同步维护，任选一个（GitCode 为主托管）：
 
 | 平台 | 地址 | 说明 |
 |---|---|---|
-| GitHub | [x33834/KeBaiPay](https://github.com/x33834/KeBaiPay) | 主仓库，Issue / PR 入口 |
-| GitCode | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) | 国内镜像 |
+| **GitCode** | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) | **主仓库**，国内首选 |
+| GitHub | [x33834/KeBaiPay](https://github.com/x33834/KeBaiPay) | Issue / PR 入口 |
 | Gitee | [badhope/KeBaiPay](https://gitee.com/badhope/KeBaiPay) | 国内镜像 |
 
 ---
