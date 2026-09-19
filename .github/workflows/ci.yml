@@ -46,7 +46,7 @@ jobs:
       ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY || 'ci-test-encryption-key-32-chars-ok' }}
       MOCK_CHANNEL_SECRET: ${{ secrets.CI_MOCK_CHANNEL_SECRET || 'ci-test-mock-secret' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -87,7 +87,7 @@ jobs:
       ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY || 'ci-test-encryption-key-32-chars-ok' }}
       MOCK_CHANNEL_SECRET: ${{ secrets.CI_MOCK_CHANNEL_SECRET || 'ci-test-mock-secret' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -107,7 +107,7 @@ jobs:
   web:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -127,7 +127,7 @@ jobs:
   web-h5:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -147,7 +147,7 @@ jobs:
   web-admin:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
