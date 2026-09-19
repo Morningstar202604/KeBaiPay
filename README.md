@@ -12,6 +12,12 @@
 [![tests](https://img.shields.io/badge/tests-1244%20passing-0FA968)](docs/CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-0FA968)](LICENSE)
 
+[![Official Site](https://img.shields.io/badge/%F0%9F%8C%90_%E5%AE%98%E7%BD%91-x33834.github.io-0FA968?style=flat-square)](https://x33834.github.io/KeBaiPay/)
+[![GitHub](https://img.shields.io/badge/GitHub-x33834-24292F?style=flat-square&logo=github)](https://github.com/x33834/KeBaiPay)
+[![GitHub](https://img.shields.io/badge/GitHub-Morningstar202604-24292F?style=flat-square&logo=github)](https://github.com/Morningstar202604/KeBaiPay)
+[![GitCode](https://img.shields.io/badge/GitCode-badhope-3A72BE?style=flat-square&logo=git)](https://gitcode.com/badhope/KeBaiPay)
+[![Gitee](https://img.shields.io/badge/Gitee-badhope-C71D23?style=flat-square&logo=git)](https://gitee.com/badhope/KeBaiPay)
+
 [快速开始](#-快速开始) · [它能做什么](#-它能做什么) · [界面预览](#-界面预览) · [为什么值得一看](#-为什么值得一看) · [文档](#-文档) · [镜像仓库](#-镜像仓库)
 
 </div>
@@ -145,13 +151,16 @@ npm install && npx prisma migrate deploy && npx prisma db seed && npm run start:
 
 ## 🌏 镜像仓库
 
-三平台同步维护，任选一个：
+四平台并列同步维护（分支 / 标签 / HEAD 完全一致），内容相同，任选其一，不偏心任何一个：
 
-| 平台 | 地址 | 说明 |
-|---|---|---|
-| GitHub | [x33834/KeBaiPay](https://github.com/x33834/KeBaiPay) | 主仓库，Issue / PR 入口 |
-| GitCode | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) | 国内镜像 |
-| Gitee | [badhope/KeBaiPay](https://gitee.com/badhope/KeBaiPay) | 国内镜像 |
+| 平台 | 地址 |
+|---|---|
+| **GitHub** | [x33834/KeBaiPay](https://github.com/x33834/KeBaiPay) |
+| **GitHub** | [Morningstar202604/KeBaiPay](https://github.com/Morningstar202604/KeBaiPay) |
+| **GitCode** | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) |
+| **Gitee** | [badhope/KeBaiPay](https://gitee.com/badhope/KeBaiPay) |
+
+**🌐 官方网站**（GitHub Pages 双号部署，内容一致）：<https://x33834.github.io/KeBaiPay/> · <https://morningstar202604.github.io/KeBaiPay/>
 
 ---
 

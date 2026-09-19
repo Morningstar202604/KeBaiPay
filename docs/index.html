@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KeBaiPay 科佰支付 · 自托管开源支付中台</title>
+<meta name="description" content="能自己跑起来的一套支付中台：钱包、收单、开放 API、对账、AI 智能体，五层打通。NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7 + Vue 3 + MCP。">
+<style>
+:root{
+  --bg0:#070B14; --bg1:#0B1220; --card:rgba(255,255,255,.035); --line:rgba(255,255,255,.09);
+  --green:#0FA968; --green2:#22D68B; --gold:#F5B841; --blue:#3B82F6;
+  --txt:#E8EEF7; --sub:#93A1B8; --mono:'SF Mono',ui-monospace,'Cascadia Code',Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg0);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;line-height:1.65;overflow-x:hidden}
+.wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+/* ---------- 顶部导航 ---------- */
+nav{position:sticky;top:0;z-index:9;backdrop-filter:blur(14px);background:rgba(7,11,20,.72);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:58px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:16px;letter-spacing:.3px}
+.brand .dot{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--green),var(--gold));display:grid;place-items:center;font-size:14px}
+nav .links{display:flex;gap:20px;font-size:13.5px}
+nav .links a{color:var(--sub);text-decoration:none;transition:.2s}
+nav .links a:hover{color:var(--green2)}
+@media(max-width:720px){nav .links{display:none}}
+/* ---------- Hero ---------- */
+.hero{position:relative;text-align:center;padding:86px 0 64px;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:-40%;background:
+  radial-gradient(38% 30% at 50% 8%,rgba(15,169,104,.20),transparent 70%),
+  radial-gradient(30% 26% at 78% 20%,rgba(59,130,246,.12),transparent 70%),
+  radial-gradient(28% 24% at 22% 22%,rgba(245,184,65,.10),transparent 70%);
+  pointer-events:none}
+.hero>*{position:relative}
+h1{font-size:clamp(30px,5.4vw,52px);font-weight:800;letter-spacing:-1px;line-height:1.18;
+  background:linear-gradient(115deg,#F4F8FF 30%,#8FE8C0 62%,#F5D98B 92%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero p.tag{margin:18px auto 8px;font-size:clamp(15px,2.2vw,19px);color:var(--sub);max-width:640px}
+.hero p.tag b{color:var(--txt)}
+.stack{margin:16px 0 26px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.stack span{font-family:var(--mono);font-size:12px;color:var(--green2);border:1px solid rgba(15,169,104,.35);background:rgba(15,169,104,.08);padding:4px 11px;border-radius:99px}
+.badges{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin:6px 0 30px}
+.cta{display:inline-flex;align-items:center;gap:9px;text-decoration:none;font-weight:600;font-size:15px;
+  padding:13px 30px;border-radius:12px;color:#04150C;background:linear-gradient(120deg,var(--green2),var(--green));
+  box-shadow:0 8px 28px rgba(15,169,104,.35);transition:.25s}
+.cta:hover{transform:translateY(-2px);box-shadow:0 12px 36px rgba(15,169,104,.5)}
+.cta.ghost{background:transparent;color:var(--txt);border:1px solid var(--line);box-shadow:none;margin-left:12px}
+.cta.ghost:hover{border-color:var(--green2);color:var(--green2)}
+/* ---------- 区块 ---------- */
+section{padding:58px 0}
+.kicker{text-align:center;font-size:12.5px;letter-spacing:3px;color:var(--green2);text-transform:uppercase;margin-bottom:8px}
+h2{text-align:center;font-size:clamp(21px,3.2vw,30px);font-weight:750;margin-bottom:34px;letter-spacing:-.4px}
+/* ---------- 四平台并列 ---------- */
+.plats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:880px){.plats{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.plats{grid-template-columns:1fr}}
+.plat{position:relative;display:block;text-decoration:none;color:var(--txt);background:var(--card);
+  border:1px solid var(--line);border-radius:16px;padding:20px 16px 17px;transition:.25s;overflow:hidden}
+.plat::after{content:'';position:absolute;left:0;top:0;width:100%;height:3px;background:var(--pc,#24292F)}
+.plat:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.2);box-shadow:0 14px 34px rgba(0,0,0,.45)}
+.plat .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;margin-bottom:12px;background:var(--pc,#24292F)}
+.plat .ic svg{width:19px;height:19px;fill:#fff}
+.plat .nm{font-weight:700;font-size:14.5px}
+.plat .rp{font-family:var(--mono);font-size:12px;color:var(--sub);margin-top:3px;word-break:break-all}
+.plat .go{position:absolute;right:14px;top:16px;font-size:12px;color:var(--sub)}
+.plat:hover .go{color:var(--green2)}
+.sites{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:16px}
+.site-btn{text-decoration:none;font-size:13.5px;font-weight:600;color:var(--green2);border:1px solid rgba(15,169,104,.4);
+  padding:9px 18px;border-radius:10px;background:rgba(15,169,104,.07);transition:.2s;font-family:var(--mono)}
+.site-btn:hover{background:rgba(15,169,104,.16)}
+.note4{text-align:center;color:var(--sub);font-size:12.5px;margin-top:14px}
+/* ---------- 特性 ---------- */
+.feats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:880px){.feats{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.feats{grid-template-columns:1fr}}
+.feat{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 20px;transition:.25s}
+.feat:hover{transform:translateY(-3px);border-color:rgba(15,169,104,.4)}
+.feat .em{font-size:24px}
+.feat h3{font-size:15.5px;margin:10px 0 6px;font-weight:700}
+.feat p{font-size:13px;color:var(--sub)}
+/* ---------- 数据 ---------- */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;text-align:center}
+@media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px 10px}
+.stat b{display:block;font-size:clamp(24px,3.6vw,34px);font-weight:800;
+  background:linear-gradient(120deg,var(--green2),var(--gold));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.stat span{font-size:12.5px;color:var(--sub)}
+/* ---------- 截图 ---------- */
+.shots{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+@media(max-width:760px){.shots{grid-template-columns:1fr}}
+.shot{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card);transition:.25s}
+.shot:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(0,0,0,.4)}
+.shot img{width:100%;display:block}
+.shot figcaption{padding:9px 13px;font-size:12.5px;color:var(--sub);border-top:1px solid var(--line)}
+/* ---------- 快速开始 ---------- */
+.term{background:#0D1420;border:1px solid var(--line);border-radius:14px;overflow:hidden;font-family:var(--mono)}
+.term .bar{display:flex;gap:6px;padding:11px 14px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02)}
+.term .bar i{width:11px;height:11px;border-radius:50%;background:#2E3A4E}
+.term .bar i:nth-child(1){background:#F55B5B}.term .bar i:nth-child(2){background:#F5B841}.term .bar i:nth-child(3){background:#22D68B}
+.term pre{padding:18px 20px;font-size:13px;line-height:1.9;overflow-x:auto;color:#C7D4E8}
+.term .c{color:#5B6B84}.term .g{color:var(--green2)}.term .y{color:var(--gold)}
+/* ---------- 合规 ---------- */
+.warn{border:1px solid rgba(245,184,65,.35);background:rgba(245,184,65,.06);border-radius:14px;padding:16px 20px;font-size:13px;color:#D8CBA4}
+.warn b{color:var(--gold)}
+/* ---------- footer ---------- */
+footer{border-top:1px solid var(--line);padding:34px 0 44px;text-align:center;color:var(--sub);font-size:13px}
+footer .fplats{display:flex;flex-wrap:wrap;gap:8px 22px;justify-content:center;margin:14px 0 16px}
+footer .fplats a{color:var(--sub);text-decoration:none;font-family:var(--mono);font-size:12.5px}
+footer .fplats a:hover{color:var(--green2)}
+footer .sep{color:#3A4759}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <div class="brand"><span class="dot">💳</span>KeBaiPay <span style="color:var(--sub);font-weight:400;font-size:13px">科佰支付</span></div>
+  <div class="links">
+    <a href="#platforms">仓库</a><a href="#features">特性</a><a href="#shots">界面</a><a href="#quickstart">快速开始</a>
+  </div>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <h1>能自己跑起来的一套支付中台</h1>
+  <p class="tag"><b>钱包 · 收单 · 开放 API · 对账 · AI 智能体</b>，五层打通。<br>微信/支付宝 SDK 直连、复式记账、分布式锁、幂等键、审计哈希链——工业级该有的都在。</p>
+  <div class="stack">
+    <span>NestJS 11</span><span>TypeScript</span><span>Prisma 7</span><span>PostgreSQL 16</span>
+    <span>Redis 7</span><span>Vue 3</span><span>MCP</span>
+  </div>
+  <div class="badges">
+    <img src="https://img.shields.io/badge/version-0.3.2-0FA968" alt="version">
+    <img src="https://img.shields.io/badge/tests-1293_passing-0FA968" alt="tests">
+    <img src="https://img.shields.io/badge/coverage-55.6%25-0FA968" alt="coverage">
+    <img src="https://img.shields.io/badge/license-MIT-0FA968" alt="license">
+  </div>
+  <a class="cta" href="#quickstart">⚡ 三条命令跑起来</a>
+  <a class="cta ghost" href="#platforms">四平台仓库 →</a>
+</div></header>
+
+<!-- ============ 四平台并列 ============ -->
+<section id="platforms"><div class="wrap">
+  <p class="kicker">Four Platforms · 并列同步</p>
+  <h2>四平台仓库 · 任选其一</h2>
+  <div class="plats">
+    <a class="plat" style="--pc:#24292F" href="https://github.com/x33834/KeBaiPay" target="_blank" rel="noopener">
+      <span class="go">打开 →</span>
+      <div class="ic"><svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></div>
+      <div class="nm">GitHub · x33834</div><div class="rp">x33834/KeBaiPay</div>
+    </a>
+    <a class="plat" style="--pc:#24292F" href="https://github.com/Morningstar202604/KeBaiPay" target="_blank" rel="noopener">
+      <span class="go">打开 →</span>
+      <div class="ic"><svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></div>
+      <div class="nm">GitHub · Morningstar202604</div><div class="rp">Morningstar202604/KeBaiPay</div>
+    </a>
+    <a class="plat" style="--pc:#3A72BE" href="https://gitcode.com/badhope/KeBaiPay" target="_blank" rel="noopener">
+      <span class="go">打开 →</span>
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M11.9 0C5.3 0 0 5.3 0 11.9c0 5.2 3.4 9.7 8.1 11.2.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.4-1.3-5.4-5.8 0-1.3.5-2.3 1.2-3.2-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.6 18.3 5 18.3 5c.6 1.6.2 2.8.1 3.1.8.9 1.2 1.9 1.2 3.2 0 4.5-2.8 5.5-5.4 5.8.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6 4.7-1.6 8.1-6 8.1-11.2C23.9 5.3 18.6 0 11.9 0z"/></svg></div>
+      <div class="nm">GitCode</div><div class="rp">badhope/KeBaiPay</div>
+    </a>
+    <a class="plat" style="--pc:#C71D23" href="https://gitee.com/badhope/KeBaiPay" target="_blank" rel="noopener">
+      <span class="go">打开 →</span>
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M23.3 9.6H10.9c-.5 0-.9.4-.9.9v2.3c0 .5.4.9.9.9h7.3c.3 0 .5.3.4.6-.4 1.9-1.7 3.5-3.4 4.4-1.2.6-2.4.9-3.7.9-1.6 0-3.1-.5-4.4-1.3-1.9-1.2-3.2-3.2-3.6-5.4-.2-1.3-.1-2.7.4-4C4.8 6.5 6.6 4.7 8.9 3.9c1.2-.4 2.6-.5 3.8-.3 1.1.2 2.1.6 3 1.2.4.3 1 .2 1.3-.2l1.5-1.5c.3-.3.3-.9-.1-1.2C16.6.9 14.4.1 12.1 0 6.5-.2 1.4 3.5.3 9c-.1.4-.2.9-.2 1.3 0 .5-.1.9-.1 1.4v.6c0 .5.1.9.1 1.4.7 5.6 5.2 10 10.9 10.2h.7c.5 0 .9 0 1.4-.1 5.5-.7 10-5.2 10.8-10.8 0-.2.1-.5.1-.7v-2c0-.4-.3-.7-.7-.7z"/></svg></div>
+      <div class="nm">Gitee</div><div class="rp">badhope/KeBaiPay</div>
+    </a>
+  </div>
+  <div class="sites">
+    <a class="site-btn" href="https://x33834.github.io/KeBaiPay/" target="_blank" rel="noopener">🌐 x33834.github.io/KeBaiPay（本站）</a>
+    <a class="site-btn" href="https://morningstar202604.github.io/KeBaiPay/" target="_blank" rel="noopener">🌐 morningstar202604.github.io/KeBaiPay（镜像站）</a>
+  </div>
+  <p class="note4">四平台并列同步维护，分支、标签、HEAD 完全一致 · 本站为 GitHub Pages 双号部署</p>
+</div></section>
+
+<!-- ============ 特性 ============ -->
+<section id="features"><div class="wrap">
+  <p class="kicker">Features</p>
+  <h2>不是玩具 Demo，是参考实现</h2>
+  <div class="feats">
+    <div class="feat"><div class="em">👛</div><h3>个人钱包</h3><p>复式记账、充值/提现、红包、账单流水，余额变动全程留痕可审计。</p></div>
+    <div class="feat"><div class="em">🏪</div><h3>商户收款</h3><p>商户门户 + 收银台 + 收款码，H5 收单全流程，默认 mock 渠道开箱即跑。</p></div>
+    <div class="feat"><div class="em">🔌</div><h3>开放 API</h3><p>192 个 OpenAPI 端点，HMAC-SHA256 签名、幂等键、回调验签优先。</p></div>
+    <div class="feat"><div class="em">🧾</div><h3>多渠道对账</h3><p>对账聚合与差错处理，管理端一键审查提现，风险规则可配置。</p></div>
+    <div class="feat"><div class="em">🤖</div><h3>AI 智能体 · MCP</h3><p>内置 MCP Server，让 Claude / 任意 Agent 直接帮你查账、对账、管钱。</p></div>
+    <div class="feat"><div class="em">🛡</div><h3>资金安全工程</h3><p>分布式锁防并发、审计哈希链防篡改、风险控制与提现复审闭环。</p></div>
+  </div>
+</div></section>
+
+<!-- ============ 数据 ============ -->
+<section><div class="wrap">
+  <div class="stats">
+    <div class="stat"><b>192</b><span>OpenAPI 端点</span></div>
+    <div class="stat"><b>41</b><span>业务模块</span></div>
+    <div class="stat"><b>1293</b><span>单元测试</span></div>
+    <div class="stat"><b>3</b><span>端：H5 · Portal · Admin</span></div>
+  </div>
+</div></section>
+
+<!-- ============ 截图 ============ -->
+<section id="shots"><div class="wrap">
+  <p class="kicker">Screenshots</p>
+  <h2>界面预览</h2>
+  <div class="shots">
+    <figure class="shot"><img src="assets/h5-home.png" alt="用户端 H5 首页" loading="lazy"><figcaption>用户端 H5 · 首页</figcaption></figure>
+    <figure class="shot"><img src="assets/h5-cashier.png" alt="H5 收银台" loading="lazy"><figcaption>用户端 H5 · 收银台</figcaption></figure>
+    <figure class="shot"><img src="assets/portal-dashboard.png" alt="商户门户工作台" loading="lazy"><figcaption>商户 Portal · 工作台</figcaption></figure>
+    <figure class="shot"><img src="assets/portal-reconciliation.png" alt="商户对账" loading="lazy"><figcaption>商户 Portal · 对账中心</figcaption></figure>
+    <figure class="shot"><img src="assets/admin-dashboard.png" alt="管理后台仪表盘" loading="lazy"><figcaption>管理后台 · 仪表盘</figcaption></figure>
+    <figure class="shot"><img src="assets/admin-agents.png" alt="AI 智能体" loading="lazy"><figcaption>管理后台 · AI 智能体</figcaption></figure>
+  </div>
+</div></section>
+
+<!-- ============ 快速开始 ============ -->
+<section id="quickstart"><div class="wrap">
+  <p class="kicker">Quick Start</p>
+  <h2>三条命令，跑起一个支付系统</h2>
+  <div class="term">
+    <div class="bar"><i></i><i></i><i></i></div>
+    <pre><span class="c"># 克隆（四平台任选，此处以 GitCode 为例）</span>
+<span class="g">git clone</span> https://gitcode.com/badhope/KeBaiPay.git && cd KeBaiPay
+<span class="g">cp</span> .env.example .env && <span class="g">docker compose</span> -f docker-compose.dev.yml up -d
+<span class="g">npm install</span> && <span class="y">npx prisma</span> migrate deploy && <span class="y">npx prisma</span> db seed && <span class="g">npm run</span> start:dev
+
+<span class="c"># 打开 http://localhost:3001</span>
+<span class="c"># 测试账号 13800000001 / Abc12345 · 管理后台 /admin（admin / ChangeAdmin2026）</span></pre>
+  </div>
+  <div style="height:18px"></div>
+  <div class="warn">⚠️ <b>合规提示</b>：代码 MIT 开源，随便用。但系统含平台内账本，在中国大陆实际运营涉及无证支付业务与"二清"红线——这是运营资质问题，不是许可证能解决的。默认只启用 mock 渠道。</div>
+</div></section>
+
+<footer><div class="wrap">
+  <div class="fplats">
+    <a href="https://github.com/x33834/KeBaiPay" target="_blank" rel="noopener">GitHub/x33834</a><span class="sep">·</span>
+    <a href="https://github.com/Morningstar202604/KeBaiPay" target="_blank" rel="noopener">GitHub/Morningstar202604</a><span class="sep">·</span>
+    <a href="https://gitcode.com/badhope/KeBaiPay" target="_blank" rel="noopener">GitCode/badhope</a><span class="sep">·</span>
+    <a href="https://gitee.com/badhope/KeBaiPay" target="_blank" rel="noopener">Gitee/badhope</a>
+  </div>
+  <div>© 2026 KeBaiPay · MIT License · 本站与镜像站由 GitHub Pages 双号部署，内容完全一致</div>
+</div></footer>
+
+</body>
+</html>
