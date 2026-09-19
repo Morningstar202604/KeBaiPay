@@ -215,13 +215,16 @@ We're also honest about what's unfinished: **the Stripe / UnionPay Connectors ar
 
 ## 🌏 Mirror Repositories
 
-Maintained across three platforms, pick any (GitCode is the primary host):
+Maintained in parallel across four platforms (same branches, tags and HEAD) — pick any, no favorites:
 
-| Platform | URL | Note |
-|---|---|---|
-| **GitCode** | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) | **Primary**, best for CN |
-| GitHub | [x33834/KeBaiPay](https://github.com/x33834/KeBaiPay) | Issue / PR entry |
-| Gitee | [badhope/KeBaiPay](https://gitee.com/badhope/KeBaiPay) | CN mirror |
+| Platform | URL |
+|---|---|
+| **GitHub** | [x33834/KeBaiPay](https://github.com/x33834/KeBaiPay) |
+| **GitHub** | [Morningstar202604/KeBaiPay](https://github.com/Morningstar202604/KeBaiPay) |
+| **GitCode** | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) |
+| **Gitee** | [badhope/KeBaiPay](https://gitee.com/badhope/KeBaiPay) |
+
+**🌐 Official site** (GitHub Pages, dual-account deployment): <https://x33834.github.io/KeBaiPay/> · <https://morningstar202604.github.io/KeBaiPay/>
 
 ---
 

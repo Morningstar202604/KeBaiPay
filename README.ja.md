@@ -215,13 +215,16 @@ sequenceDiagram
 
 ## 🌏 ミラーリポジトリ
 
-3 プラットフォームで同期保守、いずれかを選択（GitCode が主ホスト）：
+4 プラットフォームで並列同期保守（ブランチ・タグ・HEAD 完全一致）——どれを選んでも同じ、えこひいきなし：
 
-| プラットフォーム | URL | 備考 |
-|---|---|---|
-| **GitCode** | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) | **主リポジトリ**、中国向け最適 |
-| GitHub | [x33834/KeBaiPay](https://github.com/x33834/KeBaiPay) | Issue／PR 入口 |
-| Gitee | [badhope/KeBaiPay](https://gitee.com/badhope/KeBaiPay) | 中国ミラー |
+| プラットフォーム | URL |
+|---|---|
+| **GitHub** | [x33834/KeBaiPay](https://github.com/x33834/KeBaiPay) |
+| **GitHub** | [Morningstar202604/KeBaiPay](https://github.com/Morningstar202604/KeBaiPay) |
+| **GitCode** | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) |
+| **Gitee** | [badhope/KeBaiPay](https://gitee.com/badhope/KeBaiPay) |
+
+**🌐 公式サイト**（GitHub Pages 両アカウント展開）： <https://x33834.github.io/KeBaiPay/> · <https://morningstar202604.github.io/KeBaiPay/>
 
 ---
 
