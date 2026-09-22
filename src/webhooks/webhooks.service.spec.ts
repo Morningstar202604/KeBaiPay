@@ -1,12 +1,13 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { BadRequestException } from '@nestjs/common'
-import { WebhooksService } from './webhooks.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { RedisService } from '../redis/redis.service'
-import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
-import { TransactionsService } from '../transactions/transactions.service'
-import { WithdrawalsService } from '../withdrawals/withdrawals.service'
-import { RefundService } from '../payment-channels/refund.service'
+import { WebhooksService } from './webhooks.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { RedisService } from '../redis/redis.service.js'
+import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry.js'
+import { TransactionsService } from '../transactions/transactions.service.js'
+import { WithdrawalsService } from '../withdrawals/withdrawals.service.js'
+import { RefundService } from '../payment-channels/refund.service.js'
 
 type PrismaMock = { webhookLog: { create: jest.Mock } }
 type RedisMock = {

@@ -1,17 +1,18 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common'
-import { RiskAuditService } from './risk-audit.service'
-import { RiskAuditAiEngine } from './risk-audit-ai.engine'
-import { PrismaService } from '../prisma/prisma.service'
+import { RiskAuditService } from './risk-audit.service.js'
+import { RiskAuditAiEngine } from './risk-audit-ai.engine.js'
+import { PrismaService } from '../prisma/prisma.service.js'
 import {
   RiskAuditSessionStatus,
   RiskAuditMessageRole,
   RiskAuditIntent,
-} from '../common/enums'
+} from '../common/enums.js'
 
 describe('RiskAuditService', () => {
   let service: RiskAuditService

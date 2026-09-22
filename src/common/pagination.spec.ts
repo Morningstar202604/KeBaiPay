@@ -1,9 +1,10 @@
+import { describe, expect, it } from '@jest/globals'
 import {
   computePagination,
   paginateResult,
   type PaginationQuery,
-} from './pagination'
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './constants'
+} from './pagination.js'
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './constants.js'
 
 describe('common/pagination', () => {
   describe('computePagination', () => {

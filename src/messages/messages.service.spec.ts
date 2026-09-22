@@ -1,11 +1,13 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common'
-import { MessagesService } from './messages.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { NotificationsService } from '../notifications/notifications.service'
+import { MessagesService } from './messages.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { NotificationsService } from '../notifications/notifications.service.js'
+import { Prisma } from '@prisma/client'
 
 describe('MessagesService', () => {
   let service: MessagesService
@@ -210,7 +212,6 @@ describe('MessagesService', () => {
         messageNo: 'MSG1',
         userId: 'u1',
       })
-      const { Prisma } = require('@prisma/client')
       prisma.messageRead.create.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError('unique', {
           code: 'P2002',

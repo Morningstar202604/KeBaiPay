@@ -1,9 +1,10 @@
+import { beforeAll, beforeEach, afterAll, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { ValidationPipe } from '@nestjs/common'
 import request from 'supertest'
-import { RedPacketsController } from './red-packets.controller'
-import { RedPacketsService } from './red-packets.service'
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { RedPacketsController } from './red-packets.controller.js'
+import { RedPacketsService } from './red-packets.service.js'
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js'
 
 /**
  * RedPacketsController 单元测试
@@ -25,7 +26,11 @@ describe('RedPacketsController', () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [RedPacketsController],
       providers: [{ provide: RedPacketsService, useValue: mockService }],
-    }).compile()
+    })
+      // JwtAuthGuard ctor 参数 AuthModuleOptions 不在测试模块内；直接实例化测试须 override。
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile()
 
     controller = moduleRef.get(RedPacketsController)
   })

@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test, TestingModule } from '@nestjs/testing'
-import { HealthService } from './health.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { RedisService } from '../redis/redis.service'
+import { HealthService } from './health.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { RedisService } from '../redis/redis.service.js'
 
 describe('HealthService', () => {
   let service: HealthService

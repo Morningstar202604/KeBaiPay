@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Prisma } from '@prisma/client'
-import { JournalService, type JournalEntryInput } from './journal.service'
-import { PrismaService } from '../prisma/prisma.service'
+import { JournalService, type JournalEntryInput } from './journal.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
 
 type PrismaMock = {
   platformAccount: { findUnique: jest.Mock; upsert: jest.Mock }

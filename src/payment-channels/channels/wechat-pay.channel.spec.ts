@@ -2,9 +2,10 @@
 // WechatPayChannel 单元测试（覆盖无网络路径：回调解密/验签/响应构建）
 // ============================================================================
 
-import { WechatPayChannel } from './wechat-pay.channel'
+import { beforeEach, describe, expect, it, test } from '@jest/globals'
+import { WechatPayChannel } from './wechat-pay.channel.js'
 import { createCipheriv, generateKeyPairSync, createSign, randomBytes } from 'crypto'
-import { KBErrorCodes } from '../../common/error-codes'
+import { KBErrorCodes } from '../../common/error-codes.js'
 
 const API_V3_KEY = '0123456789abcdef0123456789abcdef' // 32 字符
 

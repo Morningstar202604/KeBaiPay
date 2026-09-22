@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import {
   BadRequestException,
@@ -5,10 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { OpenApiService } from './open-api.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { RedisService } from '../redis/redis.service'
-import { RiskEngineService } from '../risk/risk-engine.service'
+import { OpenApiService } from './open-api.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { RedisService } from '../redis/redis.service.js'
+import { RiskEngineService } from '../risk/risk-engine.service.js'
 
 type ConfigServiceMock = Record<'get', jest.Mock>
 type RedisMock = Record<'isEnabled' | 'withLock' | 'get' | 'set' | 'del' | 'acquireLock', jest.Mock>

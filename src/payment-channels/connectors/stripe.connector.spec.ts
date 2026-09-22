@@ -2,7 +2,8 @@
 // Stripe Connector 单元测试
 // ============================================================================
 
-import { StripeConnector, StripeWebhookVerifier } from './stripe.connector'
+import { beforeEach, describe, expect, it, test } from '@jest/globals'
+import { StripeConnector, StripeWebhookVerifier } from './stripe.connector.js'
 import * as crypto from 'crypto'
 
 // 测试夹具假密钥：片段拼接构造，非真实凭据（避免安全扫描误报硬编码凭据）

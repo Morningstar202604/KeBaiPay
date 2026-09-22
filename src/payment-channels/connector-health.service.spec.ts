@@ -1,7 +1,8 @@
-import { ConnectorRegistry } from './connector.registry'
-import { ConnectorRouter } from './connector-router'
-import { ConnectorHealthService } from './connector-health.service'
-import { Connector, ConnectorConfig, ConnectorMetadata, ConnectorHealth } from './connector.interface'
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
+import { ConnectorRegistry } from './connector.registry.js'
+import { ConnectorRouter } from './connector-router.js'
+import { ConnectorHealthService } from './connector-health.service.js'
+import { Connector, ConnectorConfig, ConnectorMetadata, ConnectorHealth } from './connector.interface.js'
 
 // ============================================================
 // Mock Connector for health check testing

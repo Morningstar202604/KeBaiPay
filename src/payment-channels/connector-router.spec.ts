@@ -1,6 +1,7 @@
-import { ConnectorRegistry } from './connector.registry'
-import { ConnectorRouter, RouteResult } from './connector-router'
-import { Connector, ConnectorConfig, ConnectorMetadata } from './connector.interface'
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
+import { ConnectorRegistry } from './connector.registry.js'
+import { ConnectorRouter, RouteResult } from './connector-router.js'
+import { Connector, ConnectorConfig, ConnectorMetadata } from './connector.interface.js'
 
 // ============================================================
 // Mock 连接器（用于测试降级路由）

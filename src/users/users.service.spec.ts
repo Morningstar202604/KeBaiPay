@@ -1,14 +1,15 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { createHash } from 'crypto'
-import { UsersService } from './users.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { RedisService } from '../redis/redis.service'
-import { CryptoService } from '../crypto/crypto.service'
-import { SmsService } from '../sms/sms.service'
-import { RealNameStatus } from '../common/enums'
-import { kbError, KBErrorCodes } from '../common/error-codes'
+import { UsersService } from './users.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { RedisService } from '../redis/redis.service.js'
+import { CryptoService } from '../crypto/crypto.service.js'
+import { SmsService } from '../sms/sms.service.js'
+import { RealNameStatus } from '../common/enums.js'
+import { kbError, KBErrorCodes } from '../common/error-codes.js'
 
 jest.mock('bcrypt', () => ({
   hash: jest.fn(async (pwd: string) => `hashed_${pwd}`),

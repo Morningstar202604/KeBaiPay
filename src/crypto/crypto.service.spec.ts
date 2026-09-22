@@ -1,5 +1,6 @@
+import { beforeEach, describe, expect, it, test, jest } from '@jest/globals'
 import { ConfigService } from '@nestjs/config'
-import { CryptoService } from './crypto.service'
+import { CryptoService } from './crypto.service.js'
 
 type ConfigServiceMock = { get: jest.Mock }
 

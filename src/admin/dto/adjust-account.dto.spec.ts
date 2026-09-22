@@ -1,7 +1,8 @@
+import { describe, expect, it } from '@jest/globals'
 import 'reflect-metadata'
 import { plainToInstance } from 'class-transformer'
 import { validate } from 'class-validator'
-import { AdjustAccountDto } from './adjust-account.dto'
+import { AdjustAccountDto } from './adjust-account.dto.js'
 
 /**
  * 锁定管理员调账 DTO 的三道防线：

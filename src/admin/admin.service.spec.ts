@@ -1,15 +1,16 @@
+import { beforeEach, afterEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common'
-import { AdminService } from './admin.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { CryptoService } from '../crypto/crypto.service'
-import { AuditLogService } from '../audit/audit-log.service'
-import { RiskEngineService } from '../risk/risk-engine.service'
-import { RedisService } from '../redis/redis.service'
-import { UserStatus } from '../common/enums'
+import { AdminService } from './admin.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { CryptoService } from '../crypto/crypto.service.js'
+import { AuditLogService } from '../audit/audit-log.service.js'
+import { RiskEngineService } from '../risk/risk-engine.service.js'
+import { RedisService } from '../redis/redis.service.js'
+import { UserStatus } from '../common/enums.js'
 
 // mock bcrypt：避免真实 hash/compare 在单测中消耗 CPU
 jest.mock('bcrypt', () => ({
@@ -608,7 +609,10 @@ describe('AdminService', () => {
     })
 
     it('changeAdminPassword: 密码变更与审计日志在同一事务', async () => {
-      prisma.adminUser.findUnique.mockResolvedValue({ id: 'a1', username: 'admin', password: 'old-hash' })
+      // 语义 bcrypt mock：compare(pwd, hash) 在 hash === hashed_pwd 时返回 true。
+      // 旧密码 'old' 需配 'hashed_old'（mock 的确定性哈希产物），compare 才判定通过，
+      // 使用例专注验证"变更走同一事务 + 写审计日志"的测试意图。
+      prisma.adminUser.findUnique.mockResolvedValue({ id: 'a1', username: 'admin', password: 'hashed_old' })
       prisma.adminUser.update.mockResolvedValue({})
       auditLog.log.mockResolvedValue({})
 

@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
-import { SettlementService } from './settlement.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { NotificationsService } from './notifications.service'
+import { SettlementService } from './settlement.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { NotificationsService } from './notifications.service.js'
 
 type PrismaMock = {
   paymentOrder: {

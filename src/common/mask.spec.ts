@@ -1,9 +1,10 @@
+import { describe, expect, it } from '@jest/globals'
 import {
   maskPhone,
   maskEmail,
   maskIdCard,
   maskBankCard,
-} from './mask'
+} from './mask.js'
 
 describe('common/mask', () => {
   describe('maskPhone', () => {

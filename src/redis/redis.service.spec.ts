@@ -1,7 +1,8 @@
+import { describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { ConfigService } from '@nestjs/config'
 import Redis from 'ioredis'
-import { RedisService } from './redis.service'
+import { RedisService } from './redis.service.js'
 
 // mock ioredis：默认导出构造函数为 jest.fn()，由各用例通过 mockImplementation 返回自定义 client
 jest.mock('ioredis', () => ({

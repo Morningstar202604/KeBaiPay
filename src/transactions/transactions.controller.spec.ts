@@ -1,9 +1,10 @@
+import { beforeAll, beforeEach, afterAll, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { ValidationPipe } from '@nestjs/common'
 import request from 'supertest'
-import { TransactionsController } from './transactions.controller'
-import { TransactionsService } from './transactions.service'
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { TransactionsController } from './transactions.controller.js'
+import { TransactionsService } from './transactions.service.js'
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js'
 
 /**
  * TransactionsController 单元测试
@@ -27,7 +28,11 @@ describe('TransactionsController', () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [TransactionsController],
       providers: [{ provide: TransactionsService, useValue: mockService }],
-    }).compile()
+    })
+      // JwtAuthGuard ctor 参数 AuthModuleOptions 不在测试模块内；直接实例化测试须 override。
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile()
 
     controller = moduleRef.get(TransactionsController)
   })

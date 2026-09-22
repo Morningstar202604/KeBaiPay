@@ -1,4 +1,5 @@
-import { MetricsService } from './metrics.service'
+import { beforeEach, describe, expect, it } from '@jest/globals'
+import { MetricsService } from './metrics.service.js'
 
 describe('MetricsService', () => {
   let service: MetricsService

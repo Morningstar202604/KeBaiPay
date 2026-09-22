@@ -1,10 +1,11 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { MerchantsService } from './merchants.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { CryptoService } from '../crypto/crypto.service'
-import { MerchantStatus } from '../common/enums'
+import { MerchantsService } from './merchants.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { CryptoService } from '../crypto/crypto.service.js'
+import { MerchantStatus } from '../common/enums.js'
 
 type PrismaMock = {
   user: Record<string, jest.Mock>

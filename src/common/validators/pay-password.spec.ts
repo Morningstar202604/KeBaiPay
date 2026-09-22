@@ -1,5 +1,6 @@
+import { describe, expect, it } from '@jest/globals'
 import { validate } from 'class-validator'
-import { IsPayPassword, PAY_PASSWORD_REGEX } from './pay-password'
+import { IsPayPassword, PAY_PASSWORD_REGEX } from './pay-password.js'
 
 class Dto {
   @IsPayPassword()

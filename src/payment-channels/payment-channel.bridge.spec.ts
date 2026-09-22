@@ -1,7 +1,8 @@
-import { PaymentChannelBridge } from './payment-channel.bridge'
-import { PaymentChannelRegistry } from './payment-channel.registry'
-import { ConnectorRegistry } from './connector.registry'
-import { ConnectorRouter } from './connector-router'
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
+import { PaymentChannelBridge } from './payment-channel.bridge.js'
+import { PaymentChannelRegistry } from './payment-channel.registry.js'
+import { ConnectorRegistry } from './connector.registry.js'
+import { ConnectorRouter } from './connector-router.js'
 
 const makeRequest = (overrides: Record<string, unknown> = {}): any => ({
   orderNo: 'O1',

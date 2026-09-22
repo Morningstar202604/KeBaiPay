@@ -1,7 +1,8 @@
+import { describe, expect, it } from '@jest/globals'
 import { plainToInstance } from 'class-transformer'
 import { validate } from 'class-validator'
-import { ResetPayPasswordDto } from './reset-pay-password.dto'
-import { VerifyIdentityDto } from './verify-identity.dto'
+import { ResetPayPasswordDto } from './reset-pay-password.dto.js'
+import { VerifyIdentityDto } from './verify-identity.dto.js'
 
 /**
  * 回归锁：重置支付密码与实名认证必须用同一套身份证格式规则（GB 11643）。

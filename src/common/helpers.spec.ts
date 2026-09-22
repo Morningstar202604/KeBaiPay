@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import {
   yuanToFen,
   fenToYuan,
@@ -7,7 +8,7 @@ import {
   generateAppId,
   generateAppSecret,
   isCallbackUrlSafe,
-} from './helpers'
+} from './helpers.js'
 
 // 仅 mock dns.lookup，保留 net 真实校验函数
 jest.mock('dns', () => ({

@@ -1,8 +1,9 @@
-import { RiskEngineService } from './risk-engine.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { RedisService } from '../redis/redis.service'
-import { RiskLevel, RiskEventType } from '../common/enums'
-import { DEFAULT_TRANSFER_DAILY_LIMIT_CENTS } from '../common/constants'
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
+import { RiskEngineService } from './risk-engine.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { RedisService } from '../redis/redis.service.js'
+import { RiskLevel, RiskEventType } from '../common/enums.js'
+import { DEFAULT_TRANSFER_DAILY_LIMIT_CENTS } from '../common/constants.js'
 
 type PrismaMock = {
   systemConfig: { findMany: jest.Mock; findUnique: jest.Mock }

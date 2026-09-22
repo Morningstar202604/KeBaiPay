@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { createHash } from 'crypto'
 import { Prisma } from '@prisma/client'
-import { AuditLogService } from './audit-log.service'
-import { PrismaService } from '../prisma/prisma.service'
+import { AuditLogService } from './audit-log.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
 
 const GENESIS_HASH = '0'.repeat(64)
 

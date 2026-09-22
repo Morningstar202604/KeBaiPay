@@ -1,5 +1,6 @@
-import { AgentAuthService } from './agent-auth.service'
-import { PrismaService } from '../prisma/prisma.service'
+import { beforeEach, describe, expect, it, test, jest } from '@jest/globals'
+import { AgentAuthService } from './agent-auth.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
 import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
 import { createHash } from 'crypto'

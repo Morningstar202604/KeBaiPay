@@ -1,4 +1,5 @@
-import { escapeCsvField, toCsv } from './csv'
+import { describe, expect, it } from '@jest/globals'
+import { escapeCsvField, toCsv } from './csv.js'
 
 describe('common/csv', () => {
   describe('escapeCsvField', () => {

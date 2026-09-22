@@ -1,9 +1,10 @@
+import { beforeAll, beforeEach, afterAll, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { ValidationPipe } from '@nestjs/common'
 import request from 'supertest'
-import { QrCodesController } from './qr-codes.controller'
-import { QrCodesService } from './qr-codes.service'
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { QrCodesController } from './qr-codes.controller.js'
+import { QrCodesService } from './qr-codes.service.js'
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js'
 
 /**
  * QrCodesController 单元测试
@@ -24,7 +25,11 @@ describe('QrCodesController', () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [QrCodesController],
       providers: [{ provide: QrCodesService, useValue: mockService }],
-    }).compile()
+    })
+      // JwtAuthGuard ctor 参数 AuthModuleOptions 不在测试模块内；直接实例化测试须 override。
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile()
 
     controller = moduleRef.get(QrCodesController)
   })

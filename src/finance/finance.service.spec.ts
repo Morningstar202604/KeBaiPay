@@ -1,13 +1,14 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import {
   PaymentOrderStatus,
   TransactionStatus,
   TransactionType,
   WithdrawalStatus,
-} from '../common/enums'
-import { FinanceService } from './finance.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { SettlementService } from '../notifications/settlement.service'
+} from '../common/enums.js'
+import { FinanceService } from './finance.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { SettlementService } from '../notifications/settlement.service.js'
 
 type PrismaMock = {
   transactionOrder: Record<string, jest.Mock>

@@ -1,9 +1,10 @@
+import { beforeAll, beforeEach, afterAll, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { ValidationPipe } from '@nestjs/common'
 import request from 'supertest'
-import { WithdrawalsController } from './withdrawals.controller'
-import { WithdrawalsService } from './withdrawals.service'
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { WithdrawalsController } from './withdrawals.controller.js'
+import { WithdrawalsService } from './withdrawals.service.js'
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js'
 
 /**
  * WithdrawalsController 单元测试
@@ -23,7 +24,12 @@ describe('WithdrawalsController', () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [WithdrawalsController],
       providers: [{ provide: WithdrawalsService, useValue: mockService }],
-    }).compile()
+    })
+      // JwtAuthGuard 继承 @nestjs/passport 的 AuthGuard('jwt')，其 ctor 参数
+      // AuthModuleOptions 不在测试模块内；直接实例化测试（绕过 guard）须 override。
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile()
 
     controller = moduleRef.get(WithdrawalsController)
   })

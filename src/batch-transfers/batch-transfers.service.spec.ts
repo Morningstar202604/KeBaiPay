@@ -1,16 +1,17 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
-import { BatchTransfersService } from './batch-transfers.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { UsersService } from '../users/users.service'
-import { RiskEngineService } from '../risk/risk-engine.service'
-import { RedisService } from '../redis/redis.service'
-import { BatchTransferStatus, BatchItemStatus } from '../common/enums'
-import { KBErrorCodes } from '../common/error-codes'
+import { BatchTransfersService } from './batch-transfers.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { UsersService } from '../users/users.service.js'
+import { RiskEngineService } from '../risk/risk-engine.service.js'
+import { RedisService } from '../redis/redis.service.js'
+import { BatchTransferStatus, BatchItemStatus } from '../common/enums.js'
+import { KBErrorCodes } from '../common/error-codes.js'
 
 describe('BatchTransfersService', () => {
   let service: BatchTransfersService

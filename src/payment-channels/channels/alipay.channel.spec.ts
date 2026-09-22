@@ -2,9 +2,10 @@
 // AlipayChannel 单元测试（覆盖无网络路径：签名/验签/下单 URL 构建）
 // ============================================================================
 
-import { AlipayChannel } from './alipay.channel'
+import { beforeEach, describe, expect, it } from '@jest/globals'
+import { AlipayChannel } from './alipay.channel.js'
 import { generateKeyPairSync, createSign } from 'crypto'
-import { KBErrorCodes } from '../../common/error-codes'
+import { KBErrorCodes } from '../../common/error-codes.js'
 
 function buildKeyPair() {
   const { publicKey, privateKey } = generateKeyPairSync('rsa', {

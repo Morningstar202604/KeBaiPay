@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
-import { AccountsService } from './accounts.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { fenToYuan } from '../common/helpers'
+import { AccountsService } from './accounts.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { fenToYuan } from '../common/helpers.js'
 
 type LedgerRow = {
   id: string

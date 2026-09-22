@@ -1,10 +1,11 @@
+import { beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
-import { AdminController } from './admin.controller'
-import { AdminService } from './admin.service'
-import { WithdrawalsService } from '../withdrawals/withdrawals.service'
-import { MerchantsService } from '../merchants/merchants.service'
-import { AdminJwtAuthGuard } from './admin-jwt-auth.guard'
-import { PermissionsGuard } from './permissions.guard'
+import { AdminController } from './admin.controller.js'
+import { AdminService } from './admin.service.js'
+import { WithdrawalsService } from '../withdrawals/withdrawals.service.js'
+import { MerchantsService } from '../merchants/merchants.service.js'
+import { AdminJwtAuthGuard } from './admin-jwt-auth.guard.js'
+import { PermissionsGuard } from './permissions.guard.js'
 
 describe('AdminController', () => {
   let controller: AdminController

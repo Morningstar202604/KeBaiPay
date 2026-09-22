@@ -1,9 +1,10 @@
+import { describe, expect, it } from '@jest/globals'
 import {
   getDateRange,
   getPreviousDate,
   formatDate,
   getTodayRange,
-} from './date-helpers'
+} from './date-helpers.js'
 
 describe('common/date-helpers', () => {
   describe('getDateRange', () => {

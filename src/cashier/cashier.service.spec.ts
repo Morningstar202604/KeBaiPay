@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import {
   BadRequestException,
@@ -5,15 +6,15 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import { createHash, createHmac } from 'crypto'
-import * as helpers from '../common/helpers'
-import { PaymentOrderStatus } from '../common/enums'
+import * as helpers from '../common/helpers.js'
+import { PaymentOrderStatus } from '../common/enums.js'
 import { Prisma } from '@prisma/client'
-import { CashierService } from './cashier.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { UsersService } from '../users/users.service'
-import { RiskEngineService } from '../risk/risk-engine.service'
-import { JournalService } from '../finance/journal.service'
-import { RedisService } from '../redis/redis.service'
+import { CashierService } from './cashier.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { UsersService } from '../users/users.service.js'
+import { RiskEngineService } from '../risk/risk-engine.service.js'
+import { JournalService } from '../finance/journal.service.js'
+import { RedisService } from '../redis/redis.service.js'
 
 type UsersServiceMock = Record<'findById' | 'verifyPayPassword' | 'checkAndIncrementDailyLimit', jest.Mock>
 type RiskEngineMock = Record<'check' | 'recordTransaction' | 'recordTransactionFrequency', jest.Mock>

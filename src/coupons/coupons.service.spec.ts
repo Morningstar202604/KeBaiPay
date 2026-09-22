@@ -1,19 +1,20 @@
+import { beforeEach, describe, expect, it, test, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
-import { CouponsService } from './coupons.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { UsersService } from '../users/users.service'
-import { RedisService } from '../redis/redis.service'
+import { CouponsService } from './coupons.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { UsersService } from '../users/users.service.js'
+import { RedisService } from '../redis/redis.service.js'
 import {
   CouponType,
   CouponStatus,
   UserCouponStatus,
   RealNameStatus,
-} from '../common/enums'
+} from '../common/enums.js'
 
 describe('CouponsService', () => {
   let service: CouponsService

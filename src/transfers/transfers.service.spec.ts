@@ -1,11 +1,12 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
-import { TransfersService } from './transfers.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { UsersService } from '../users/users.service'
-import { RiskEngineService } from '../risk/risk-engine.service'
-import { RedisService } from '../redis/redis.service'
-import { kbError, KBErrorCodes } from '../common/error-codes'
+import { TransfersService } from './transfers.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { UsersService } from '../users/users.service.js'
+import { RiskEngineService } from '../risk/risk-engine.service.js'
+import { RedisService } from '../redis/redis.service.js'
+import { kbError, KBErrorCodes } from '../common/error-codes.js'
 
 type UsersServiceMock = Record<'findById' | 'verifyPayPassword' | 'checkAndIncrementDailyLimit', jest.Mock>
 type RiskEngineMock = Record<'check' | 'recordTransaction', jest.Mock>

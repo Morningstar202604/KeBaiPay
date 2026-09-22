@@ -1,14 +1,15 @@
+import { beforeEach, describe, expect, it, test, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
-import { SubscriptionsService } from './subscriptions.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { UsersService } from '../users/users.service'
-import { RiskEngineService } from '../risk/risk-engine.service'
-import { RedisService } from '../redis/redis.service'
+import { SubscriptionsService } from './subscriptions.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { UsersService } from '../users/users.service.js'
+import { RiskEngineService } from '../risk/risk-engine.service.js'
+import { RedisService } from '../redis/redis.service.js'
 import {
   SubscriptionStatus,
   SubscriptionPlanStatus,
@@ -17,8 +18,8 @@ import {
   UserStatus,
   RiskLevel,
   AccountStatus,
-} from '../common/enums'
-import { KBErrorCodes } from '../common/error-codes'
+} from '../common/enums.js'
+import { KBErrorCodes } from '../common/error-codes.js'
 
 describe('SubscriptionsService', () => {
   let service: SubscriptionsService

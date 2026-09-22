@@ -1,15 +1,16 @@
+import { beforeEach, describe, expect, it, test, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common'
-import { CustomRulesService } from './custom-rules.service'
-import { PrismaService } from '../prisma/prisma.service'
+import { CustomRulesService } from './custom-rules.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
 import {
   CustomRuleField,
   CustomRuleOperator,
   CustomRuleLogicalOp,
-} from '../common/enums'
+} from '../common/enums.js'
 
 describe('CustomRulesService', () => {
   let service: CustomRulesService

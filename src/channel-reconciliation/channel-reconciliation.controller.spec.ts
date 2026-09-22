@@ -1,10 +1,11 @@
+import { beforeAll, beforeEach, afterAll, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { ValidationPipe } from '@nestjs/common'
 import request from 'supertest'
-import { ChannelReconciliationController } from './channel-reconciliation.controller'
-import { ChannelReconciliationService } from './channel-reconciliation.service'
-import { AdminJwtAuthGuard } from '../admin/admin-jwt-auth.guard'
-import { PermissionsGuard } from '../admin/permissions.guard'
+import { ChannelReconciliationController } from './channel-reconciliation.controller.js'
+import { ChannelReconciliationService } from './channel-reconciliation.service.js'
+import { AdminJwtAuthGuard } from '../admin/admin-jwt-auth.guard.js'
+import { PermissionsGuard } from '../admin/permissions.guard.js'
 
 /**
  * ChannelReconciliationController 单元测试

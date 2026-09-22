@@ -2,7 +2,8 @@
 // MockChannel 单元测试（覆盖三类回调的签名验证与解析）
 // ============================================================================
 
-import { MockChannel } from './mock.channel'
+import { beforeEach, afterEach, describe, expect, it } from '@jest/globals'
+import { MockChannel } from './mock.channel.js'
 import { createHmac } from 'crypto'
 
 const MOCK_SECRET = 'mock-channel-secret-dev-only'

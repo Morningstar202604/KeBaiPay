@@ -1,9 +1,10 @@
+import { beforeAll, afterAll, describe, expect, it, test, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { ValidationPipe, INestApplication } from '@nestjs/common'
 import { ThrottlerModule } from '@nestjs/throttler'
 import request from 'supertest'
-import { AuthController } from '../src/auth/auth.controller'
-import { AuthService } from '../src/auth/auth.service'
+import { AuthController } from '../src/auth/auth.controller.js'
+import { AuthService } from '../src/auth/auth.service.js'
 
 describe('AuthController (e2e)', () => {
   let app: INestApplication

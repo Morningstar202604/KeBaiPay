@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { Logger } from '@nestjs/common'
-import { RequestLoggingMiddleware } from './request-logging.middleware'
+import { RequestLoggingMiddleware } from './request-logging.middleware.js'
 
 describe('RequestLoggingMiddleware', () => {
   let middleware: RequestLoggingMiddleware

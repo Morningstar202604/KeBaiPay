@@ -1,5 +1,6 @@
+import { describe, expect, it } from '@jest/globals'
 import { Validator, IsOptional } from 'class-validator'
-import { IsSafeText } from './safe-text'
+import { IsSafeText } from './safe-text.js'
 
 class TestDto {
   @IsSafeText(1, 10)

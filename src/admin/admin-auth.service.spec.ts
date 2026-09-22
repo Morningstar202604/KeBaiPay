@@ -1,9 +1,10 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { UnauthorizedException } from '@nestjs/common'
 import * as bcrypt from 'bcrypt'
-import { AdminRole } from '../common/enums'
-import { AdminAuthService } from './admin-auth.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { RedisService } from '../redis/redis.service'
+import { AdminRole } from '../common/enums.js'
+import { AdminAuthService } from './admin-auth.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { RedisService } from '../redis/redis.service.js'
 import { JwtService } from '@nestjs/jwt'
 
 type PrismaMock = {

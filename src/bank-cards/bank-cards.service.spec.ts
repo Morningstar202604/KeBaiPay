@@ -1,11 +1,12 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common'
 import { createHash } from 'crypto'
-import { BankCardsService } from './bank-cards.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { CryptoService } from '../crypto/crypto.service'
-import { KBErrorCodes } from '../common/error-codes'
-import { CreateBankCardDto } from './dto/create-bank-card.dto'
+import { BankCardsService } from './bank-cards.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { CryptoService } from '../crypto/crypto.service.js'
+import { KBErrorCodes } from '../common/error-codes.js'
+import { CreateBankCardDto } from './dto/create-bank-card.dto.js'
 
 describe('BankCardsService', () => {
   let service: BankCardsService

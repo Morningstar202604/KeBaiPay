@@ -208,6 +208,14 @@ export class TransactionsService {
         if (order.channel !== channelCode) {
           throw new BadRequestException(kbError(KBErrorCodes.CALLBACK_CHANNEL_MISMATCH))
         }
+        // toUserId 在模型中可空（历史/手工补录订单）；无归属用户无法入账，fail-closed 拒绝，
+        // 避免 applyRechargeSuccess 写 USER:null 污染复式账本。
+        if (!order.toUserId) {
+          this.logger.error(
+            `充值回调 toUserId 缺失：订单 ${order.orderNo} 无归属用户，拒绝入账留人工处理`,
+          )
+          throw new BadRequestException(kbError(KBErrorCodes.CALLBACK_TO_USER_MISSING))
+        }
         // channelOrderNo 校验：正常情况下必须匹配。
         // 兜底：若订单 channelOrderNo 为空（渠道调用成功后、持久化 channelOrderNo 前进程崩溃），
         // 回调已经过 parseRechargeCallback 验签，此时以回调携带的 channelOrderNo 为准并补录，
@@ -292,8 +300,14 @@ export class TransactionsService {
     order: { id: string; orderNo: string; amount: number; toUserId: string | null },
     backfillChannelOrderNo: string | null,
   ): Promise<{ userId: string; amount: number }> {
+    // toUserId 在 Prisma 模型中可空（历史/手工补录订单）。回调与补单调用方均已做
+    // fail-safe 守卫；此处的 null 兜底为双保险——一旦漏守卫，立即抛错而非用 `!`
+    // 把 USER:null / USER:undefined 写进复式账本。
+    if (!order.toUserId) {
+      throw new BadRequestException(kbError(KBErrorCodes.CALLBACK_TO_USER_MISSING))
+    }
     const account = await tx.account.findUnique({
-      where: { userId: order.toUserId! },
+      where: { userId: order.toUserId },
     })
     if (!account) throw new NotFoundException(kbError(KBErrorCodes.ACCOUNT_NOT_FOUND))
 
@@ -330,7 +344,7 @@ export class TransactionsService {
 
     await tx.bill.create({
       data: {
-        userId: order.toUserId!,
+        userId: order.toUserId,
         transactionId: order.id,
         type: BillType.RECHARGE,
         direction: BillDirection.INCOME,
@@ -346,7 +360,7 @@ export class TransactionsService {
       { journalId, accountCode: `USER:${order.toUserId}`, credit: order.amount, memo: `充值入账 ${order.orderNo}` },
     ])
 
-    return { userId: order.toUserId!, amount: order.amount }
+    return { userId: order.toUserId, amount: order.amount }
   }
 
   /**
@@ -362,16 +376,27 @@ export class TransactionsService {
   async reconcilePendingRecharge(order: {
     id: string
     orderNo: string
-    channel: string
+    channel: string | null
     channelOrderNo: string | null
     amount: number
     toUserId: string | null
   }): Promise<'CREDITED' | 'MARKED_FAILED' | 'STILL_PENDING' | 'SKIPPED'> {
     // 无渠道单号无法查单（渠道调用成功后、持久化 channelOrderNo 前崩溃的极端场景），留人工
     if (!order.channelOrderNo) return 'SKIPPED'
+    // channel 在模型中可空（历史/手工订单）；registry 未注册或空渠道由下方 getChannel 守卫路径覆盖
+    const channelName = order.channel
+    if (!channelName) return 'SKIPPED'
+    // toUserId 在模型中可空（历史/手工补录订单）；无归属用户无法入账，与 channelOrderNo 缺失口径
+    // 统一 fail-safe（SKIPPED + 告警人工），避免 applyRechargeSuccess 内 `!` 命中 null 写坏复式账本。
+    if (!order.toUserId) {
+      this.logger.error(
+        `自动补单 toUserId 缺失：订单 ${order.orderNo} 无归属用户，无法入账，跳过留人工处理`,
+      )
+      return 'SKIPPED'
+    }
 
-    const channel = this.channelRegistry.getChannel(order.channel)
-    const channelConfig = await this.channelRegistry.getEnabledConfig(order.channel)
+    const channel = this.channelRegistry.getChannel(channelName)
+    const channelConfig = await this.channelRegistry.getEnabledConfig(channelName)
 
     // 查单在锁外执行（纯网络调用），失败视为未确认，订单保持 PENDING 等下一轮
     let query: OrderQueryResult
@@ -379,7 +404,7 @@ export class TransactionsService {
       query = await channel.queryOrder(order.channelOrderNo, channelConfig.config)
     } catch (err) {
       this.logger.warn(
-        `自动补单查单失败：订单 ${order.orderNo} 渠道 ${order.channel}：${err instanceof Error ? err.message : String(err)}`,
+        `自动补单查单失败：订单 ${order.orderNo} 渠道 ${channelName}：${err instanceof Error ? err.message : String(err)}`,
       )
       return 'STILL_PENDING'
     }
@@ -395,9 +420,9 @@ export class TransactionsService {
           // 订单不存在或已终态（回调抢先完成）：幂等跳过
           if (!current || current.status !== TransactionStatus.PENDING) return { action: 'SKIPPED' as const }
           // 渠道与订单渠道不匹配属数据异常，不入账，留人工
-          if (current.channel !== order.channel) {
+          if (current.channel !== channelName) {
             this.logger.error(
-              `自动补单渠道不一致：订单 ${order.orderNo} 订单渠道=${current.channel} 查询渠道=${order.channel}，跳过`,
+              `自动补单渠道不一致：订单 ${order.orderNo} 订单渠道=${current.channel} 查询渠道=${channelName}，跳过`,
             )
             return { action: 'SKIPPED' as const }
           }

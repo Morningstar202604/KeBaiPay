@@ -2,7 +2,8 @@
 // 银联 UnionPay Connector 单元测试
 // ============================================================================
 
-import { UnionPayConnector, UnionPaySignUtil } from './unionpay.connector'
+import { beforeEach, describe, expect, it, test } from '@jest/globals'
+import { UnionPayConnector, UnionPaySignUtil } from './unionpay.connector.js'
 
 describe('UnionPayConnector', () => {
   let connector: UnionPayConnector

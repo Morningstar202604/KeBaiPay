@@ -1,12 +1,13 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { JwtService } from '@nestjs/jwt'
 import { BadRequestException, UnauthorizedException } from '@nestjs/common'
 import * as bcrypt from 'bcrypt'
-import { AuthService } from './auth.service'
-import { UsersService } from '../users/users.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { RedisService } from '../redis/redis.service'
-import { SmsService } from '../sms/sms.service'
+import { AuthService } from './auth.service.js'
+import { UsersService } from '../users/users.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { RedisService } from '../redis/redis.service.js'
+import { SmsService } from '../sms/sms.service.js'
 
 // bcrypt 在测试中要可控：避免真实 hash/compare 的耗时与随机盐干扰断言
 // （假哈希值由片段拼接构造，非真实凭据）

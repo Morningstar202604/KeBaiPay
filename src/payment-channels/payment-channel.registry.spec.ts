@@ -1,9 +1,10 @@
-import { PrismaService } from '../prisma/prisma.service'
-import { CryptoService } from '../crypto/crypto.service'
-import { PaymentChannelRegistry } from './payment-channel.registry'
-import { MockChannel } from './channels/mock.channel'
-import { WechatPayChannel } from './channels/wechat-pay.channel'
-import { AlipayChannel } from './channels/alipay.channel'
+import { beforeEach, describe, expect, it, test, jest } from '@jest/globals'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { CryptoService } from '../crypto/crypto.service.js'
+import { PaymentChannelRegistry } from './payment-channel.registry.js'
+import { MockChannel } from './channels/mock.channel.js'
+import { WechatPayChannel } from './channels/wechat-pay.channel.js'
+import { AlipayChannel } from './channels/alipay.channel.js'
 
 // 真实 CryptoService（固定测试密钥），验证库内密文 → 业务读取明文的完整链路
 const crypto = new CryptoService({

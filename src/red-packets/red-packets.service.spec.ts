@@ -1,6 +1,7 @@
+import { describe, expect, it, jest } from '@jest/globals'
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
-import { RedPacketsService } from './red-packets.service'
-import { RedPacketStatus, RedPacketType, RedPacketRecordType, RealNameStatus, UserStatus, RiskLevel } from '../common/enums'
+import { RedPacketsService } from './red-packets.service.js'
+import { RedPacketStatus, RedPacketType, RedPacketRecordType, RealNameStatus, UserStatus, RiskLevel } from '../common/enums.js'
 
 /**
  * RedPacketsService 单元测试

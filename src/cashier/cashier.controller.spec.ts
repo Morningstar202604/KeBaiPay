@@ -1,9 +1,10 @@
+import { beforeAll, beforeEach, afterAll, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { ValidationPipe } from '@nestjs/common'
 import request from 'supertest'
-import { CashierController, CashierQrCodeController } from './cashier.controller'
-import { CashierService } from './cashier.service'
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { CashierController, CashierQrCodeController } from './cashier.controller.js'
+import { CashierService } from './cashier.service.js'
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js'
 
 /**
  * CashierController 单元测试
@@ -29,7 +30,11 @@ describe('CashierController', () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [CashierController],
       providers: [{ provide: CashierService, useValue: mockService }],
-    }).compile()
+    })
+      // JwtAuthGuard ctor 参数 AuthModuleOptions 不在测试模块内；直接实例化测试须 override。
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile()
     controller = moduleRef.get(CashierController)
   })
 

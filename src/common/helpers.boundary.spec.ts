@@ -1,9 +1,10 @@
+import { describe, expect, it } from '@jest/globals'
 import {
   yuanToFen,
   fenToYuan,
   generateAppId,
   generateAppSecret,
-} from './helpers'
+} from './helpers.js'
 
 describe('common/helpers 边界值测试', () => {
   describe('yuanToFen 边界值', () => {

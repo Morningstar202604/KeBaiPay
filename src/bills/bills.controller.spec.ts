@@ -1,9 +1,10 @@
+import { beforeAll, beforeEach, afterAll, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { ValidationPipe } from '@nestjs/common'
 import request from 'supertest'
-import { BillsController } from './bills.controller'
-import { BillsService } from './bills.service'
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { BillsController } from './bills.controller.js'
+import { BillsService } from './bills.service.js'
+import { JwtAuthGuard } from '../auth/jwt-auth.guard.js'
 
 /**
  * BillsController 单元测试
@@ -22,7 +23,12 @@ describe('BillsController', () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [BillsController],
       providers: [{ provide: BillsService, useValue: mockService }],
-    }).compile()
+    })
+      // JwtAuthGuard ctor 依赖 AuthModuleOptions（@nestjs/passport mixin 反射元数据），
+      // 测试模块未提供该 provider，须覆盖为纯函数桩，否则 "Nest can't resolve dependencies of the JwtAuthGuard"
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile()
 
     controller = moduleRef.get(BillsController)
   })

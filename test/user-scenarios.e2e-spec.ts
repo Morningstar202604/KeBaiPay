@@ -15,6 +15,7 @@
 // - 业务层使用真实类
 // ============================================================================
 
+import { beforeAll, beforeEach, afterAll, describe, expect, it, test } from '@jest/globals'
 import { Test, TestingModule } from '@nestjs/testing'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 
@@ -64,6 +65,7 @@ import { ChannelHealthService } from 'src/payment-channels/channel-health.servic
 // ---- Mock 层 ----
 import { PrismaService } from 'src/prisma/prisma.service'
 import { RedisService } from 'src/redis/redis.service'
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard'
 import { CryptoService } from 'src/crypto/crypto.service'
 import { SmsService } from 'src/sms/sms.service'
 import { createHash, createHmac } from 'crypto'
@@ -556,6 +558,10 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
         ScheduleHealthModule,
       ],
     })
+      // JwtAuthGuard 继承 @nestjs/passport AuthGuard('jwt')，ctor 依赖 AuthModuleOptions，
+      // e2e 全模块未提供该 provider → 反射下 DI 失败。覆盖为纯函数桩放行认证。
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
       .overrideProvider(PrismaService)
       .useValue(mockPrisma as any)
       .overrideProvider(RedisService)
@@ -640,6 +646,8 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
           ScheduleHealthModule,
         ],
       })
+        .overrideGuard(JwtAuthGuard)
+        .useValue({ canActivate: () => true })
         .overrideProvider(PrismaService)
         .useValue(freshPrisma as any)
         .overrideProvider(RedisService)
@@ -830,6 +838,8 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
           ScheduleHealthModule,
         ],
       })
+        .overrideGuard(JwtAuthGuard)
+        .useValue({ canActivate: () => true })
         .overrideProvider(PrismaService)
         .useValue(freshPrisma2 as any)
         .overrideProvider(RedisService)
@@ -980,6 +990,8 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
           ScheduleHealthModule,
         ],
       })
+        .overrideGuard(JwtAuthGuard)
+        .useValue({ canActivate: () => true })
         .overrideProvider(PrismaService)
         .useValue(freshPrisma3 as any)
         .overrideProvider(RedisService)
@@ -1107,6 +1119,8 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
           ScheduleHealthModule,
         ],
       })
+        .overrideGuard(JwtAuthGuard)
+        .useValue({ canActivate: () => true })
         .overrideProvider(PrismaService)
         .useValue(freshPrisma4 as any)
         .overrideProvider(RedisService)
@@ -1241,6 +1255,8 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
           ScheduleHealthModule,
         ],
       })
+        .overrideGuard(JwtAuthGuard)
+        .useValue({ canActivate: () => true })
         .overrideProvider(PrismaService)
         .useValue(freshPrisma5 as any)
         .overrideProvider(RedisService)
@@ -1403,6 +1419,8 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
           ScheduleHealthModule,
         ],
       })
+        .overrideGuard(JwtAuthGuard)
+        .useValue({ canActivate: () => true })
         .overrideProvider(PrismaService)
         .useValue(freshPrisma6 as any)
         .overrideProvider(RedisService)

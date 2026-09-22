@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common'
 import { createHmac, createHash } from 'crypto'
-import { OpenApiGuard } from './open-api.guard'
-import { RedisService } from '../redis/redis.service'
-import { PrismaService } from '../prisma/prisma.service'
+import { OpenApiGuard } from './open-api.guard.js'
+import { RedisService } from '../redis/redis.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
 
 type PrismaMock = {
   merchantApp: Record<string, jest.Mock>

@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
-import { ReconciliationService } from './reconciliation.service'
-import { FinanceService } from './finance.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { LedgerType, ReconciliationStatus } from '../common/enums'
+import { ReconciliationService } from './reconciliation.service.js'
+import { FinanceService } from './finance.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { LedgerType, ReconciliationStatus } from '../common/enums.js'
 
 type PrismaMock = {
   account: Record<string, jest.Mock>

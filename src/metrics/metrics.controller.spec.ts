@@ -1,6 +1,7 @@
+import { describe, expect, it, jest } from '@jest/globals'
 import { UnauthorizedException } from '@nestjs/common'
-import { MetricsController } from './metrics.controller'
-import { MetricsService } from './metrics.service'
+import { MetricsController } from './metrics.controller.js'
+import { MetricsService } from './metrics.service.js'
 import { ConfigService } from '@nestjs/config'
 
 describe('MetricsController token 校验（L1 常量时间比较）', () => {

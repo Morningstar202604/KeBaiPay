@@ -1,5 +1,6 @@
-import { ConnectorRegistry } from './connector.registry'
-import { Connector, ConnectorCapability, ConnectorConfig, ConnectorMetadata, ConnectorHealth } from './connector.interface'
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
+import { ConnectorRegistry } from './connector.registry.js'
+import { Connector, ConnectorCapability, ConnectorConfig, ConnectorMetadata, ConnectorHealth } from './connector.interface.js'
 
 // ============================================================
 // Mock 连接器（用于测试）

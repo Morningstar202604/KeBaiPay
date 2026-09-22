@@ -1,4 +1,5 @@
-import { isValidIdCard, idCardChecksum } from './id-card'
+import { describe, expect, it } from '@jest/globals'
+import { isValidIdCard, idCardChecksum } from './id-card.js'
 
 describe('isValidIdCard 身份证号校验（GB 11643）', () => {
   it('合法 18 位号码通过（110101199003073845，校验位 5）', () => {

@@ -1,16 +1,17 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common'
-import { InvoicesService } from './invoices.service'
-import { PrismaService } from '../prisma/prisma.service'
+import { InvoicesService } from './invoices.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
 import {
   InvoiceType,
   InvoiceStatus,
   MerchantStatus,
-} from '../common/enums'
+} from '../common/enums.js'
 
 describe('InvoicesService', () => {
   let service: InvoicesService

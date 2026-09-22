@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
-import { BillsService } from './bills.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { BillDirection } from '../common/enums'
-import { fenToYuan } from '../common/helpers'
+import { BillsService } from './bills.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { BillDirection } from '../common/enums.js'
+import { fenToYuan } from '../common/helpers.js'
 
 describe('BillsService', () => {
   let service: BillsService

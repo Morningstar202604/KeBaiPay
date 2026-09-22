@@ -1,13 +1,14 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common'
-import { ReferralsService } from './referrals.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { UsersService } from '../users/users.service'
-import { RedisService } from '../redis/redis.service'
+import { ReferralsService } from './referrals.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { UsersService } from '../users/users.service.js'
+import { RedisService } from '../redis/redis.service.js'
 import {
   ReferralStatus,
   RealNameStatus,
@@ -15,7 +16,7 @@ import {
   AccountStatus,
   TransactionType,
   TransactionStatus,
-} from '../common/enums'
+} from '../common/enums.js'
 
 describe('ReferralsService', () => {
   let service: ReferralsService

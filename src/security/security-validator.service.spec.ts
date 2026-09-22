@@ -1,4 +1,5 @@
-import { SecurityValidatorService } from './security-validator.service'
+import { describe, expect, it } from '@jest/globals'
+import { SecurityValidatorService } from './security-validator.service.js'
 import { ConfigService } from '@nestjs/config'
 
 /**

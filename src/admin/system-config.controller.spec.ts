@@ -1,8 +1,9 @@
+import { beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
-import { SystemConfigController } from './system-config.controller'
-import { AdminService } from './admin.service'
-import { AdminJwtAuthGuard } from './admin-jwt-auth.guard'
-import { PermissionsGuard } from './permissions.guard'
+import { SystemConfigController } from './system-config.controller.js'
+import { AdminService } from './admin.service.js'
+import { AdminJwtAuthGuard } from './admin-jwt-auth.guard.js'
+import { PermissionsGuard } from './permissions.guard.js'
 
 describe('SystemConfigController', () => {
   let controller: SystemConfigController

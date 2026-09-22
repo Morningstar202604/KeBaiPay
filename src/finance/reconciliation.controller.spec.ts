@@ -1,8 +1,9 @@
+import { beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
-import { ReconciliationController } from './reconciliation.controller'
-import { ReconciliationService } from './reconciliation.service'
-import { AdminJwtAuthGuard } from '../admin/admin-jwt-auth.guard'
-import { PermissionsGuard } from '../admin/permissions.guard'
+import { ReconciliationController } from './reconciliation.controller.js'
+import { ReconciliationService } from './reconciliation.service.js'
+import { AdminJwtAuthGuard } from '../admin/admin-jwt-auth.guard.js'
+import { PermissionsGuard } from '../admin/permissions.guard.js'
 
 describe('ReconciliationController', () => {
   let controller: ReconciliationController

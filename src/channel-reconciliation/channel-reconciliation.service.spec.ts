@@ -1,15 +1,16 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { BadRequestException, NotFoundException } from '@nestjs/common'
-import { ChannelReconciliationService } from './channel-reconciliation.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { RedisService } from '../redis/redis.service'
+import { ChannelReconciliationService } from './channel-reconciliation.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { RedisService } from '../redis/redis.service.js'
 import {
   ChannelStatementStatus,
   MatchStatus,
   ReconciliationDiffStatus,
   ReconciliationDiffType,
-} from '../common/enums'
-import { KBErrorCodes } from '../common/error-codes'
+} from '../common/enums.js'
+import { KBErrorCodes } from '../common/error-codes.js'
 
 /**
  * ChannelReconciliationService 单元测试

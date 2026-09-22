@@ -1,14 +1,15 @@
+import { beforeAll, beforeEach, afterAll, describe, expect, it, test, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { ValidationPipe, INestApplication, ExecutionContext } from '@nestjs/common'
 import { ThrottlerModule } from '@nestjs/throttler'
 import { ConfigModule } from '@nestjs/config'
 import { JwtModule } from '@nestjs/jwt'
 import request from 'supertest'
-import { AdminAuthController } from '../src/admin/admin-auth.controller'
-import { AdminAuthService } from '../src/admin/admin-auth.service'
-import { AdminService } from '../src/admin/admin.service'
-import { AdminJwtAuthGuard } from '../src/admin/admin-jwt-auth.guard'
-import { AdminCurrentUser } from '../src/admin/admin-current-user.interface'
+import { AdminAuthController } from '../src/admin/admin-auth.controller.js'
+import { AdminAuthService } from '../src/admin/admin-auth.service.js'
+import { AdminService } from '../src/admin/admin.service.js'
+import { AdminJwtAuthGuard } from '../src/admin/admin-jwt-auth.guard.js'
+import { AdminCurrentUser } from '../src/admin/admin-current-user.interface.js'
 
 /**
  * AdminAuthController e2e 测试

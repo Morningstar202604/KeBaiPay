@@ -1,10 +1,11 @@
-import { ChannelConfigService } from './channel-config.service'
-import { PrismaService } from '../prisma/prisma.service'
-import { AuditLogService } from '../audit/audit-log.service'
-import { CryptoService } from '../crypto/crypto.service'
-import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
-import { ConnectorRegistry } from '../payment-channels/connector.registry'
-import { AdminRole } from '../common/enums'
+import { beforeEach, describe, expect, it, test, jest } from '@jest/globals'
+import { ChannelConfigService } from './channel-config.service.js'
+import { PrismaService } from '../prisma/prisma.service.js'
+import { AuditLogService } from '../audit/audit-log.service.js'
+import { CryptoService } from '../crypto/crypto.service.js'
+import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry.js'
+import { ConnectorRegistry } from '../payment-channels/connector.registry.js'
+import { AdminRole } from '../common/enums.js'
 
 // 真实 CryptoService（固定测试密钥）：验证凭据加密落库 / 解密读取的完整链路
 const crypto = new CryptoService({
