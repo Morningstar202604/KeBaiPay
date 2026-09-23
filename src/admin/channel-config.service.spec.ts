@@ -29,7 +29,7 @@ describe('ChannelConfigService 凭据加密存储（H1 安全修复）', () => {
     >
   }
   const auditLog = { log: jest.fn().mockResolvedValue(undefined) }
-  const channelRegistry = { getChannel: jest.fn() }
+  const channelRegistry = { getChannel: jest.fn(), clearChannelConfigCache: jest.fn() }
   const connectorRegistry = { get: jest.fn(), syncConfig: jest.fn() }
 
   const ctx = {

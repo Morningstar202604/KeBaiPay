@@ -51,7 +51,7 @@ describe('WithdrawalsService', () => {
       user: { findUnique: jest.fn() },
       withdrawalOrder: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() },
       account: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
-      accountLedger: { create: jest.fn() },
+      accountLedger: { create: jest.fn(), createMany: jest.fn() },
       bill: { create: jest.fn() },
       riskEvent: { create: jest.fn() },
     }
@@ -232,7 +232,17 @@ describe('WithdrawalsService', () => {
           },
         }),
       )
-      expect(prisma.accountLedger.create).toHaveBeenCalled()
+      // P0-7/P0-8：原 2 次同表 accountLedger.create（available 侧 + 冻结对手方侧）
+      // 已合并为 1 次 createMany 批量插入，断言批量插入被调用且含 2 条
+      expect(prisma.accountLedger.createMany).toHaveBeenCalledTimes(1)
+      expect(prisma.accountLedger.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({ direction: 'CREDIT', remark: '提现冻结' }),
+            expect.objectContaining({ direction: 'DEBIT', remark: '提现冻结（冻结余额对应分录）' }),
+          ]),
+        }),
+      )
       // channelAccount（银行卡号）属敏感信息，必须加密后入库
       expect(cryptoService.encrypt).toHaveBeenCalledWith('6228')
       expect(prisma.withdrawalOrder.create).toHaveBeenCalledWith(

@@ -53,15 +53,21 @@ export class JournalService implements OnModuleInit {
     for (const e of entries) {
       if (e.accountCode.startsWith('USER:')) continue
       const delta = (e.debit || 0) - (e.credit || 0)
+      // H: 平台账户 code 非 USER 前缀，update 仅触碰该 code 行，互不依赖 → 并发执行
       platformDelta.set(e.accountCode, (platformDelta.get(e.accountCode) || 0) + delta)
     }
-    for (const [code, delta] of platformDelta) {
-      if (delta === 0) continue
-      await tx.platformAccount.update({
-        where: { code },
-        data: { balance: { increment: delta } },
-      })
-    }
+    // P0-7 写放大优化：原「逐条 await platformAccount.update」为串行 N 次往返；
+    // 各 code 行独立，改 Promise.all 并发（同事务内，原子性不变），N 次 → 1 次并发批次。
+    await Promise.all(
+      [...platformDelta.entries()]
+        .filter(([, delta]) => delta !== 0)
+        .map(([code, delta]) =>
+          tx.platformAccount.update({
+            where: { code },
+            data: { balance: { increment: delta } },
+          }),
+        ),
+    )
   }
 
   // 查询平台账户余额

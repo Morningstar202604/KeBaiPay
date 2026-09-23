@@ -38,6 +38,7 @@ describe('ChannelConfigController', () => {
   }
   const mockChannelRegistry = {
     getChannel: jest.fn(),
+    clearChannelConfigCache: jest.fn(),
   }
   const mockConnector = {
     getConfig: jest.fn(() => ({})),

@@ -13,6 +13,7 @@ dist/
 *.db-journal
 prisma/migrations/*
 !prisma/migrations/.gitkeep
+!prisma/migrations/*/migration.sql
 
 # Environment
 .env

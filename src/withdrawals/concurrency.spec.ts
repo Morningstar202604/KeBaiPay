@@ -51,7 +51,7 @@ describe('WithdrawalsService 并发安全', () => {
       user: { findUnique: jest.fn() },
       withdrawalOrder: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() },
       account: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
-      accountLedger: { create: jest.fn() },
+      accountLedger: { create: jest.fn(), createMany: jest.fn() },
       bill: { create: jest.fn() },
       riskEvent: { create: jest.fn() },
     }

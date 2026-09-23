@@ -217,6 +217,83 @@ describe('TransactionsService', () => {
       )
     })
 
+    it('P0-7/P0-8：accountLedger.create 与 bill.create 并发化后内容/数量与串行版一致', async () => {
+      // 写放大优化验证：applyRechargeSuccess 内两条独立 create（同表跨表）改为 Promise.all
+      // 并发写入后，各表记录内容、数量必须与串行版逐字段一致。
+      const orderNo = 'R910'
+      const channelOrderNo = `MOCK_R_${orderNo}`
+      const amount = 2000
+      const ledgerRecordBefore = jest.fn(() => Promise.resolve({ id: 'l1' }))
+      const billRecordBefore = jest.fn(() => Promise.resolve({ id: 'b1' }))
+      prisma.accountLedger.create.mockImplementation(ledgerRecordBefore)
+      prisma.bill.create.mockImplementation(billRecordBefore)
+
+      prisma.transactionOrder.findUnique.mockResolvedValue({
+        id: 't910',
+        orderNo,
+        status: 'PENDING',
+        amount,
+        toUserId: 'u1',
+        channel: 'mock',
+        channelOrderNo,
+      })
+      prisma.account.findUnique.mockResolvedValue({
+        id: 'a1',
+        userId: 'u1',
+        availableBalance: 0,
+      })
+      // update 返回更新后余额：availableBalance 0 -> amount
+      prisma.account.update.mockResolvedValue({
+        id: 'a1',
+        availableBalance: amount,
+      })
+      prisma.transactionOrder.update.mockResolvedValue({})
+
+      const body = JSON.stringify({
+        orderNo,
+        channelOrderNo,
+        amount,
+        status: 'SUCCESS',
+      })
+      const sig = mockChannel.sign(`${orderNo}${channelOrderNo}${amount}`)
+      const headers = { 'x-signature': sig }
+
+      const result = await service.handleRechargeCallback('mock', body, headers)
+
+      expect(result).toBe('SUCCESS')
+      // 各表恰好 1 条记录，内容与串行版逐字段一致
+      expect(prisma.accountLedger.create).toHaveBeenCalledTimes(1)
+      expect(prisma.bill.create).toHaveBeenCalledTimes(1)
+      expect(prisma.accountLedger.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            accountId: 'a1',
+            transactionId: 't910',
+            type: 'RECHARGE',
+            amount,
+            balanceBefore: 0, // updatedAccount.availableBalance - amount = 2000 - 2000
+            balanceAfter: amount,
+            direction: 'DEBIT',
+            remark: '余额充值',
+          }),
+        }),
+      )
+      expect(prisma.bill.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: 'u1',
+            transactionId: 't910',
+            type: 'RECHARGE',
+            direction: 'INCOME',
+            amount,
+            remark: '余额充值',
+          }),
+        }),
+      )
+      // 复式记账（依赖 ledger/bill 写完后更新 platformAccount.balance）仍串行执行一次
+      expect(journalService.createEntries).toHaveBeenCalledTimes(1)
+    })
+
     it('回调失败：订单标记为 FAILED，不入账', async () => {
       const orderNo = 'R456'
       const channelOrderNo = `MOCK_R_${orderNo}`

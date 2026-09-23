@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
+import { readFileSync } from 'node:fs'
+import { resolve as pathResolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { RiskEngineService } from './risk-engine.service.js'
 import { PrismaService } from '../prisma/prisma.service.js'
 import { RedisService } from '../redis/redis.service.js'
@@ -457,6 +460,96 @@ describe('RiskEngineService', () => {
       expect(singleAmount?.enabled).toBe(false)
       // listAllRules 返回含已禁用规则
       expect(rules.some((r) => !r.enabled)).toBe(true)
+    })
+  })
+
+  describe('风控日计数/日金额：复合索引 & 读法不变', () => {
+    it('schema 中存在两条复合索引 [fromUserId, createdAt, status] 与 [toUserId, createdAt, status]', () => {
+      const fsSchemaPath = pathResolve(dirname(fileURLToPath(import.meta.url)), '../../prisma/schema.prisma')
+      const schema = readFileSync(fsSchemaPath, 'utf-8')
+      const idxBlock = schema.slice(
+        schema.indexOf('model TransactionOrder'),
+        schema.indexOf('model Bill'),
+      )
+      // 标准化空白后断言复合索引存在（Prisma 生成索引名 transaction_orders_from_user_id_created_at_status_idx）
+      const norm = (s: string) => s.replace(/\s+/g, ' ')
+      expect(norm(idxBlock)).toContain('@@index([fromUserId, createdAt, status])')
+      expect(norm(idxBlock)).toContain('@@index([toUserId, createdAt, status])')
+      // 原单列索引保留（避免回归）
+      expect(norm(idxBlock)).toContain('@@index([fromUserId])')
+      expect(norm(idxBlock)).toContain('@@index([toUserId])')
+    })
+
+    it('getDailyAmount 仍读 transactionOrder.aggregate（口径不变）：mock 累计值即返回的当日金额', async () => {
+      setupPassingMocks()
+      // 给定 mock：当日 SUCCESS 交易合计 1_500_000 分
+      const mockedSum = 1_500_000
+      prisma.transactionOrder.aggregate.mockResolvedValue({ _sum: { amount: mockedSum } })
+
+      const result = await service.check({
+        userId: 'u1',
+        type: 'TRANSFER',
+        // 1_500_000 + 2000 < DAILY_AMOUNT_LIMIT(20_000_000) → 不拦截
+        amount: 2000,
+      })
+
+      // 行为不变：仍走 transactionOrder.aggregate，且 aggregate 查询口径与原实现一致
+      // （OR from/to + type + createdAt gte + status SUCCESS + _sum.amount）
+      expect(prisma.transactionOrder.aggregate).toHaveBeenCalledTimes(1)
+      expect(prisma.transactionOrder.aggregate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          _sum: { amount: true },
+          where: expect.objectContaining({
+            type: 'TRANSFER',
+            status: 'SUCCESS',
+            OR: expect.arrayContaining([
+              expect.objectContaining({ fromUserId: 'u1' }),
+              expect.objectContaining({ toUserId: 'u1' }),
+            ]),
+          }),
+        }),
+      )
+      // 当日金额取 mock 的 _sum.amount（与改前一致，未被 DailyLimitUsage 替代）
+      expect(result.blocked).toBe(false)
+      expect(result.passed).toBe(true)
+      // 对照边界：累计逼近上限时应拦截，证明返回值确实来自 aggregate mock
+      prisma.transactionOrder.aggregate.mockResolvedValue({
+        _sum: { amount: DAILY_AMOUNT_LIMIT - 1000 },
+      })
+      const nearLimit = await service.check({
+        userId: 'u1',
+        type: 'TRANSFER',
+        amount: 2000,
+      })
+      expect(nearLimit.blocked).toBe(true)
+    })
+
+    it('getDailyCount 仍读 transactionOrder.count（口径不变）：mock 笔数即返回的当日次数', async () => {
+      setupPassingMocks()
+      prisma.transactionOrder.count.mockResolvedValue(42)
+
+      const result = await service.check({
+        userId: 'u1',
+        type: 'WITHDRAW',
+        amount: 1000,
+      })
+
+      // 仍走 transactionOrder.count，查询口径与原实现一致（OR + type + createdAt + status SUCCESS）
+      expect(prisma.transactionOrder.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            type: 'WITHDRAW',
+            status: 'SUCCESS',
+            OR: expect.arrayContaining([
+              expect.objectContaining({ fromUserId: 'u1' }),
+              expect.objectContaining({ toUserId: 'u1' }),
+            ]),
+          }),
+        }),
+      )
+      // 42 < DAILY_COUNT_LIMIT(50) → 不拦截
+      expect(result.blocked).toBe(false)
+      expect(result.passed).toBe(true)
     })
   })
 })

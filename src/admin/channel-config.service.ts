@@ -93,6 +93,8 @@ export class ChannelConfigService {
     })
 
     await this.syncConnector(dto.code)
+    // 渠道配置变更：清 registry 进程内缓存，使新配置即时生效
+    this.channelRegistry.clearChannelConfigCache()
     return result
   }
 
@@ -163,6 +165,8 @@ export class ChannelConfigService {
     })
 
     await this.syncConnector(code)
+    // 渠道配置变更：清 registry 进程内缓存，使新配置即时生效
+    this.channelRegistry.clearChannelConfigCache()
     return result
   }
 
@@ -183,6 +187,8 @@ export class ChannelConfigService {
     })
 
     await this.syncConnector(code)
+    // 渠道配置变更：清 registry 进程内缓存，使新配置即时生效
+    this.channelRegistry.clearChannelConfigCache()
     return { success: true }
   }
 

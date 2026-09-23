@@ -24,7 +24,7 @@ import { PaymentChannelBridge } from '../payment-channels/payment-channel.bridge
 import { RiskEngineService } from '../risk/risk-engine.service'
 import { JournalService } from '../finance/journal.service'
 import { CryptoService } from '../crypto/crypto.service'
-import { createFrozenLegLedgerEntry, fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
+import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import { DEFAULT_WITHDRAW_DAILY_LIMIT_CENTS, LARGE_WITHDRAWAL_THRESHOLD_CENTS, RATE_DENOMINATOR, REDIS_LOCK_TTL_SECONDS } from '../common/constants'
 
@@ -190,41 +190,51 @@ export class WithdrawalsService {
       const balanceAfter = updatedAccount!.availableBalance
       const balanceBefore = balanceAfter + amount
 
-      await tx.accountLedger.create({
-        data: {
-          accountId: account.id,
-          transactionId: order.id,
-          type: LedgerType.WITHDRAW,
-          amount,
-          balanceBefore,
-          balanceAfter,
-          direction: Direction.CREDIT,
-          remark: '提现冻结',
-        },
-      })
-
-      // 复式记账：冻结的对手方分录（frozenBalance 增加 = DEBIT），
-      // 保证"冻结"这一内部动作账本净额为 0，日终对账 ledger_balance 不因内部划转失衡
-      await createFrozenLegLedgerEntry(tx, {
-        accountId: account.id,
-        transactionId: order.id,
-        type: LedgerType.WITHDRAW,
-        amount,
-        frozenBefore: updatedAccount!.frozenBalance - amount,
-        frozenAfter: updatedAccount!.frozenBalance,
-        remark: '提现冻结（冻结余额对应分录）',
-      })
-
-      if (amount > LARGE_WITHDRAWAL_THRESHOLD_CENTS) {
-        await tx.riskEvent.create({
-          data: {
-            userId,
-            type: RiskEventType.LARGE_TRANSFER,
-            level: RiskLevel.MEDIUM,
-            description: `大额提现 ${fenToYuan(amount)} 元`,
-          },
-        })
-      }
+      // P0-7/P0-8 资金写放大：原 2 次同表串行 accountLedger.create（available 侧 + 冻结对手方侧）
+      // + 大额场景 1 次 riskEvent.create，串行共 3 次往返 → 现并发：
+      // 同表 2 条用 createMany 批量插入（1 次往返），跨表 riskEvent 与 ledger 并发（Promise.all），
+      // 省 1-2 次往返。各写仅依赖已算好的 balanceBefore/After、frozen 值，互不依赖返回值。
+      const largeWithdrawal = amount > LARGE_WITHDRAWAL_THRESHOLD_CENTS
+      await Promise.all([
+        tx.accountLedger.createMany({
+          data: [
+            {
+              accountId: account.id,
+              transactionId: order.id,
+              type: LedgerType.WITHDRAW,
+              amount,
+              balanceBefore,
+              balanceAfter,
+              direction: Direction.CREDIT,
+              remark: '提现冻结',
+            },
+            // 复式记账：冻结的对手方分录（frozenBalance 增加 = DEBIT），
+            // 保证"冻结"这一内部动作账本净额为 0，日终对账 ledger_balance 不因内部划转失衡
+            {
+              accountId: account.id,
+              transactionId: order.id,
+              type: LedgerType.WITHDRAW,
+              amount,
+              balanceBefore: updatedAccount!.frozenBalance - amount,
+              balanceAfter: updatedAccount!.frozenBalance,
+              direction: Direction.DEBIT, // 冻结增加 → DEBIT（与 available 侧 CREDIT 配对）
+              remark: '提现冻结（冻结余额对应分录）',
+            },
+          ],
+        }),
+        // 大额提现额外落一条风控事件；与 ledger 写入无依赖关系，同事务并发。
+        // 非大额时返回占位 Promise（不发起 riskEvent 写），保持 Promise.all 结构统一。
+        largeWithdrawal
+          ? tx.riskEvent.create({
+              data: {
+                userId,
+                type: RiskEventType.LARGE_TRANSFER,
+                level: RiskLevel.MEDIUM,
+                description: `大额提现 ${fenToYuan(amount)} 元`,
+              },
+            })
+          : Promise.resolve(),
+      ])
 
       return order
     }).then((order) => {
@@ -485,24 +495,30 @@ export class WithdrawalsService {
             return channel.buildPayoutCallbackSuccess()
           }
 
-          await tx.bill.create({
-            data: {
-              userId: order.userId,
-              transactionId: order.id,
-              type: BillType.WITHDRAW,
-              direction: BillDirection.EXPENSE,
-              amount: order.amount,
-              remark: '余额提现',
-            },
-          })
-
+          // P0-7/P0-8 资金写放大：原 2 次串行（bill.create + journalService.createEntries[内部
+          // journalEntry.createMany + platformAccount.update×N]）→ 现 2 个并发分支
+          // （bill.create 与 journalService.createEntries 互不依赖，各自依赖 order 字段）。
+          // journalService 内部 createMany + 逐账户 update 已是同表批量+并发最优；
+          // 外层仅将"账单写入"与"复式记账"两个独立分支并发，省 1 次往返。
           // C1: 代付成功后才创建复式记账分录，确保 PlatformAccount 与实际资金流向一致
           // 借用户=amount，贷渠道资金=actualAmount，贷手续费收入=fee
           const journalId = generateOrderNo('J')
-          await this.journalService.createEntries(tx, [
-            { journalId, accountCode: `USER:${order.userId}`, debit: order.amount, memo: `提现 ${order.orderNo}` },
-            { journalId, accountCode: 'CHANNEL_FUND', credit: order.actualAmount, memo: `渠道代付 ${order.orderNo}` },
-            { journalId, accountCode: 'REVENUE_FEE', credit: order.fee, memo: `手续费收入 ${order.orderNo}` },
+          await Promise.all([
+            tx.bill.create({
+              data: {
+                userId: order.userId,
+                transactionId: order.id,
+                type: BillType.WITHDRAW,
+                direction: BillDirection.EXPENSE,
+                amount: order.amount,
+                remark: '余额提现',
+              },
+            }),
+            this.journalService.createEntries(tx, [
+              { journalId, accountCode: `USER:${order.userId}`, debit: order.amount, memo: `提现 ${order.orderNo}` },
+              { journalId, accountCode: 'CHANNEL_FUND', credit: order.actualAmount, memo: `渠道代付 ${order.orderNo}` },
+              { journalId, accountCode: 'REVENUE_FEE', credit: order.fee, memo: `手续费收入 ${order.orderNo}` },
+            ]),
           ])
         } else {
           // 失败：先做原子状态转移 PROCESSING -> FAILED，仅获胜方退款，防止并发重复退回。
@@ -535,29 +551,32 @@ export class WithdrawalsService {
           const refundBalanceAfter = updatedAccount.availableBalance
           const refundBalanceBefore = refundBalanceAfter - order.amount
 
-          await tx.accountLedger.create({
-            data: {
-              accountId: account.id,
-              transactionId: order.id,
-              type: LedgerType.WITHDRAW,
-              amount: order.amount,
-              balanceBefore: refundBalanceBefore,
-              balanceAfter: refundBalanceAfter,
-              direction: Direction.DEBIT,
-              remark: '代付失败退回',
-            },
-          })
-
-          await tx.bill.create({
-            data: {
-              userId: order.userId,
-              transactionId: order.id,
-              type: BillType.WITHDRAW,
-              direction: BillDirection.INCOME,
-              amount: order.amount,
-              remark: '代付失败退回',
-            },
-          })
+          // P0-7/P0-8 资金写放大：原 2 次串行（ledger.create + bill.create）→ 现 1 次并发。
+          // 两条仅依赖上面已算好的 updatedAccount/refundBalance*、order 字段，互不依赖返回值。
+          await Promise.all([
+            tx.accountLedger.create({
+              data: {
+                accountId: account.id,
+                transactionId: order.id,
+                type: LedgerType.WITHDRAW,
+                amount: order.amount,
+                balanceBefore: refundBalanceBefore,
+                balanceAfter: refundBalanceAfter,
+                direction: Direction.DEBIT,
+                remark: '代付失败退回',
+              },
+            }),
+            tx.bill.create({
+              data: {
+                userId: order.userId,
+                transactionId: order.id,
+                type: BillType.WITHDRAW,
+                direction: BillDirection.INCOME,
+                amount: order.amount,
+                remark: '代付失败退回',
+              },
+            }),
+          ])
         }
 
         return channel.buildPayoutCallbackSuccess()
@@ -616,29 +635,32 @@ export class WithdrawalsService {
         const rejectBalanceAfter = finalAccount!.availableBalance
         const rejectBalanceBefore = rejectBalanceAfter - order.amount
 
-        await tx.accountLedger.create({
-          data: {
-            accountId: account.id,
-            transactionId: order.id,
-            type: LedgerType.WITHDRAW,
-            amount: order.amount,
-            balanceBefore: rejectBalanceBefore,
-            balanceAfter: rejectBalanceAfter,
-            direction: Direction.DEBIT,
-            remark: `提现失败退回：${reason || '审核拒绝'}`,
-          },
-        })
-
-        await tx.bill.create({
-          data: {
-            userId: order.userId,
-            transactionId: order.id,
-            type: BillType.WITHDRAW,
-            direction: BillDirection.INCOME,
-            amount: order.amount,
-            remark: `提现失败退回：${reason || '审核拒绝'}`,
-          },
-        })
+        // P0-7/P0-8 资金写放大：原 2 次串行（ledger.create + bill.create）→ 现 1 次并发。
+        // 两条仅依赖上面已算好的 rejectBalance*、order 字段，互不依赖返回值。
+        await Promise.all([
+          tx.accountLedger.create({
+            data: {
+              accountId: account.id,
+              transactionId: order.id,
+              type: LedgerType.WITHDRAW,
+              amount: order.amount,
+              balanceBefore: rejectBalanceBefore,
+              balanceAfter: rejectBalanceAfter,
+              direction: Direction.DEBIT,
+              remark: `提现失败退回：${reason || '审核拒绝'}`,
+            },
+          }),
+          tx.bill.create({
+            data: {
+              userId: order.userId,
+              transactionId: order.id,
+              type: BillType.WITHDRAW,
+              direction: BillDirection.INCOME,
+              amount: order.amount,
+              remark: `提现失败退回：${reason || '审核拒绝'}`,
+            },
+          }),
+        ])
 
         return order
       })

@@ -164,6 +164,10 @@ model TransactionOrder {
   fromUser User? @relation("FromUser", fields: [fromUserId], references: [id])
   toUser   User? @relation("ToUser", fields: [toUserId], references: [id])
 
+  // 风控日计数/日金额统计走 OR(fromUserId, toUserId) + type + createdAt + status，
+  // 原单列索引只能各走一半再 UNION，且 createdAt/status 不在任一并列索引上，
+  // 高频用户尾延迟高。加两个复合索引让 OR 两侧各走一条「等值用户 + createdAt 范围 + status」
+  // 的索引扫描。保留原单列 [fromUserId]/[toUserId] 不删，避免其它查询回归。
   @@index([fromUserId])
   @@index([toUserId])
   @@index([channelOrderNo])
@@ -171,6 +175,10 @@ model TransactionOrder {
   @@index([relatedOrderNo])
   @@index([status, completedAt])
   @@index([createdAt])
+  // 风控日计数/日金额：OR 左侧 fromUserId 等值 + createdAt 当日范围 + status SUCCESS
+  @@index([fromUserId, createdAt, status])
+  // 风控日计数/日金额：OR 右侧 toUserId 等值 + createdAt 当日范围 + status SUCCESS
+  @@index([toUserId, createdAt, status])
   @@map("transaction_orders")
 }
 

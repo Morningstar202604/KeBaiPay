@@ -379,65 +379,70 @@ export class TransfersService {
       },
     })
 
-    await tx.accountLedger.create({
-      data: {
-        accountId: fromAccount.id,
-        transactionId: order.id,
-        type: LedgerType.TRANSFER,
-        amount: p.amountFen,
-        balanceBefore: senderBalanceBefore,
-        balanceAfter: senderBalanceAfter,
-        direction: Direction.CREDIT,
-        remark: p.senderLedgerRemark,
-      },
-    })
-
-    await tx.accountLedger.create({
-      data: {
-        accountId: toAccount.id,
-        transactionId: order.id,
-        type: LedgerType.TRANSFER,
-        amount: p.amountFen,
-        balanceBefore: receiverBalanceBefore,
-        balanceAfter: receiverBalanceAfter,
-        direction: Direction.DEBIT,
-        remark: p.receiverLedgerRemark,
-      },
-    })
-
-    await tx.bill.create({
-      data: {
-        userId: p.fromUserId,
-        transactionId: order.id,
-        type: BillType.TRANSFER,
-        direction: BillDirection.EXPENSE,
-        amount: p.amountFen,
-        counterparty: p.toNickname,
-        remark: p.expenseBillRemark,
-      },
-    })
-    await tx.bill.create({
-      data: {
-        userId: p.toUserId,
-        transactionId: order.id,
-        type: BillType.RECEIPT,
-        direction: BillDirection.INCOME,
-        amount: p.amountFen,
-        counterparty: p.fromNickname,
-        remark: p.incomeBillRemark,
-      },
-    })
-
-    if (p.amountFen > LARGE_TRANSFER_THRESHOLD_CENTS) {
-      await tx.riskEvent.create({
-        data: {
-          userId: p.fromUserId,
-          type: RiskEventType.LARGE_TRANSFER,
-          level: RiskLevel.MEDIUM,
-          description: p.largeAmountDescription ?? `大额转账 ${fenToYuan(p.amountFen)} 元`,
-        },
-      })
-    }
+    // P0-7/P0-8 资金写放大：原 4 次同表单条 create（accountLedger×2 + bill×2）串行 4 次往返
+    // → 现 2 次 createMany 批量插入（同表 2 条合并 1 次往返），互不依赖 → 并发（仍在同一
+    // 事务/原子提交内，金额/方向/幂等字段逐条不变，资金一致性不变）。
+    // 大额风控事件与账本/账单写入无数据依赖，并入同一并发批次（非大额时不写入）。
+    await Promise.all([
+      tx.accountLedger.createMany({
+        data: [
+          {
+            accountId: fromAccount.id,
+            transactionId: order.id,
+            type: LedgerType.TRANSFER,
+            amount: p.amountFen,
+            balanceBefore: senderBalanceBefore,
+            balanceAfter: senderBalanceAfter,
+            direction: Direction.CREDIT,
+            remark: p.senderLedgerRemark,
+          },
+          {
+            accountId: toAccount.id,
+            transactionId: order.id,
+            type: LedgerType.TRANSFER,
+            amount: p.amountFen,
+            balanceBefore: receiverBalanceBefore,
+            balanceAfter: receiverBalanceAfter,
+            direction: Direction.DEBIT,
+            remark: p.receiverLedgerRemark,
+          },
+        ],
+      }),
+      tx.bill.createMany({
+        data: [
+          {
+            userId: p.fromUserId,
+            transactionId: order.id,
+            type: BillType.TRANSFER,
+            direction: BillDirection.EXPENSE,
+            amount: p.amountFen,
+            counterparty: p.toNickname,
+            remark: p.expenseBillRemark,
+          },
+          {
+            userId: p.toUserId,
+            transactionId: order.id,
+            type: BillType.RECEIPT,
+            direction: BillDirection.INCOME,
+            amount: p.amountFen,
+            counterparty: p.fromNickname,
+            remark: p.incomeBillRemark,
+          },
+        ],
+      }),
+      // 大额转账额外落一条风控事件；与账本/账单写入无依赖，同事务并发。
+      // 非大额时返回占位 Promise（不发起 riskEvent 写），保持并发结构统一。
+      p.amountFen > LARGE_TRANSFER_THRESHOLD_CENTS
+        ? tx.riskEvent.create({
+            data: {
+              userId: p.fromUserId,
+              type: RiskEventType.LARGE_TRANSFER,
+              level: RiskLevel.MEDIUM,
+              description: p.largeAmountDescription ?? `大额转账 ${fenToYuan(p.amountFen)} 元`,
+            },
+          })
+        : Promise.resolve(),
+    ])
 
     return order
   }

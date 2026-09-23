@@ -436,6 +436,16 @@ export class RiskEngineService {
   }
 
   private async getDailyCount(userId: string, type: TransactionType): Promise<number> {
+    // [口径核对] 不能改读 DailyLimitUsage：
+    //   1) DailyLimitUsage 只存预占金额（usedAmount），无「笔数」字段，count 无从取得；
+    //   2) 其 limitType 是业务维度（'TRANSFER'/'MERCHANT_PAYMENT'），与本方法入参
+    //      TransactionType（'TRANSFER'/'WITHDRAW'/...）不是一一对应，且本方法无 limitType 入参；
+    //   3) 本方法统计的是 SUCCESS 交易笔数（OR from/to + 当日 + status=SUCCESS），
+    //      而 DailyLimitUsage 在校验时即预占累加（含未落账 / 最终失败的交易），口径不一致。
+    //   正确性优先：保留 transactionOrder.count，性能由新增的复合索引
+    //   @@index([fromUserId, createdAt, status]) / @@index([toUserId, createdAt, status])
+    //   （migration 20260922000000）承接——OR 两侧各走一条「等值用户 + createdAt 当日范围
+    //   + status 等值」的索引扫描，替代原「两条单列索引 UNION + 回表全列过滤」。
     const today = businessDayKey()
     const startDate = new Date(`${today}T00:00:00.000Z`)
 
@@ -451,6 +461,13 @@ export class RiskEngineService {
   }
 
   private async getDailyAmount(userId: string, type: TransactionType): Promise<number> {
+    // [口径核对] 不能改读 DailyLimitUsage：
+    //   本方法统计的是当日 SUCCESS 交易实际金额合计（OR from/to + 当日 + status=SUCCESS +
+    //   _sum(amount)），而 DailyLimitUsage.usedAmount 是「校验时预占」的金额累计——
+    //   会把最终失败/取消交易的预占也算进当日额度，与风控统计口径不一致。
+    //   正确性优先：保留 transactionOrder.aggregate，性能由新增复合索引
+    //   @@index([fromUserId, createdAt, status]) / @@index([toUserId, createdAt, status])
+    //   （migration 20260922000000）承接，避免 OR 全量扫。
     const today = businessDayKey()
     const startDate = new Date(`${today}T00:00:00.000Z`)
 

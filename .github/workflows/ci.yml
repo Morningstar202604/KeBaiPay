@@ -69,8 +69,66 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      # P0-20：正确性 job 走快速路径——不带 coverage（覆盖率生成/统计是全链路
+      # 最贵的一步，且 coverageThreshold 门禁会掩盖真正测试失败）。
+      # 正确性与门禁解耦：门禁挪到下方独立 coverage job（慢路径，不阻塞快速反馈）。
       - name: Run unit tests
+        run: npm test
+
+  # P0-20：独立 coverage 门禁 job。只在正确性全绿后才跑（needs: test），
+  # 慢但专职；coverageThreshold 退坡/抬升不再拖慢正确性反馈。
+  coverage:
+    runs-on: ubuntu-latest
+    needs: test
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/test?schema=public"
+      REDIS_URL: "redis://localhost:6379"
+      JWT_USER_SECRET: ${{ secrets.CI_JWT_USER_SECRET || 'ci-test-secret-user-32chars-padding' }}
+      JWT_ADMIN_SECRET: ${{ secrets.CI_JWT_ADMIN_SECRET || 'ci-test-secret-admin-32chars-padding' }}
+      JWT_AGENT_SECRET: ${{ secrets.CI_JWT_AGENT_SECRET || 'ci-test-secret-agent-32chars-padding' }}
+      ADMIN_DEFAULT_PASSWORD: ${{ secrets.CI_ADMIN_DEFAULT_PASSWORD || 'CiTest2026' }}
+      ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY || 'ci-test-encryption-key-32-chars-ok' }}
+      MOCK_CHANNEL_SECRET: ${{ secrets.CI_MOCK_CHANNEL_SECRET || 'ci-test-mock-secret' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Coverage gate (threshold enforce)
         run: npm run test:cov
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
 
   e2e:
     runs-on: ubuntu-latest

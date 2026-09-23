@@ -328,30 +328,35 @@ export class TransactionsService {
       },
     })
 
-    await tx.accountLedger.create({
-      data: {
-        accountId: account.id,
-        transactionId: order.id,
-        type: LedgerType.RECHARGE,
-        amount: order.amount,
-        // H2: balanceBefore 由更新后真实余额反推，避免事务内并发导致陈旧读取
-        balanceBefore: updatedAccount.availableBalance - order.amount,
-        balanceAfter: updatedAccount.availableBalance,
-        direction: Direction.DEBIT,
-        remark: '余额充值',
-      },
-    })
-
-    await tx.bill.create({
-      data: {
-        userId: order.toUserId,
-        transactionId: order.id,
-        type: BillType.RECHARGE,
-        direction: BillDirection.INCOME,
-        amount: order.amount,
-        remark: '余额充值',
-      },
-    })
+    // P0-7/P0-8 资金写放大：原 2 次串行往返（ledger.create + bill.create）→ 现 1 次并发。
+    // 两条 create 仅依赖前面已算好的 updatedAccount / order 字段，互不依赖返回值，
+    // 用 Promise.all 在同一交互式事务（同一 DB 连接、同一事务）内并发写入，
+    // 提交时仍原子（Prisma 交互式事务内并发同连接调用安全）。
+    await Promise.all([
+      tx.accountLedger.create({
+        data: {
+          accountId: account.id,
+          transactionId: order.id,
+          type: LedgerType.RECHARGE,
+          amount: order.amount,
+          // H2: balanceBefore 由更新后真实余额反推，避免事务内并发导致陈旧读取
+          balanceBefore: updatedAccount.availableBalance - order.amount,
+          balanceAfter: updatedAccount.availableBalance,
+          direction: Direction.DEBIT,
+          remark: '余额充值',
+        },
+      }),
+      tx.bill.create({
+        data: {
+          userId: order.toUserId,
+          transactionId: order.id,
+          type: BillType.RECHARGE,
+          direction: BillDirection.INCOME,
+          amount: order.amount,
+          remark: '余额充值',
+        },
+      }),
+    ])
 
     // 复式记账：借渠道资金=amount，贷用户=amount
     const journalId = generateOrderNo('J')

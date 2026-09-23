@@ -166,9 +166,9 @@ describe('TransfersService', () => {
       prisma.account.updateMany.mockResolvedValue({ count: 1 })
       prisma.account.update.mockResolvedValue({ availableBalance: 1000, totalBalance: 1000 })
       prisma.transactionOrder.create = jest.fn().mockResolvedValue({ id: 't1', orderNo: 'T1' })
-      prisma.accountLedger = { create: jest.fn() }
-      prisma.bill = { create: jest.fn() }
-      prisma.riskEvent = { create: jest.fn() }
+      prisma.accountLedger = { createMany: jest.fn().mockResolvedValue({ count: 2 }) }
+      prisma.bill = { createMany: jest.fn().mockResolvedValue({ count: 2 }) }
+      prisma.riskEvent = { create: jest.fn().mockResolvedValue({}) }
 
       const order = await service.transfer('u1', { toUserId: 'u2', amount: 10, payPassword: '123456' })
       expect(order).toBeDefined()
@@ -216,8 +216,8 @@ describe('TransfersService', () => {
       prisma.account.updateMany.mockResolvedValue({ count: 1 })
       prisma.account.update.mockResolvedValue({ availableBalance: 6000, totalBalance: 6000 })
       prisma.transactionOrder.create = jest.fn().mockResolvedValue({ id: 't1', orderNo: 'T123' })
-      prisma.accountLedger = { create: jest.fn().mockResolvedValue({}) }
-      prisma.bill = { create: jest.fn().mockResolvedValue({}) }
+      prisma.accountLedger = { createMany: jest.fn().mockResolvedValue({ count: 2 }) }
+      prisma.bill = { createMany: jest.fn().mockResolvedValue({ count: 2 }) }
       prisma.riskEvent = { create: jest.fn().mockResolvedValue({}) }
 
       const order = await service.transfer('u1', { toUserId: 'u2', amount: 10, payPassword: '123456' })
@@ -233,24 +233,53 @@ describe('TransfersService', () => {
         },
       })
       // H1: 账本 balanceBefore/After 基于更新后真实余额计算
-      expect(prisma.accountLedger.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
+      // P0-7/P0-8 写放大优化断言：2 条同表 accountLedger 经 createMany 一次批量写入
+      //（原 2 次串行 create → 现 1 次 createMany），data 数组两条内容与逐条版逐字段一致：
+      //  1) 发送方 a1：CREDIT，balanceBefore=10000、balanceAfter=9000
+      //  2) 收款方 a2：DEBIT，balanceBefore=5000、balanceAfter=6000
+      expect(prisma.accountLedger.createMany).toHaveBeenCalledTimes(1)
+      expect(prisma.accountLedger.createMany).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({
             accountId: 'a1',
+            type: 'TRANSFER',
+            amount: 1000,
             balanceBefore: 10000,
             balanceAfter: 9000,
+            direction: 'CREDIT',
           }),
-        }),
-      )
-      expect(prisma.accountLedger.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
+          expect.objectContaining({
             accountId: 'a2',
+            type: 'TRANSFER',
+            amount: 1000,
             balanceBefore: 5000,
             balanceAfter: 6000,
+            direction: 'DEBIT',
           }),
-        }),
-      )
+        ],
+      })
+      // 非大额（10 元）不写 riskEvent
+      expect(prisma.riskEvent.create).not.toHaveBeenCalled()
+      // 2 条同表 bill 经 createMany 一次批量写入，内容与逐条版一致
+      expect(prisma.bill.createMany).toHaveBeenCalledTimes(1)
+      expect(prisma.bill.createMany).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({
+            userId: 'u1',
+            type: 'TRANSFER',
+            direction: 'EXPENSE',
+            amount: 1000,
+            counterparty: '李四',
+          }),
+          expect.objectContaining({
+            userId: 'u2',
+            type: 'RECEIPT',
+            direction: 'INCOME',
+            amount: 1000,
+            counterparty: '张三',
+          }),
+        ],
+      })
     })
   })
 
@@ -298,12 +327,70 @@ describe('TransfersService', () => {
       prisma.account.updateMany.mockResolvedValue({ count: 1 })
       prisma.account.update.mockResolvedValue({ availableBalance: 10000, totalBalance: 10000 })
       prisma.transactionOrder.create = jest.fn().mockResolvedValue({ id: 't1', orderNo: 'T1' })
-      prisma.accountLedger = { create: jest.fn() }
-      prisma.bill = { create: jest.fn() }
-      prisma.riskEvent = { create: jest.fn() }
+      prisma.accountLedger = { createMany: jest.fn().mockResolvedValue({ count: 2 }) }
+      prisma.bill = { createMany: jest.fn().mockResolvedValue({ count: 2 }) }
+      prisma.riskEvent = { create: jest.fn().mockResolvedValue({}) }
 
       const order = await service.transfer('u1', { toUserId: 'u2', amount: 100, payPassword: '123456' })
       expect(order).toBeDefined()
+      // 非大额：账本/账单各 1 次 createMany，不写 riskEvent
+      expect(prisma.accountLedger.createMany).toHaveBeenCalledTimes(1)
+      expect(prisma.bill.createMany).toHaveBeenCalledTimes(1)
+      expect(prisma.riskEvent.create).not.toHaveBeenCalled()
+    })
+
+    it('大额转账：账本/账单批量写入 + 并发落 riskEvent', async () => {
+      prisma.systemConfig.findUnique.mockResolvedValue(null) // 默认 5 万日限
+      usersService.checkAndIncrementDailyLimit.mockResolvedValue(undefined)
+      prisma.account.findUnique.mockImplementation((args: unknown) => {
+        const query = args as { where: { userId?: string; id?: string } }
+        // H1: 按 id 查询为扣款后真实余额（10 万元 = 10000000 分，扣减后 0）
+        if (query.where.id === 'a1') return Promise.resolve({ id: 'a1', userId: 'u1', availableBalance: 0, totalBalance: 0, status: 'ACTIVE' })
+        if (query.where.userId === 'u1') return Promise.resolve({ id: 'a1', userId: 'u1', availableBalance: 10000000, totalBalance: 10000000, status: 'ACTIVE' })
+        if (query.where.userId === 'u2') return Promise.resolve({ id: 'a2', userId: 'u2', availableBalance: 0, totalBalance: 0, status: 'ACTIVE' })
+        return Promise.resolve(null)
+      })
+      prisma.account.updateMany.mockResolvedValue({ count: 1 })
+      prisma.account.update.mockResolvedValue({ availableBalance: 10000000, totalBalance: 10000000 })
+      prisma.transactionOrder.create = jest.fn().mockResolvedValue({ id: 't1', orderNo: 'T9' })
+      prisma.accountLedger = { createMany: jest.fn().mockResolvedValue({ count: 2 }) }
+      prisma.bill = { createMany: jest.fn().mockResolvedValue({ count: 2 }) }
+      prisma.riskEvent = { create: jest.fn().mockResolvedValue({}) }
+
+      const order = await service.transfer('u1', { toUserId: 'u2', amount: 100000, payPassword: '123456' })
+      expect(order).toBeDefined()
+      // 大额（10 万 = 10000000 分）：账本/账单批量 + riskEvent 大额事件并发
+      expect(prisma.accountLedger.createMany).toHaveBeenCalledTimes(1)
+      expect(prisma.accountLedger.createMany).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({
+            accountId: 'a1',
+            amount: 10000000,
+            balanceBefore: 10000000,
+            balanceAfter: 0,
+            direction: 'CREDIT',
+          }),
+          expect.objectContaining({
+            accountId: 'a2',
+            amount: 10000000,
+            balanceBefore: 0,
+            balanceAfter: 10000000,
+            direction: 'DEBIT',
+          }),
+        ],
+      })
+      expect(prisma.bill.createMany).toHaveBeenCalledTimes(1)
+      expect(prisma.riskEvent.create).toHaveBeenCalledTimes(1)
+      expect(prisma.riskEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: 'u1',
+            type: 'LARGE_TRANSFER',
+            level: 'MEDIUM',
+            description: expect.stringContaining('大额转账'),
+          }),
+        }),
+      )
     })
   })
 

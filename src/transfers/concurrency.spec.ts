@@ -35,8 +35,10 @@ describe('TransfersService 并发安全', () => {
       transactionOrder: { findUnique: jest.fn(), create: jest.fn() },
       account: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
       dailyLimitUsage: { upsert: jest.fn(), updateMany: jest.fn() },
-      accountLedger: { create: jest.fn().mockResolvedValue({}) },
-      bill: { create: jest.fn().mockResolvedValue({}) },
+      // P0-7/P0-8：moveFundsAndRecord 已改为同表批量 createMany（账本 2 条 / 账单 2 条），
+      // 故 mock createMany 而非逐条 create（与 transfers.service.spec.ts 一致）。
+      accountLedger: { createMany: jest.fn().mockResolvedValue({ count: 2 }) },
+      bill: { createMany: jest.fn().mockResolvedValue({ count: 2 }) },
       riskEvent: { create: jest.fn().mockResolvedValue({}) },
     }
 
