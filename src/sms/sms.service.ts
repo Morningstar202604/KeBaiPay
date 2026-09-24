@@ -643,11 +643,10 @@ export class SmsService implements OnModuleDestroy {
    * 获取配置状态
    */
   getConfigStatus() {
+    // 脱敏：不暴露 provider 与凭据是否配置——该端点匿名可访问，
+    // provider/accessKey 探测会向攻击者泄漏短信服务商与基础设施信息
     return {
-      provider: this.config?.provider || 'unknown',
       configured: this.config?.provider !== 'mock',
-      hasAccessKey: !!this.config?.accessKeyId,
-      hasSignName: !!this.config?.signName,
     };
   }
 }

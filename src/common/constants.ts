@@ -5,6 +5,9 @@ export const BCRYPT_SALT_ROUNDS = 12
 /** 费率分母：万分之一 */
 export const RATE_DENOMINATOR = 10000
 
+/** 默认提现费率（万分比）：10 = 0.1%，与原小数默认 0.001 等价 */
+export const DEFAULT_WITHDRAWAL_FEE_RATE = 10
+
 /** 一天对应的毫秒数 */
 export const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -156,7 +159,6 @@ export const AGENT_RESULT_EXPIRED = 'EXPIRED'
  */
 export const AGENT_ROLE_USER = 'USER'
 export const AGENT_ROLE_ASSISTANT = 'ASSISTANT'
-export const AGENT_ROLE_TOOL = 'TOOL'
 export const AGENT_ROLE_SYSTEM = 'SYSTEM'
 
 /**

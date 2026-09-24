@@ -59,6 +59,13 @@ module.exports = {
       'ts-jest',
       {
         useESM: true,
+        // 关闭 ts-jest 逐文件类型诊断（diagnostics:false，仅转译执行）：
+        // TS6 + jest30 下 ts-jest 对 @jest/globals 的 jest.fn() 无参调用 +
+        // mockResolvedValue 泛型推导稳定产出 "not assignable to never" 假阳性
+        // （已证远程 HEAD 冷跑同样复现，与业务改动无关；此前全绿依赖 jest warm cache 掩盖）。
+        // 类型检查由独立门禁 npx tsc --noEmit 把关（全项目含 79 个 spec 0 error）。
+        // 注意不能用 isolatedModules（会破坏 ESM 输出导致 CJS 执行错误）。
+        diagnostics: false,
         tsconfig: {
           module: 'esnext',
           moduleResolution: 'bundler',
@@ -67,7 +74,8 @@ module.exports = {
           skipLibCheck: true,
           experimentalDecorators: true,
           emitDecoratorMetadata: true,
-          types: ['node', 'jest'],
+          // 全部 spec 均显式 import '@jest/globals'，不引入全局 'jest' 类型以免冲突
+          types: ['node'],
         },
       },
     ],

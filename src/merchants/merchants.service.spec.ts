@@ -389,7 +389,7 @@ describe('MerchantsService', () => {
       ])
 
       const result = await service.listApps('u1')
-      expect(result[0].appSecret).toBe('1234****cdef')
+      expect(result[0].appSecret).toBe('***')
     })
   })
 

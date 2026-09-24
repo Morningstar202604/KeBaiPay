@@ -290,7 +290,10 @@ export class ToolRegistry {
         execute: async (args: any) => {
           this.checkScope(ctx, 'merchant:read')
           const limit = Math.min(args?.limit ?? 20, 100)
-          const where: any = { merchantId: ctx.subjectId }
+          // requireSubjectId 强校验：subjectId 缺失时若直接传 undefined，
+          // Prisma 会静默忽略 merchantId 过滤条件导致查询全站订单（跨租户越权）
+          const merchantId = this.requireSubjectId(ctx)
+          const where: any = { merchantId }
           if (args?.status) where.status = args.status
           const orders = await this.prisma.paymentOrder.findMany({
             where,
@@ -311,8 +314,9 @@ export class ToolRegistry {
         execute: async () => {
           this.checkScope(ctx, 'merchant:read')
           // 商户主体 subjectId 是 Merchant.id，需通过 Merchant.userId 关联到 Account
+          const merchantId = this.requireSubjectId(ctx)
           const merchant = await this.prisma.merchant.findUnique({
-            where: { id: ctx.subjectId },
+            where: { id: merchantId },
             select: {
               userId: true,
               merchantName: true,
@@ -352,7 +356,10 @@ export class ToolRegistry {
         execute: async (args: any) => {
           this.checkScope(ctx, 'risk:read')
           const limit = Math.min(args?.limit ?? 50, 200)
-          const where: any = {}
+          // 租户隔离：只允许查询当前主体（subjectId）自己的风险事件；
+          // 此前 where 仅按 status/level 过滤，任意风控 Agent 可读全站风险事件（跨租户越权）
+          const subjectId = this.requireSubjectId(ctx)
+          const where: any = { userId: subjectId }
           if (args?.status) where.handled = args.status === 'HANDLED'
           if (args?.level) where.level = args.level
           const events = await this.prisma.riskEvent.findMany({

@@ -1,7 +1,6 @@
 import { describe, expect, it } from '@jest/globals'
 import {
   maskPhone,
-  maskEmail,
   maskIdCard,
   maskBankCard,
 } from './mask.js'
@@ -18,24 +17,6 @@ describe('common/mask', () => {
 
     it('空值返回 ****', () => {
       expect(maskPhone('')).toBe('****')
-    })
-  })
-
-  describe('maskEmail', () => {
-    it('保留本地部分前 2 位与域名', () => {
-      expect(maskEmail('ab@example.com')).toBe('ab***@example.com')
-    })
-
-    it('长本地部分仅保留前 2 位', () => {
-      expect(maskEmail('abcdef@example.com')).toBe('ab***@example.com')
-    })
-
-    it('无 @ 符号返回 ****', () => {
-      expect(maskEmail('not-an-email')).toBe('****')
-    })
-
-    it('空值返回空串', () => {
-      expect(maskEmail('')).toBe('')
     })
   })
 

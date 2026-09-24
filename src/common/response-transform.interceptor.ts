@@ -60,6 +60,10 @@ const SENSITIVE_FIELDS = new Set([
 const SECRET_DISPLAY_ALLOWED = new Set([
   'POST /merchants/apps',
   'POST /merchants/apps/*/regenerate-secret',
+  // Agent 创建/轮换与商户 App 同型：明文仅在创建/轮换响应中下发一次，
+  // 若被全局脱敏，管理端永远拿不到 Agent 凭据，Agent 接入闭环断裂
+  'POST /agent/agents',
+  'POST /agent/agents/*/rotate-secret',
 ])
 
 function isSecretDisplayAllowed(req: Request): boolean {

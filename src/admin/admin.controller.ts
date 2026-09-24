@@ -284,8 +284,8 @@ export class AdminController {
   }
 
   @Post('system-configs')
-  @RequirePermissions('risk:config')
-  @ApiOperation({ summary: '设置系统配置' })
+  @RequirePermissions('admin:manage')
+  @ApiOperation({ summary: '设置系统配置', description: '系统配置含财务费率等敏感参数，仅超管可写（原 risk:config 权限过宽）' })
   @ApiResponse({ status: 200, description: '配置设置成功' })
   setSystemConfig(
     @Body() dto: SetSystemConfigDto,

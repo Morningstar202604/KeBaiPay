@@ -211,7 +211,8 @@ export class UsersService {
       .toLowerCase()
     if (!provider) return
 
-    this.logger.log(`实名自动核验: provider=${provider}, name=${realName}`)
+    const maskedName = realName.length > 1 ? `${realName.slice(0, 1)}**` : '***'
+    this.logger.log(`实名自动核验: provider=${provider}, name=${maskedName}`)
 
     // 二要素核验请求体（预留）：各渠道对接时直接使用
     // aliyun  → 阿里云 cloudauth 二要素核验（需配置 ALIYUN_REALNAME_ACCESS_KEY_ID/SECRET）

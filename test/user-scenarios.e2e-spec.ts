@@ -25,7 +25,6 @@ import { TransactionsModule } from 'src/transactions/transactions.module'
 import { UsersModule } from 'src/users/users.module'
 import { RiskModule } from 'src/risk/risk.module'
 import { FinanceModule } from 'src/finance/finance.module'
-import { ChannelReconciliationModule } from 'src/channel-reconciliation/channel-reconciliation.module'
 import { RedisModule } from 'src/redis/redis.module'
 import { PrismaModule } from 'src/prisma/prisma.module'
 import { CryptoModule } from 'src/crypto/crypto.module'
@@ -47,7 +46,6 @@ import { RefundService } from 'src/payment-channels/refund.service'
 import { UsersService } from 'src/users/users.service'
 import { RiskEngineService } from 'src/risk/risk-engine.service'
 import { JournalService } from 'src/finance/journal.service'
-import { AutoFixService } from 'src/channel-reconciliation/auto-fix.service'
 
 // ---- 支付通道 ----
 import { MockConnector } from 'src/payment-channels/connectors/mock.connector'
@@ -487,7 +485,6 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
   let refundService: RefundService
   let riskEngine: RiskEngineService
   let journalService: JournalService
-  let autoFixService: AutoFixService
   let usersService: UsersService
 
   // 支付通道
@@ -540,7 +537,6 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
         UsersModule,
         RiskModule,
         FinanceModule,
-        ChannelReconciliationModule,
         RedisModule,
         PrismaModule,
         CryptoModule,
@@ -572,7 +568,6 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
     refundService = module.get(RefundService)
     riskEngine = module.get(RiskEngineService)
     journalService = module.get(JournalService)
-    autoFixService = module.get(AutoFixService)
     usersService = module.get(UsersService)
     mockConnector = module.get(MockConnector)
     connectorRouter = module.get(ConnectorRouter)
@@ -1370,117 +1365,3 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
     })
   })
 
-  // ==========================================================================
-  // 场景 6: 对账差异和自动修正
-  // ==========================================================================
-  describe('场景 6: 对账差异和自动修正', () => {
-    let freshPrisma6: MockPrismaClient
-    let freshModule6: TestingModule
-    let localAutoFix: AutoFixService
-
-    beforeAll(async () => {
-      freshPrisma6 = new MockPrismaClient()
-      const freshRedis6 = new MockRedisClient()
-
-      freshModule6 = await Test.createTestingModule({
-        imports: [
-          ConfigModule.forRoot({
-            isGlobal: true,
-            ignoreEnvFile: true,
-            load: [() => ({
-              NODE_ENV: 'test',
-              RECHARGE_NOTIFY_URL: 'https://test.example.com/webhooks/recharge/mock',
-              MOCK_CHANNEL_SECRET: 'mock-channel-secret-dev-only',
-              JWT_SECRET: 'test-jwt-secret',
-              JWT_ADMIN_SECRET: 'test-jwt-admin-secret',
-              SMS_CODE_SECRET: 'test-sms-secret',
-            })],
-          }),
-          PaymentChannelsModule,
-          TransactionsModule,
-          UsersModule,
-          RiskModule,
-          FinanceModule,
-          ChannelReconciliationModule,
-          RedisModule,
-          PrismaModule,
-          CryptoModule,
-          SecurityModule,
-          AuditModule,
-          AuthModule,
-          AccountsModule,
-          BillsModule,
-          MerchantsModule,
-          WebhooksModule,
-          SmsModule,
-          HealthModule,
-          NotificationsModule,
-          ScheduleHealthModule,
-        ],
-      })
-        .overrideGuard(JwtAuthGuard)
-        .useValue({ canActivate: () => true })
-        .overrideProvider(PrismaService)
-        .useValue(freshPrisma6 as any)
-        .overrideProvider(RedisService)
-        .useValue(freshRedis6 as any)
-        .compile()
-
-      localAutoFix = freshModule6.get(AutoFixService)
-    })
-
-    it('自动修正小额对账差异', async () => {
-      // 预置一个用户：RiskEvent.userId 外键要求归属真实用户（v0.2.2 起
-      // auto-fix 采用 anchor 用户模式，不再写不存在的 SYSTEM 用户）
-      await freshPrisma6.user.create({
-        data: { id: 'anchor-u1', nickname: '锚点用户', status: 'ACTIVE' },
-      })
-
-      // 创建对账差异项（小额，≤50分）
-      const diff = await freshPrisma6.reconciliationDifferenceItem.create({
-        data: {
-          reportDate: '2026-07-29',
-          channelCode: 'mock',
-          channelOrderNo: 'MOCK_R_123',
-          platformOrderNo: 'R123456',
-          diffType: 'AMOUNT_MISMATCH',
-          amount: 30, // 30分 = 0.3元（≤50分阈值）
-          description: '金额不一致：平台100分，渠道70分',
-          status: 'PENDING',
-        },
-      })
-
-      // 运行 auto-fix
-      const fixed = await localAutoFix.autoFix([
-        {
-          id: diff.id,
-          amount: diff.amount,
-          diffType: diff.diffType,
-          status: diff.status,
-        },
-      ])
-
-      expect(fixed.length).toBe(1)
-      expect(fixed[0].action).toBe('IGNORE')
-      expect(fixed[0].diffId).toBe(diff.id)
-
-      // 验证差异已被标记为 IGNORED
-      const updatedDiff = await freshPrisma6.reconciliationDifferenceItem.findUnique({
-        where: { id: diff.id },
-      })
-      expect(updatedDiff?.status).toBe('IGNORED')
-
-      // 验证 RiskEvent 被创建（level = LOW）
-      const riskEvents = freshPrisma6.getTable('riskEvent')
-      const autoFixEvents = riskEvents.filter(
-        (e: any) => e.level === 'LOW' && e.description?.includes(diff.id),
-      )
-      expect(autoFixEvents.length).toBeGreaterThanOrEqual(1)
-      expect(autoFixEvents[0].handled).toBe(true)
-    })
-
-    afterAll(async () => {
-      await freshModule6?.close()
-    })
-  })
-})

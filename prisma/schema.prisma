@@ -155,6 +155,10 @@ model TransactionOrder {
   idempotencyKey String?   @unique @map("idempotency_key")
   channel        String?
   channelOrderNo String?   @map("channel_order_no")
+  // 订单来源标记：'AGENT' 表示智能体代操作，null 表示普通转账。
+  // 用于 Agent 专项日限额统计——此前依赖 idempotencyKey 'AGENT:' 前缀识别，
+  // 前缀可被任意用户伪造（普通转账传 AGENT: 前缀可误占/干扰 Agent 限额池）。
+  source         String?   @map("source")
   expiresAt      DateTime? @map("expires_at")
   completedAt    DateTime? @map("completed_at")
   createdAt      DateTime  @default(now()) @map("created_at")

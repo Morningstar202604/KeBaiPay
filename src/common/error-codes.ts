@@ -120,6 +120,7 @@ export const KBErrorCodes = {
   RED_PACKET_PASSWORD_REQUIRED: 'KB626',
   RED_PACKET_PASSWORD_INCORRECT: 'KB627',
   RED_PACKET_ALREADY_CLAIMED: 'KB628',
+  RESOURCE_ALREADY_EXISTS: 'KB629',
 
   // 开放 API / 渠道回调
   CALLBACK_CHANNEL_MISMATCH: 'KB701',
@@ -372,6 +373,7 @@ export const KBErrorMessages: Record<KBErrorCode, string> = {
   [KBErrorCodes.RED_PACKET_PASSWORD_REQUIRED]: '口令红包需提供密码',
   [KBErrorCodes.RED_PACKET_PASSWORD_INCORRECT]: '红包口令错误',
   [KBErrorCodes.RED_PACKET_ALREADY_CLAIMED]: '该用户已领取过此红包',
+  [KBErrorCodes.RESOURCE_ALREADY_EXISTS]: '资源已存在或唯一约束冲突',
 
   [KBErrorCodes.CALLBACK_CHANNEL_MISMATCH]: '回调渠道与订单渠道不匹配',
   [KBErrorCodes.CALLBACK_CHANNEL_ORDER_NO_MISMATCH]: '渠道订单号不匹配',

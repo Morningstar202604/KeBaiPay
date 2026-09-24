@@ -183,7 +183,8 @@ export class TransfersService {
             fromUserId,
             type: TransactionType.TRANSFER,
             status: TransactionStatus.SUCCESS,
-            idempotencyKey: { startsWith: 'AGENT:' },
+            // 显式 source 标记（此前用 idempotencyKey 'AGENT:' 前缀，前缀可被伪造）
+            source: 'AGENT',
             completedAt: { gte: dayStart, lte: dayEnd },
           },
           _sum: { amount: true },
@@ -204,6 +205,7 @@ export class TransfersService {
           toUserId,
           amountFen,
           idempotencyKey,
+          source: 'AGENT',
           fromNickname: fromUser.nickname,
           toNickname: toUser.nickname,
           orderRemark,
@@ -284,6 +286,7 @@ export class TransfersService {
       toUserId: string
       amountFen: number
       idempotencyKey?: string
+      source?: string
       fromNickname: string
       toNickname: string
       orderRemark: string
@@ -375,6 +378,7 @@ export class TransfersService {
         toUserId: p.toUserId,
         remark: p.orderRemark,
         idempotencyKey: p.idempotencyKey,
+        source: p.source ?? null,
         completedAt: new Date(),
       },
     })

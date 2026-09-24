@@ -117,10 +117,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
   ): { status: number; code: string; message: string } {
     switch (err.code) {
       case 'P2002':
-        // 唯一约束冲突：返回 409，不暴露具体字段名
+        // 唯一约束冲突：返回 409，不暴露具体字段名。
+        // 此前 code 固定映射为 IDEMPOTENCY_KEY_CONFLICT，注册重名手机号/邮箱、
+        // 重复邀请码等 P2002 场景被前端误判为"幂等键冲突"，语义错位。
         return {
           status: HttpStatus.CONFLICT,
-          code: KBErrorCodes.IDEMPOTENCY_KEY_CONFLICT,
+          code: KBErrorCodes.RESOURCE_ALREADY_EXISTS,
           message: '资源已存在或唯一约束冲突',
         }
       case 'P2025':

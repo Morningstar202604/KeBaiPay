@@ -42,6 +42,16 @@ export class AuthService {
       throw new BadRequestException(kbError(KBErrorCodes.MISSING_PHONE_OR_EMAIL))
     }
 
+    // 注册前预查手机号/邮箱占用：此前直接 create，唯一约束冲突被全局过滤器
+    // 映射成"幂等键冲突"（KB400），用户看到的错误语义完全错位
+    const existed = await this.usersService.findByCredential(dto.phone, dto.email)
+    if (existed) {
+      if (dto.phone && existed.phone === dto.phone) {
+        throw new BadRequestException(kbError(KBErrorCodes.PHONE_ALREADY_BOUND))
+      }
+      throw new BadRequestException(kbError(KBErrorCodes.EMAIL_ALREADY_BOUND))
+    }
+
     // 短信验证码开关：配置了真实短信渠道（SMS_PROVIDER 非 mock）时，
     // 手机号注册必须先通过验证码校验；未配置时跳过，保持本地开发/演示免验证码。
     if (dto.phone && this.sms.getConfigStatus().configured) {

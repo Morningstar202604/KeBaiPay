@@ -191,7 +191,7 @@ describe('FinanceService', () => {
             lte: new Date('2026-06-30T15:59:59.999Z'),
           },
         },
-        _sum: { amount: true, fee: true },
+        _sum: { amount: true, fee: true, refundAmount: true },
         _count: { id: true },
       })
       expect(result.data).toEqual([
@@ -201,10 +201,12 @@ describe('FinanceService', () => {
           merchantName: '商户一',
           totalAmount: 50000,
           totalFee: 500,
+          totalRefund: 0,
           settledAmount: 49500,
           orderCount: 10,
           totalAmountYuan: '500.00',
           totalFeeYuan: '5.00',
+          totalRefundYuan: '0.00',
           settledAmountYuan: '495.00',
         },
         {
@@ -213,10 +215,12 @@ describe('FinanceService', () => {
           merchantName: '商户二',
           totalAmount: 30000,
           totalFee: 300,
+          totalRefund: 0,
           settledAmount: 29700,
           orderCount: 5,
           totalAmountYuan: '300.00',
           totalFeeYuan: '3.00',
+          totalRefundYuan: '0.00',
           settledAmountYuan: '297.00',
         },
       ])
@@ -239,7 +243,7 @@ describe('FinanceService', () => {
       expect(prisma.paymentOrder.groupBy).toHaveBeenCalledWith({
         by: ['merchantId'],
         where: { status: PaymentOrderStatus.PAID },
-        _sum: { amount: true, fee: true },
+        _sum: { amount: true, fee: true, refundAmount: true },
         _count: { id: true },
       })
       expect(result.data).toHaveLength(1)

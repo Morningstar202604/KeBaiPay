@@ -103,8 +103,4 @@ export class ScheduleHealthService {
       schedules,
     }
   }
-
-  getRecords(): ScheduleRecord[] {
-    return Array.from(this.records.values())
-  }
 }

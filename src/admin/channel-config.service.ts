@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../audit/audit-log.service'
 import { CryptoService } from '../crypto/crypto.service'
@@ -105,7 +105,8 @@ export class ChannelConfigService {
   ) {
     const existing = await this.prisma.paymentChannelConfig.findUnique({ where: { code } })
     if (!existing) {
-      return { error: '渠道不存在' }
+      // 此前返回 HTTP 200 + {error}，前端无法用状态码区分成败；改为标准 404
+      throw new NotFoundException(`渠道不存在: ${code}`)
     }
 
     let mergedConfig: string

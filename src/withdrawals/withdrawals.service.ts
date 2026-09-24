@@ -16,6 +16,7 @@ import {
   RealNameStatus,
   RiskLevel,
   RiskEventType,
+  UserStatus,
 } from '../common/enums'
 import { UsersService } from '../users/users.service'
 import { RedisService } from '../redis/redis.service'
@@ -26,7 +27,7 @@ import { JournalService } from '../finance/journal.service'
 import { CryptoService } from '../crypto/crypto.service'
 import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
-import {buildLockKey, DEFAULT_WITHDRAW_DAILY_LIMIT_CENTS, LARGE_WITHDRAWAL_THRESHOLD_CENTS, RATE_DENOMINATOR, REDIS_LOCK_TTL_SECONDS} from '../common/constants'
+import {buildLockKey, DEFAULT_WITHDRAWAL_FEE_RATE, DEFAULT_WITHDRAW_DAILY_LIMIT_CENTS, LARGE_WITHDRAWAL_THRESHOLD_CENTS, RATE_DENOMINATOR, REDIS_LOCK_TTL_SECONDS} from '../common/constants'
 
 @Injectable()
 export class WithdrawalsService {
@@ -43,7 +44,9 @@ export class WithdrawalsService {
     private readonly cryptoService: CryptoService,
   ) {}
 
-  // 商户优先使用独立提现费率（单位：万分之一），普通用户读全局配置
+  // 商户优先使用独立提现费率（单位：万分之一，与 RATE_DENOMINATOR 一致），普通用户读全局配置。
+  // 全局配置统一为万分比整数（如 10=0.1%）；兼容旧格式的小数费率（0.001=0.1%）自动归一化，
+  // 避免两种单位混用导致费率放大 10000 倍的资损。
   async getFeeRate(userId?: string) {
     if (userId) {
       const merchant = await this.prisma.merchant.findUnique({
@@ -58,9 +61,13 @@ export class WithdrawalsService {
       where: { key: 'withdrawal_fee_rate' },
     })
     if (config) {
-      return Number(config.value)
+      let rate = Number(config.value)
+      if (!Number.isFinite(rate) || rate < 0) return 0.001
+      // 旧格式兼容：小数费率（<1）视为百分率小数，归一化为万分比
+      if (rate > 0 && rate < 1) rate = Math.round(rate * RATE_DENOMINATOR)
+      return rate / RATE_DENOMINATOR
     }
-    return 0.001
+    return DEFAULT_WITHDRAWAL_FEE_RATE / RATE_DENOMINATOR
   }
 
   async create(
@@ -84,7 +91,7 @@ export class WithdrawalsService {
       if (user.realNameStatus !== RealNameStatus.VERIFIED) {
         throw new ForbiddenException(kbError(KBErrorCodes.REAL_NAME_REQUIRED))
       }
-      if (user.status === 'FROZEN' || user.status === 'EXPENSE_RESTRICTED') {
+      if (user.status === UserStatus.FROZEN || user.status === UserStatus.EXPENSE_RESTRICTED) {
         throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '账户当前禁止支出'))
       }
       if (user.riskLevel === RiskLevel.HIGH) {

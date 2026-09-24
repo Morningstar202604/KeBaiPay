@@ -152,15 +152,16 @@ describe('ChannelConfigController', () => {
     )
   })
 
-  it('updateChannel 渠道不存在返回 error', async () => {
+  it('updateChannel 渠道不存在抛 NotFoundException', async () => {
     mockPrisma.paymentChannelConfig.findUnique.mockResolvedValue(null)
-    const result = await controller.updateChannel(
-      'missing',
-      {} as any,
-      { sub: 'a1', role: 'SUPER_ADMIN' } as any,
-      { headers: {}, ip: undefined } as any,
-    )
-    expect(result).toEqual({ error: '渠道不存在' })
+    await expect(
+      controller.updateChannel(
+        'missing',
+        {} as any,
+        { sub: 'a1', role: 'SUPER_ADMIN' } as any,
+        { headers: {}, ip: undefined } as any,
+      ),
+    ).rejects.toThrow('渠道不存在')
   })
 
   it('updateChannel 合并 config 后更新并记录审计', async () => {

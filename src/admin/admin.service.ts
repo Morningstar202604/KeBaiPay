@@ -1256,6 +1256,16 @@ export class AdminService {
       throw new BadRequestException(kbError(KBErrorCodes.ADMIN_CANNOT_DELETE_SELF))
     }
 
+    // 最后超级管理员保护：降级或禁用 SUPER_ADMIN 前确认还存在其他可用超管，
+    // 否则后台可能永久失去超级管理员（此前可自我降级/禁用导致无超管可救）
+    if (
+      admin.role === AdminRole.SUPER_ADMIN &&
+      ((data.role !== undefined && data.role !== AdminRole.SUPER_ADMIN) ||
+        (data.status === AdminStatus.DISABLED))
+    ) {
+      await this.assertNotLastActiveSuperAdmin(id)
+    }
+
     // 业务写与审计日志在同一事务，保证权限变更可追溯
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.adminUser.update({
@@ -1304,6 +1314,11 @@ export class AdminService {
 
     if (id === currentAdminId) {
       throw new BadRequestException(kbError(KBErrorCodes.ADMIN_CANNOT_DELETE_SELF))
+    }
+
+    // 最后超级管理员保护：软删除（禁用）SUPER_ADMIN 前确认还有其他可用超管
+    if (admin.role === AdminRole.SUPER_ADMIN) {
+      await this.assertNotLastActiveSuperAdmin(id)
     }
 
     // 业务写与审计日志在同一事务，保证管理员禁用可追溯
@@ -1462,5 +1477,21 @@ export class AdminService {
       auditMeta,
       'update',
     )
+  }
+
+  /** 最后超级管理员保护：目标 SUPER_ADMIN 之外若已无其他 ACTIVE 超管则拒绝 */
+  private async assertNotLastActiveSuperAdmin(excludeId: string): Promise<void> {
+    const others = await this.prisma.adminUser.count({
+      where: {
+        id: { not: excludeId },
+        role: AdminRole.SUPER_ADMIN,
+        status: AdminStatus.ACTIVE,
+      },
+    })
+    if (others === 0) {
+      throw new BadRequestException(
+        kbError(KBErrorCodes.ADMIN_CANNOT_DELETE_SELF, '不能删除或降级最后一个超级管理员'),
+      )
+    }
   }
 }

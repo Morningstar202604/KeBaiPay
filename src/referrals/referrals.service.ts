@@ -431,10 +431,15 @@ export class ReferralsService {
 
   private generateCode(): string {
     const alphabet = ReferralsService.CODE_ALPHABET
-    const bytes = randomBytes(REFERRAL_CODE_LENGTH)
+    // 拒绝采样消除取模偏差：alphabet 长度 31 非 2 的幂，直接 bytes % 31
+    // 会让低位字符（余数 0-7）出现概率偏高，降低邀请码熵；改为丢弃落入
+    // 非均匀区间的字节，使每个字符等概率出现
+    const max = 256 - (256 % alphabet.length)
     let result = ''
     for (let i = 0; i < REFERRAL_CODE_LENGTH; i++) {
-      result += alphabet[bytes[i] % alphabet.length]
+      let v = randomBytes(1)[0]
+      while (v >= max) v = randomBytes(1)[0]
+      result += alphabet[v % alphabet.length]
     }
     return result
   }

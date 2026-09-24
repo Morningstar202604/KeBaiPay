@@ -227,18 +227,6 @@ describe('BankCardsService', () => {
     })
   })
 
-  describe('findById 查询单张', () => {
-    it('查询不存在的卡 → 404 KB217', async () => {
-      prisma.bankCard.findUnique.mockResolvedValue(null)
-      await expect(service.findById('u1', 'x')).rejects.toThrow(NotFoundException)
-    })
-
-    it('查询别人的卡 → 404 KB217', async () => {
-      prisma.bankCard.findUnique.mockResolvedValue({ id: 'b1', userId: 'other', status: 'ACTIVE' })
-      await expect(service.findById('u1', 'b1')).rejects.toThrow(NotFoundException)
-    })
-  })
-
   describe('findDefault 默认卡', () => {
     it('无默认卡 → 返回 null', async () => {
       prisma.bankCard.findFirst.mockResolvedValue(null)

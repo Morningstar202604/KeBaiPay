@@ -11,18 +11,6 @@ export function maskPhone(phone: string): string {
 }
 
 /**
- * 邮箱脱敏：保留本地部分前 2 位，其余用 *** 替代，域名保留。例：ab***@example.com
- */
-export function maskEmail(email: string): string {
-  if (!email) return ''
-  const atIdx = email.indexOf('@')
-  if (atIdx < 1) return '****'
-  const local = email.slice(0, atIdx)
-  const domain = email.slice(atIdx)
-  return `${local.slice(0, 2)}***${domain}`
-}
-
-/**
  * 身份证号脱敏：保留前 3 位和后 4 位，中间每一位用 * 替代。例：110***********1234
  */
 export function maskIdCard(idCard: string): string {

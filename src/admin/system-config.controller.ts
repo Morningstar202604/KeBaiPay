@@ -50,8 +50,8 @@ export class SystemConfigController {
   }
 
   @Post()
-  @RequirePermissions('risk:config')
-  @ApiOperation({ summary: '创建系统配置' })
+  @RequirePermissions('admin:manage')
+  @ApiOperation({ summary: '创建系统配置', description: '系统配置含财务费率等敏感参数，仅超管可写' })
   @ApiResponse({ status: 201, description: '配置创建成功' })
   create(
     @Body() dto: SetSystemConfigDto,
@@ -67,8 +67,8 @@ export class SystemConfigController {
   }
 
   @Put(':key')
-  @RequirePermissions('risk:config')
-  @ApiOperation({ summary: '更新系统配置' })
+  @RequirePermissions('admin:manage')
+  @ApiOperation({ summary: '更新系统配置', description: '系统配置含财务费率等敏感参数，仅超管可写' })
   @ApiResponse({ status: 200, description: '配置更新成功' })
   update(
     @Param('key') key: string,

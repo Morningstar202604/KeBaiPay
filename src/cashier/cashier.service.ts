@@ -22,6 +22,7 @@ import {
   RealNameStatus,
   NotifyStatus,
   AccountStatus,
+  UserStatus,
 } from '../common/enums'
 import { PrismaService } from '../prisma/prisma.service'
 import { UsersService } from '../users/users.service'
@@ -189,7 +190,7 @@ export class CashierService {
     if (payer.realNameStatus !== RealNameStatus.VERIFIED) {
       throw new ForbiddenException(kbError(KBErrorCodes.REAL_NAME_REQUIRED))
     }
-    if (payer.status === 'FROZEN' || payer.status === 'EXPENSE_RESTRICTED') {
+    if (payer.status === UserStatus.FROZEN || payer.status === UserStatus.EXPENSE_RESTRICTED) {
       throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '账户当前禁止支出'))
     }
     await this.usersService.verifyPayPassword(payerId, dto.payPassword)
@@ -641,15 +642,34 @@ export class CashierService {
       },
     })
     if (!usage) {
-      usage = await tx.dailyLimitUsage.create({
-        data: {
-          userId: merchantId,
-          limitType: 'MERCHANT_PAYMENT',
-          date: dateStr,
-          usedAmount: 0,
-          version: 0,
-        },
-      })
+      try {
+        usage = await tx.dailyLimitUsage.create({
+          data: {
+            userId: merchantId,
+            limitType: 'MERCHANT_PAYMENT',
+            date: dateStr,
+            usedAmount: 0,
+            version: 0,
+          },
+        })
+      } catch (e) {
+        // 首建竞态：两笔并发商户订单同时 create 撞 @@unique([userId, limitType, date])，
+        // 捕获 P2002 后重读，走下方 version 条件更新——限额守卫语义不变
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          usage = await tx.dailyLimitUsage.findFirst({
+            where: {
+              userId: merchantId,
+              limitType: 'MERCHANT_PAYMENT',
+              date: dateStr,
+            },
+          })
+        } else {
+          throw e
+        }
+      }
+    }
+    if (!usage) {
+      throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '超出商户日限额'))
     }
 
     const updated = await tx.dailyLimitUsage.updateMany({
@@ -687,7 +707,10 @@ export class CashierService {
     const merchant = await this.prisma.merchant.findUnique({
       where: { userId },
     })
-    if (!merchant) throw new NotFoundException(kbError(KBErrorCodes.MERCHANT_NOT_FOUND))
+    // 非商户钱包用户没有收款订单，返回空分页而不是 404——404 语义错位且前端难处理
+    if (!merchant) {
+      return { data: [], total: 0, page: 1, limit: 20 }
+    }
 
     const page = Math.max(1, query.page || 1)
     const limit = Math.max(1, Math.min(MAX_PAGE_SIZE, query.limit || DEFAULT_PAGE_SIZE))

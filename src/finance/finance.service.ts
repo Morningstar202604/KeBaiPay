@@ -97,7 +97,7 @@ export class FinanceService {
     const groups = await this.prisma.paymentOrder.groupBy({
       by: ['merchantId'],
       where,
-      _sum: { amount: true, fee: true },
+      _sum: { amount: true, fee: true, refundAmount: true },
       _count: { id: true },
     })
 
@@ -111,7 +111,9 @@ export class FinanceService {
     const data = groups.map((g) => {
       const totalAmount = g._sum.amount || 0
       const totalFee = g._sum.fee || 0
-      const settledAmount = totalAmount - totalFee
+      const totalRefund = g._sum.refundAmount || 0
+      // 结算金额 = 交易额 - 手续费 - 已退款（此前未扣退款，已退款商户结算额被高估）
+      const settledAmount = totalAmount - totalFee - totalRefund
       const merchant = merchantMap.get(g.merchantId)
       return {
         merchantId: g.merchantId,
@@ -119,10 +121,12 @@ export class FinanceService {
         merchantName: merchant?.merchantName || '',
         totalAmount,
         totalFee,
+        totalRefund,
         settledAmount,
         orderCount: g._count.id,
         totalAmountYuan: fenToYuan(totalAmount),
         totalFeeYuan: fenToYuan(totalFee),
+        totalRefundYuan: fenToYuan(totalRefund),
         settledAmountYuan: fenToYuan(settledAmount),
       }
     })

@@ -310,18 +310,12 @@ export class MerchantsService {
       orderBy: { createdAt: 'desc' },
     })
 
-    // 列表不返回明文 appSecret，仅返回脱敏值
+    // 列表不返回 appSecret：存库为 SHA-256 哈希（不可逆），"前4后4脱敏"无安全意义；
+    // 统一返回掩码，真实密钥仅在 regenerateSecret 时一次性返回明文
     return apps.map((app) => ({
       ...app,
-      appSecret: this.maskSecret(app.appSecret),
+      appSecret: '***',
     }))
-  }
-
-  // 脱敏：前 4 位 + 中间星号 + 后 4 位
-  private maskSecret(secret: string): string {
-    if (!secret) return ''
-    if (secret.length <= 8) return '****'
-    return `${secret.slice(0, 4)}****${secret.slice(-4)}`
   }
 
   async regenerateSecret(userId: string, appId: string) {
@@ -498,26 +492,29 @@ export class MerchantsService {
     }
   }
 
-  // 聚合统计某段时间内的订单笔数、总金额、总手续费
+  // 聚合统计某段时间内的订单笔数、总金额、总手续费、已退款金额
   private async aggregateStats(where: Prisma.PaymentOrderWhereInput) {
     const rows = await this.prisma.paymentOrder.aggregate({
       where,
       _count: { id: true },
-      _sum: { amount: true, fee: true },
+      _sum: { amount: true, fee: true, refundAmount: true },
     })
     return {
       count: rows._count.id,
       amount: rows._sum.amount || 0,
       fee: rows._sum.fee || 0,
+      refund: rows._sum.refundAmount || 0,
     }
   }
 
-  private formatStats(stats: { count: number; amount: number; fee: number }) {
+  private formatStats(stats: { count: number; amount: number; fee: number; refund: number }) {
     return {
       count: stats.count,
       amountYuan: fenToYuan(stats.amount),
       feeYuan: fenToYuan(stats.fee),
-      netYuan: fenToYuan(stats.amount - stats.fee),
+      // 净收入 = 交易额 - 手续费 - 已退款（此前未扣退款，看板净收入被高估）
+      netYuan: fenToYuan(stats.amount - stats.fee - stats.refund),
+      refundYuan: fenToYuan(stats.refund),
     }
   }
 

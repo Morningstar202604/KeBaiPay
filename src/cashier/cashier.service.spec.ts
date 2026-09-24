@@ -594,9 +594,14 @@ describe('CashierService', () => {
   })
 
   describe('listMyOrders 商户订单列表', () => {
-    it('商户不存在报错', async () => {
+    it('非商户用户返回空分页（不再 404）', async () => {
       prisma.merchant.findUnique.mockResolvedValue(null)
-      await expect(service.listMyOrders('u1', {})).rejects.toThrow(NotFoundException)
+      await expect(service.listMyOrders('u1', {})).resolves.toEqual({
+        data: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+      })
     })
 
     it('支持按状态筛选', async () => {

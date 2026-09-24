@@ -94,15 +94,6 @@ export class BankCardsService {
     return cards.map((c) => this.toDto(c))
   }
 
-  /** 查询单张（用于提现时校验归属） */
-  async findById(userId: string, id: string) {
-    const card = await this.prisma.bankCard.findUnique({ where: { id } })
-    if (!card || card.userId !== userId || card.status !== 'ACTIVE') {
-      throw new NotFoundException(kbError(KBErrorCodes.BANKCARD_NOT_FOUND))
-    }
-    return this.toDto(card)
-  }
-
   /** 更新银行卡资料（不允许改卡号） */
   async update(userId: string, id: string, dto: UpdateBankCardDto) {
     const card = await this.prisma.bankCard.findUnique({ where: { id } })
