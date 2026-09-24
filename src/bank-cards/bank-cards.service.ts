@@ -42,12 +42,8 @@ export class BankCardsService {
       select: { id: true, userId: true },
     })
     if (existing) {
-      if (existing.userId === userId) {
-        throw new ConflictException(kbError(KBErrorCodes.BANKCARD_ALREADY_BOUND))
-      } else {
-        // 该卡已被他人绑定，为了不泄露其他用户绑定情况，统一返回相同错误码
-        throw new ConflictException(kbError(KBErrorCodes.BANKCARD_ALREADY_BOUND))
-      }
+      // 自己或他人绑定统一返回相同错误码，不泄露该卡归属
+      throw new ConflictException(kbError(KBErrorCodes.BANKCARD_ALREADY_BOUND))
     }
 
     // 3. 加密卡号 / 手机号入库

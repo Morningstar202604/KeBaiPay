@@ -1,5 +1,5 @@
 import { businessDayKey } from '../common/date-helpers'
-import { Injectable, NotFoundException, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException, UnauthorizedException, Logger, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
@@ -19,7 +19,7 @@ import {
 } from '../common/constants'
 
 @Injectable()
-export class UsersService {
+export class UsersService implements OnModuleInit {
   private readonly logger = new Logger(UsersService.name)
 
   constructor(
@@ -29,6 +29,24 @@ export class UsersService {
     private readonly smsService: SmsService,
     private readonly configService: ConfigService,
   ) {}
+
+  /**
+   * 启动期检查：REALNAME_VERIFY_PROVIDER 配置了但自动核验未实现时提前告警，
+   * 避免运营配置后直到用户实名 100% 失败才发现（此前仅在提交时硬抛）
+   */
+  onModuleInit() {
+    const provider = (
+      this.configService.get<string>('REALNAME_VERIFY_PROVIDER') || ''
+    )
+      .trim()
+      .toLowerCase()
+    if (provider) {
+      this.logger.warn(
+        `REALNAME_VERIFY_PROVIDER=${provider} 已配置，但自动实名核验渠道尚未完成对接；` +
+        `用户提交实名将直接失败，如需人工审核请移除该配置`,
+      )
+    }
+  }
 
   // Redis 不可用时降级到进程内缓存；生产环境务必配置 Redis
   private readonly payPasswordAttempts = new Map<

@@ -55,11 +55,6 @@ export class LlmService {
     this.config = loadLlmConfig(configService)
   }
 
-  /** 当前 provider（供 AgentService 判断是否真 LLM） */
-  get provider(): string {
-    return this.config.provider
-  }
-
   get isMock(): boolean {
     return this.config.provider === 'mock'
   }
@@ -185,7 +180,7 @@ export class LlmService {
     } else if (content.includes('转') && content.includes('钱')) {
       reply = `[mock] 转账请求已收到，请确认收款人与金额。该操作需要您二次确认。`
     } else if (content.includes('红包')) {
-      reply = `[mock] 红包功能已就绪，请使用 kbpay_send_red_packet 工具发起。`
+      reply = `[mock] 红包功能需在钱包端发起（Agent 未开放红包工具）。`
     } else if (content.includes('对账') || content.includes('reconcil')) {
       reply = `[mock] 对账任务已记录，正在分析差异。`
     } else if (content.includes('风控') || content.includes('risk')) {

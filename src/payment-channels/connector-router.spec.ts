@@ -82,11 +82,8 @@ describe('ConnectorRouter', () => {
   describe('route - 基础路由', () => {
     it('成功路由到最高优先级连接器', async () => {
       const requestFn = jest.fn().mockResolvedValue({ transactionId: 'tx_001' })
-      ;(primary.createPayment as jest.Mock).mockResolvedValue({ transactionId: 'tx_001' })
 
-      const result = await router.route('RECHARGE', { amount: 100 }, async (connector, config, req) => {
-        return connector.createPayment(req)
-      })
+      const result = await router.route('RECHARGE', { amount: 100 }, async (req) => requestFn())
 
       expect(result.connectorName).toBe('primary')
       expect(result.result).toEqual({ transactionId: 'tx_001' })
@@ -155,12 +152,12 @@ describe('ConnectorRouter', () => {
 
   describe('route - preferredName（精确路由）', () => {
     it('仅路由到指定连接器，不做跨渠道降级', async () => {
-      ;(fallback.createPayment as jest.Mock).mockResolvedValue({ transactionId: 'tx_fallback' })
+      const requestFn = jest.fn().mockResolvedValue({ transactionId: 'tx_fallback' })
 
       const result = await router.route(
         'RECHARGE',
         { amount: 100 },
-        async (connector, config, req) => connector.createPayment(req),
+        async (req) => requestFn(),
         undefined,
         { preferredName: 'fallback' },
       )
@@ -203,12 +200,15 @@ describe('ConnectorRouter', () => {
 
   describe('route - 降级', () => {
     it('主连接器失败后自动降级到备选', async () => {
-      ;(primary.createPayment as jest.Mock).mockRejectedValue(new Error('primary down'))
-      ;(fallback.createPayment as jest.Mock).mockResolvedValue({ transactionId: 'tx_fallback' })
+      // requestFn 同一闭包依次对候选连接器调用：首次（primary）失败，二次（fallback）成功
+      let callCount = 0
+      const requestFn = async () => {
+        callCount++
+        if (callCount === 1) throw new Error('primary down')
+        return { transactionId: 'tx_fallback' }
+      }
 
-      const result = await router.route('RECHARGE', { amount: 100 }, async (connector, config, req) => {
-        return connector.createPayment(req)
-      })
+      const result = await router.route('RECHARGE', { amount: 100 }, requestFn)
 
       expect(result.connectorName).toBe('fallback')
       expect(result.result).toEqual({ transactionId: 'tx_fallback' })
@@ -216,26 +216,23 @@ describe('ConnectorRouter', () => {
     })
 
     it('所有连接器都失败时抛错', async () => {
-      ;(primary.createPayment as jest.Mock).mockRejectedValue(new Error('primary down'))
-      ;(fallback.createPayment as jest.Mock).mockRejectedValue(new Error('fallback down'))
+      const requestFn = async () => {
+        throw new Error('channel down')
+      }
 
       await expect(
-        router.route('RECHARGE', { amount: 100 }, async (connector, config, req) => {
-          return connector.createPayment(req)
-        }),
+        router.route('RECHARGE', { amount: 100 }, requestFn),
       ).rejects.toThrow('All connectors failed for capability RECHARGE')
     })
 
     it('健康检查失败时跳过连接器', async () => {
       router.updateHealth('primary', false)
-      ;(fallback.createPayment as jest.Mock).mockResolvedValue({ transactionId: 'tx_fallback' })
+      const requestFn = jest.fn().mockResolvedValue({ transactionId: 'tx_fallback' })
 
-      const result = await router.route('RECHARGE', { amount: 100 }, async (connector, config, req) => {
-        return connector.createPayment(req)
-      })
+      const result = await router.route('RECHARGE', { amount: 100 }, async (req) => requestFn())
 
       expect(result.connectorName).toBe('fallback')
-      expect(primary.createPayment).not.toHaveBeenCalled()
+      expect(requestFn).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -259,17 +256,24 @@ describe('ConnectorRouter', () => {
     })
 
     it('重试耗尽后降级', async () => {
-      ;(primary.createPayment as jest.Mock).mockRejectedValue(new Error('persistent failure'))
-      ;(fallback.createPayment as jest.Mock).mockResolvedValue({ transactionId: 'tx_fallback' })
+      // 请求无幂等键：primary 1 次调用即失败（不重试）；fallback 候选第 2 次调用成功
+      let callCount = 0
+      const requestFn = async () => {
+        callCount++
+        if (callCount === 1) throw new Error('persistent failure')
+        return { transactionId: 'tx_fallback' }
+      }
 
       const result = await router.route(
         'RECHARGE',
         { amount: 100 },
-        async (connector, config, req) => connector.createPayment(req),
+        requestFn,
         { maxRetries: 1, baseDelayMs: 10, maxDelayMs: 50 },
       )
 
       expect(result.connectorName).toBe('fallback')
+      expect(result.result).toEqual({ transactionId: 'tx_fallback' })
+      expect(callCount).toBe(2)
     })
   })
 

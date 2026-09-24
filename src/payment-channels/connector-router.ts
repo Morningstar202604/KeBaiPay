@@ -59,14 +59,14 @@ export class ConnectorRouter {
    *
    * @param capability 所需能力
    * @param request 请求体
-   * @param requestFn 实际调用连接器的方法
+   * @param requestFn 实际调用连接器的方法（经闭包直连 Channel；Connector 业务方法已删除）
    * @param retryPolicy 重试策略（可选，默认 2 次重试）
    * @param options 路由选项（可选，如 preferredName 指定唯一连接器）
    */
   async route<P, R>(
     capability: ConnectorCapability,
     request: P,
-    requestFn: (connector: Connector<P, R>, config: ConnectorConfig, request: P) => Promise<R>,
+    requestFn: (request: P) => Promise<R>,
     retryPolicy: RetryPolicy = DEFAULT_RETRY_POLICY,
     options: RouteOptions = {},
   ): Promise<RouteResult<R>> {
@@ -156,7 +156,7 @@ export class ConnectorRouter {
     connector: Connector<P, R>,
     config: ConnectorConfig,
     request: P,
-    requestFn: (connector: Connector<P, R>, config: ConnectorConfig, request: P) => Promise<R>,
+    requestFn: (request: P) => Promise<R>,
     retryPolicy: RetryPolicy,
   ): Promise<R> {
     const { maxRetries, baseDelayMs, maxDelayMs } = retryPolicy
@@ -164,7 +164,7 @@ export class ConnectorRouter {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        return await requestFn(connector, config, request)
+        return await requestFn(request)
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
         if (attempt < maxRetries) {

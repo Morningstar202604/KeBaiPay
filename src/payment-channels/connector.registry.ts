@@ -86,15 +86,12 @@ export class ConnectorRegistry {
     const names = this.capabilityIndex.get(capability)
     if (!names || names.length === 0) return []
 
+    // 注册表只做存在性返回；健康/降级过滤由 ConnectorRouter.route 负责
+    // （此前此处计算 status 却恒 return true，是无效代码；includeDegraded 保留为接口兼容）
+    void includeDegraded
     return names
-      .map((n) => this.connectors.get(n)!)
-      .filter((c) => {
-        if (!c) return false
-        const cfg = c.getConfig()
-        const status = cfg.name // we infer status from getConfig — connectors report via health
-        // We always include registered connectors unless they explicitly opted out
-        return true
-      })
+      .map((n) => this.connectors.get(n))
+      .filter((c): c is Connector => c !== undefined)
   }
 
   /**

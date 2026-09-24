@@ -169,6 +169,7 @@ export const KBErrorCodes = {
   SUBSCRIPTION_PERIOD_INVALID: 'KB657',
   SUBSCRIPTION_AMOUNT_INVALID: 'KB658',
   SUBSCRIPTION_FIRST_CHARGE_FAILED: 'KB659',
+  SUBSCRIPTION_LIMIT_EXCEEDED: 'KB669',
 
   // 分账 Split
   SPLIT_ORDER_NOT_FOUND: 'KB660',
@@ -421,6 +422,7 @@ export const KBErrorMessages: Record<KBErrorCode, string> = {
   [KBErrorCodes.SUBSCRIPTION_PERIOD_INVALID]: '订阅周期参数无效',
   [KBErrorCodes.SUBSCRIPTION_AMOUNT_INVALID]: '订阅金额必须大于 0',
   [KBErrorCodes.SUBSCRIPTION_FIRST_CHARGE_FAILED]: '订阅首期扣款失败',
+  [KBErrorCodes.SUBSCRIPTION_LIMIT_EXCEEDED]: '订阅数量超过上限',
 
   [KBErrorCodes.SPLIT_ORDER_NOT_FOUND]: '分账订单不存在',
   [KBErrorCodes.SPLIT_SOURCE_ORDER_NOT_FOUND]: '源订单不存在或非已支付状态',

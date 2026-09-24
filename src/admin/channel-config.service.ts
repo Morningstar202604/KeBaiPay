@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../audit/audit-log.service'
 import { CryptoService } from '../crypto/crypto.service'
@@ -6,6 +6,7 @@ import { PaymentChannelRegistry } from '../payment-channels/payment-channel.regi
 import { ConnectorRegistry } from '../payment-channels/connector.registry'
 import { CHANNEL_CONNECTOR_NAME } from '../payment-channels/payment-channel.bridge'
 import { AdminCurrentUser as AdminCurrentUserType } from './admin-current-user.interface'
+import { kbError, KBErrorCodes } from '../common/error-codes'
 
 export interface AuditContext {
   admin: AdminCurrentUserType
@@ -173,6 +174,16 @@ export class ChannelConfigService {
 
   async deleteChannel(code: string, ctx: AuditContext) {
     await this.prisma.$transaction(async (tx) => {
+      // 在途单保护：渠道仍有未完结订单（PENDING/PAID）时禁止物理删除，
+      // 否则回调/退款/对账失去渠道归属（此前直接物理删除无任何检查）
+      const inflight = await tx.paymentOrder.count({
+        where: { channelCode: code, status: { in: ['PENDING', 'PAID'] } },
+      })
+      if (inflight > 0) {
+        throw new BadRequestException(
+          kbError(KBErrorCodes.NO_RECHARGE_CHANNEL, `渠道 ${code} 仍有 ${inflight} 笔在途订单，无法删除`),
+        )
+      }
       await tx.paymentChannelConfig.delete({ where: { code } })
       await this.auditLog.log(
         {

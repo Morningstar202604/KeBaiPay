@@ -155,7 +155,7 @@ export class SubscriptionsService {
       throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权操作该计划'))
     }
     if (plan.status === status) {
-      throw new BadRequestException(kbError(KBErrorCodes.ESCROW_STATUS_INVALID, '状态未变化'))
+      throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID, '状态未变化'))
     }
     return this.prisma.subscriptionPlan.update({
       where: { id: plan.id },
@@ -273,7 +273,7 @@ export class SubscriptionsService {
         })
         if (userSubCount >= MAX_SUBSCRIPTIONS_PER_USER) {
           throw new BadRequestException(
-            kbError(KBErrorCodes.BATCH_TRANSFER_TOO_MANY, '订阅数超过上限'),
+            kbError(KBErrorCodes.SUBSCRIPTION_LIMIT_EXCEEDED, '订阅数超过上限'),
           )
         }
 

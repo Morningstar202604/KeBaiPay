@@ -88,13 +88,6 @@ export class ReferralsService {
     )
   }
 
-  /** 通过邀请码查询邀请人 */
-  async findCodeByCode(code: string) {
-    return this.prisma.referralCode.findUnique({
-      where: { code: code.toUpperCase() },
-    })
-  }
-
   /** 查询我的邀请码（不存在返回 null） */
   async findMyCode(userId: string) {
     return this.prisma.referralCode.findUnique({ where: { userId } })
@@ -116,16 +109,6 @@ export class ReferralsService {
       throw new BadRequestException(kbError(KBErrorCodes.REFERRAL_CANNOT_SELF))
     }
 
-    // 邀请人单日邀请上限
-    if (MAX_REFERRALS_PER_USER > 0) {
-      const count = await this.prisma.referral.count({
-        where: { referrerId: referrerCode.userId },
-      })
-      if (count >= MAX_REFERRALS_PER_USER) {
-        throw new BadRequestException(kbError(KBErrorCodes.FORBIDDEN, '邀请人邀请数量已达上限'))
-      }
-    }
-
     return this.redis.withLock(buildLockKey('referral:bind', inviteeId),
       REDIS_LOCK_TTL_SECONDS,
       async () =>
@@ -136,6 +119,20 @@ export class ReferralsService {
           })
           if (existing) {
             throw new BadRequestException(kbError(KBErrorCodes.REFERRAL_ALREADY_BOUND))
+          }
+
+          // 邀请人上限：计数移入锁内事务（此前在锁外读判，并发可击穿上限）；
+          // 只统计有效关系（PENDING/COMPLETED），已取消的不占名额
+          if (MAX_REFERRALS_PER_USER > 0) {
+            const activeCount = await tx.referral.count({
+              where: {
+                referrerId: referrerCode.userId,
+                status: { in: [ReferralStatus.PENDING, ReferralStatus.COMPLETED] },
+              },
+            })
+            if (activeCount >= MAX_REFERRALS_PER_USER) {
+              throw new BadRequestException(kbError(KBErrorCodes.FORBIDDEN, '邀请人邀请数量已达上限'))
+            }
           }
 
           const referralNo = generateOrderNo('REF')

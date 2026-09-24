@@ -240,11 +240,22 @@ export class AgentAuthService {
     })
   }
 
-  /** 列出某个用户的授权 */
+  /** 列出某个用户的授权（select 白名单，不回吐 Agent appSecret） */
   async listMyAuthorizations(userId: string) {
     return this.prisma.agentAuthorization.findMany({
       where: { subjectId: userId, subjectType: 'user' },
-      include: { agent: true },
+      select: {
+        id: true,
+        agentId: true,
+        scopes: true,
+        maxAmount: true,
+        expiresAt: true,
+        revokedAt: true,
+        createdAt: true,
+        agent: {
+          select: { id: true, agentNo: true, name: true, description: true, scenario: true },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     })
   }

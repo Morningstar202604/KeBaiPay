@@ -29,7 +29,6 @@ import { ListWithdrawalsQueryDto } from './dto/list-withdrawals-query.dto'
 import { ListPaymentOrdersQueryDto } from './dto/list-payment-orders-query.dto'
 import { ListRiskEventsQueryDto } from './dto/list-risk-events-query.dto'
 import { ListLoginLogsQueryDto } from './dto/list-login-logs-query.dto'
-import { SetSystemConfigDto } from './dto/set-system-config.dto'
 import { UpdateRiskRuleDto } from './dto/update-risk-rule.dto'
 import { AuditMerchantDto } from './dto/audit-merchant.dto'
 import { HandleRiskEventDto } from './dto/handle-risk-event.dto'
@@ -164,8 +163,8 @@ export class AdminController {
   }
 
   @Post('merchants/:id/config')
-  @RequirePermissions('merchant:audit')
-  @ApiOperation({ summary: '修改商户配置', description: '修改费率、日限额等商户配置' })
+  @RequirePermissions('merchant:config')
+  @ApiOperation({ summary: '修改商户配置', description: '修改费率、日限额等商户配置（财务参数，仅财务/超管）' })
   @ApiResponse({ status: 200, description: '配置更新成功' })
   async updateMerchantConfig(
     @Param('id') id: string,
@@ -273,31 +272,6 @@ export class AdminController {
   @ApiResponse({ status: 200, description: '返回登录日志列表' })
   listLoginLogs(@Query() query: ListLoginLogsQueryDto) {
     return this.adminService.listLoginLogs(query)
-  }
-
-  @Get('system-configs')
-  @RequirePermissions('risk:config')
-  @ApiOperation({ summary: '获取系统配置' })
-  @ApiResponse({ status: 200, description: '返回系统配置列表' })
-  getSystemConfigs() {
-    return this.adminService.getSystemConfigs()
-  }
-
-  @Post('system-configs')
-  @RequirePermissions('admin:manage')
-  @ApiOperation({ summary: '设置系统配置', description: '系统配置含财务费率等敏感参数，仅超管可写（原 risk:config 权限过宽）' })
-  @ApiResponse({ status: 200, description: '配置设置成功' })
-  setSystemConfig(
-    @Body() dto: SetSystemConfigDto,
-    @AdminCurrentUser() admin: AdminCurrentUserType,
-    @Req() req: Request,
-  ) {
-    return this.adminService.setSystemConfig(
-      dto.key,
-      dto.value,
-      admin.sub,
-      this.extractAuditMeta(req),
-    )
   }
 
   @Get('risk-rules')

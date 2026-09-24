@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 import { LlmService } from './llm/llm.service'
 import { MessagesService } from '../messages/messages.service'
+import { AgentAuditLogService } from './agent-audit-log.service'
 import { AGENT_RESULT_PENDING_CONFIRM, AGENT_RESULT_EXPIRED } from '../common/constants'
 
 /**
@@ -12,6 +13,7 @@ import { AGENT_RESULT_PENDING_CONFIRM, AGENT_RESULT_EXPIRED } from '../common/co
  *  2. 每小时扫描 ReconciliationDifferenceItem PENDING 项，AI 生成处置建议
  *  3. 每 30 分钟扫描 RiskEvent REVIEW 状态，AI 生成处置建议
  *  4. 每 5 分钟将超时的 PENDING_CONFIRM 操作日志置为 EXPIRED（confirmOp 内亦有双保险校验）
+ *  5. 每日校验所有 Agent 操作审计哈希链（verifyChain 此前只写不验，防篡改形同虚设）
  *
  * 巡检任务本身也注册到 ScheduleHealthService，被自身监控（防止巡检自身失败无人发现）
  */
@@ -21,14 +23,16 @@ export class AgentSchedule {
   private static readonly TASK_HEALTH_CHECK = 'agent:health-check'
   private static readonly TASK_RISK_SCAN = 'agent:risk-scan'
   private static readonly TASK_CONFIRM_EXPIRE_SCAN = 'agent:confirm-expire-scan'
+  private static readonly TASK_VERIFY_CHAIN = 'agent:verify-chain'
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly scheduleHealth: ScheduleHealthService,
     private readonly llm: LlmService,
     private readonly messagesService: MessagesService,
+    private readonly agentAuditLog: AgentAuditLogService,
   ) {
-    // 注册三个巡检任务到健康监控
+    // 注册四个巡检任务到健康监控
     this.scheduleHealth.register(
       AgentSchedule.TASK_HEALTH_CHECK,
       CronExpression.EVERY_10_MINUTES,
@@ -44,6 +48,52 @@ export class AgentSchedule {
       CronExpression.EVERY_5_MINUTES,
       'AI 待确认操作超时过期扫描',
     )
+    this.scheduleHealth.register(
+      AgentSchedule.TASK_VERIFY_CHAIN,
+      '0 30 0 * * *',
+      '每日校验 Agent 操作审计哈希链',
+    )
+  }
+
+  /**
+   * 每日 0:30 校验全部 Agent 的审计哈希链。
+   * 发现断点时标记巡检失败并记录断点（后续可由运维介入处置）
+   */
+  @Cron('0 30 0 * * *')
+  async verifyAllChains() {
+    const start = Date.now()
+    this.scheduleHealth.reportStart(AgentSchedule.TASK_VERIFY_CHAIN)
+    try {
+      const agents = await this.prisma.agent.findMany({
+        select: { id: true, name: true },
+      })
+      const broken: string[] = []
+      for (const agent of agents) {
+        const breakPoint = await this.agentAuditLog.verifyChain(agent.id)
+        if (breakPoint) {
+          broken.push(`${agent.name}(${agent.id})@${breakPoint}`)
+        }
+      }
+      this.scheduleHealth.reportComplete(
+        AgentSchedule.TASK_VERIFY_CHAIN,
+        broken.length === 0,
+        Date.now() - start,
+        broken.length > 0 ? `审计链断点：${broken.join('、')}` : undefined,
+      )
+      if (broken.length > 0) {
+        this.logger.error(`Agent 审计哈希链校验失败：${broken.join('、')}`)
+      } else {
+        this.logger.log(`Agent 审计哈希链校验通过（${agents.length} 个 Agent）`)
+      }
+    } catch (err: unknown) {
+      this.scheduleHealth.reportComplete(
+        AgentSchedule.TASK_VERIFY_CHAIN,
+        false,
+        Date.now() - start,
+        err instanceof Error ? err.message : String(err),
+      )
+      this.logger.error(`Agent 审计链校验失败：${err instanceof Error ? err.message : String(err)}`)
+    }
   }
 
   /**
@@ -147,15 +197,10 @@ ${degraded.map((s) => `- ${s.name}：${s.lastError ?? '未知'}`).join('\n')}
         systemPrompt: '你是 KeBaiPay 平台运维 AI 助手，负责监控系统健康并生成告警报告。',
       })
 
-      // 推送给所有 SUPER_ADMIN
-      const admins = await this.prisma.adminUser.findMany({
-        where: { role: 'SUPER_ADMIN', status: 'ACTIVE' },
-        select: { id: true },
-      })
       // AdminUser 没有 userId，无法直接推送站内消息；记录到日志供运维查询
+      // （此前查出 SUPER_ADMIN 列表仅用于 length，冗余查询已删）
       this.logger.warn(
-        `AI 巡检发现 ${errorSchedules.length} 个错误任务，${degraded.length} 个降级任务，` +
-        `涉及管理员 ${admins.length} 名。报告：${result.content}`,
+        `AI 巡检发现 ${errorSchedules.length} 个错误任务，${degraded.length} 个降级任务。报告：${result.content}`,
       )
       this.scheduleHealth.reportComplete(AgentSchedule.TASK_HEALTH_CHECK, true, Date.now() - start)
     } catch (err: unknown) {

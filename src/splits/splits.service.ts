@@ -583,7 +583,11 @@ export class SplitsService {
     return { items, total, page, limit }
   }
 
-  /** 取消分账订单（仅 PENDING 状态可取消） */
+  /**
+   * 取消分账订单（PENDING / 未开始入账的 PROCESSING 可取消）。
+   * createSplit 同事务已将订单 PENDING→PROCESSING，原实现仅接受 PENDING，
+   * cancel 实际永远不可达；PROCESSING 且已存在 SUCCESS 明细时不可取消（资金已分账）
+   */
   async cancel(senderId: string, splitNo: string) {
     return this.prisma.$transaction(async (tx) => {
       const split = await tx.splitOrder.findUnique({
@@ -593,11 +597,23 @@ export class SplitsService {
       if (split.senderId !== senderId) {
         throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权操作该分账订单'))
       }
-      if (split.status !== SplitStatus.PENDING) {
+      if (split.status !== SplitStatus.PENDING && split.status !== SplitStatus.PROCESSING) {
         throw new BadRequestException(kbError(KBErrorCodes.SPLIT_STATUS_INVALID))
       }
+      // PROCESSING 时若有明细已入账（SUCCESS），不允许取消——资金已流转
+      if (split.status === SplitStatus.PROCESSING) {
+        const successCount = await tx.splitItem.count({
+          where: { splitId: split.id, status: SplitItemStatus.SUCCESS },
+        })
+        if (successCount > 0) {
+          throw new BadRequestException(kbError(KBErrorCodes.SPLIT_STATUS_INVALID, '分账已开始执行，无法取消'))
+        }
+      }
       const lockResult = await tx.splitOrder.updateMany({
-        where: { id: split.id, status: SplitStatus.PENDING },
+        where: {
+          id: split.id,
+          status: { in: [SplitStatus.PENDING, SplitStatus.PROCESSING] },
+        },
         data: {
           status: SplitStatus.CANCELLED,
           cancelledAt: new Date(),
@@ -608,5 +624,21 @@ export class SplitsService {
       }
       return tx.splitOrder.findUnique({ where: { id: split.id } })
     })
+  }
+
+  /**
+   * 收尾兜底：PROCESSING 且已无 PENDING 明细的订单（明细已全部处理但进程未收尾）
+   * 直接执行 finalize 标记 COMPLETED——供崩溃恢复调度对"无待处理项"的卡死订单补收尾
+   */
+  async finalizeIfNoPending(splitId: string): Promise<boolean> {
+    const split = await this.prisma.splitOrder.findUnique({
+      where: { id: splitId },
+      include: { items: { select: { status: true } } },
+    })
+    if (!split || split.status !== SplitStatus.PROCESSING) return false
+    const hasPending = split.items.some((i) => i.status === SplitItemStatus.PENDING)
+    if (hasPending) return false
+    await this.finalizeSplit(split.id)
+    return true
   }
 }

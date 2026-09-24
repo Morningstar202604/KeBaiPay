@@ -6,8 +6,3 @@
 export function fmt(v?: string | null): string {
   return v ? v.replace('T', ' ').slice(0, 19) : '-'
 }
-
-/** 分 → '¥x.xx' 元字符串 */
-export function fenToYuanDisplay(fen?: number | null): string {
-  return `¥${((fen ?? 0) / 100).toFixed(2)}`
-}

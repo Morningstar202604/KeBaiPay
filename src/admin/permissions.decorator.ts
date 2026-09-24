@@ -9,6 +9,7 @@ export type Permission =
   | 'finance:view'
   | 'identity:audit'
   | 'merchant:audit'
+  | 'merchant:config'
   | 'user:status'
   | 'risk:config'
   | 'risk:event:handle'
@@ -35,6 +36,8 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Permission[] | '*'> = {
     'reconciliation:run',
     'reconciliation:diff:handle',
     'finance:view',
+    // 商户费率/日限额属财务参数，仅财务可改；客服的 merchant:audit 只管入驻审核
+    'merchant:config',
     'admin:view',
   ],
   CUSTOMER_SERVICE: ['identity:audit', 'merchant:audit', 'user:status', 'admin:view'],

@@ -64,28 +64,6 @@ export interface Connector<P = any, R = any> {
   getConfig(): ConnectorConfig
   setConfig(config: Partial<ConnectorConfig>): void
 
-  /** 创建支付（RECHARGE 能力） */
-  createPayment(request: P): Promise<R & { connectorOrderId: string }>
-
-  /** 查询支付状态 */
-  queryPayment(connectorOrderId: string): Promise<R>
-
-  /** 退款（REFUND 能力） */
-  refundPayment(
-    connectorOrderId: string,
-    amount: number,
-    reason?: string,
-  ): Promise<any>
-
-  /** 验证 Webhook 签名 */
-  verifyWebhook(payload: string, headers: Record<string, string>): boolean
-
-  /** 解析 Webhook 事件 */
-  parseWebhookEvent(
-    payload: string,
-    headers: Record<string, string>,
-  ): { event: string; data: any }
-
   /** 健康检查 */
   healthCheck(): Promise<ConnectorHealth>
 }

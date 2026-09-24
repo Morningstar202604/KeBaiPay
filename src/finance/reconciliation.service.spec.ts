@@ -188,6 +188,45 @@ describe('ReconciliationService', () => {
       expect(result.status).toBe(ReconciliationStatus.SUCCESS)
     })
 
+    it('存在 REFUND 交易时期望资产变动扣减退款，避免差异告警', async () => {
+      // 场景：充值 10000，其中 3000 的退款单已入账（totalRefund=3000）
+      // expectedAssetsChange = 10000 - 0 - 0 + 0 - 3000 = 7000
+      prisma.accountLedger.groupBy.mockImplementation((args: GroupByArgs) => {
+        if (args.where?.type === LedgerType.ADJUSTMENT) {
+          return Promise.resolve([
+            { direction: 'DEBIT', _sum: { amount: 0 } },
+            { direction: 'CREDIT', _sum: { amount: 0 } },
+          ])
+        }
+        return Promise.resolve([
+          { direction: 'DEBIT', _sum: { amount: 7000 } },
+          { direction: 'CREDIT', _sum: { amount: 0 } },
+        ])
+      })
+      prisma.account.aggregate.mockResolvedValue({ _sum: { totalBalance: 107000 } })
+      // txOrders 含一笔 REFUND 3000：此前用例恒 []，退款扣减从未被断言
+      prisma.transactionOrder.findMany.mockResolvedValue([
+        { id: 'tx-refund', orderNo: 'T1', type: 'REFUND', amount: 3000 },
+      ])
+      // 该退款单已有对应账本记录，避免 missing_ledger 差异
+      prisma.accountLedger.findMany.mockResolvedValue([{ transactionId: 'tx-refund' }])
+      prisma.transactionOrder.aggregate.mockResolvedValue({ _sum: { amount: 10000 } })
+      prisma.paymentOrder.aggregate.mockResolvedValue({ _sum: { fee: 0, amount: 0 } })
+      prisma.withdrawalOrder.aggregate.mockResolvedValue({ _sum: { amount: 0, fee: 0 } })
+      prisma.dailySnapshot.findUnique.mockResolvedValue({ totalAssets: 100000 })
+      prisma.reconciliationReport.upsert.mockImplementation((args: unknown) => {
+        const query = args as { create: Record<string, unknown> }
+        return Promise.resolve({ ...query.create, id: 'r1' })
+      })
+
+      const result = await service.runReconciliation('2024-01-04')
+
+      expect(result.summary.totalRefund).toBe(3000)
+      expect(result.summary.expectedAssetsChange).toBe(7000)
+      expect(result.summary.actualAssetsChange).toBe(7000)
+      expect(result.status).toBe(ReconciliationStatus.SUCCESS)
+    })
+
     it('快照补生成失败时标记为 SNAPSHOT_MISSING', async () => {
       prisma.accountLedger.groupBy.mockResolvedValue([
         { direction: 'DEBIT', _sum: { amount: 0 } },

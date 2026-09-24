@@ -43,9 +43,22 @@ describe('common/helpers 边界值测试', () => {
       // 经典 IEEE 754 浮点精度问题：0.1 + 0.2 不精确等于 0.3
       expect(0.1 + 0.2).not.toBe(0.3)
       expect(0.1 + 0.2).toBe(0.30000000000000004)
-      // yuanToFen 通过 toFixed(2) 规避精度问题，应得到 30 分
+      // yuanToFen 通过 Math.round 规避精度问题，应得到 30 分（实现已从 toFixed 改为 Math.round）
       expect(yuanToFen(0.1 + 0.2)).toBe(30)
       expect(yuanToFen(0.3)).toBe(30)
+    })
+
+    it('真实三位小数（10.123）拒绝，不静默截断', () => {
+      expect(() => yuanToFen(10.123)).toThrow('金额最多支持两位小数')
+    })
+
+    it('0.005 拒绝（round 会进位成 1 分，属于超两位小数输入）', () => {
+      expect(() => yuanToFen(0.005)).toThrow('金额最多支持两位小数')
+    })
+
+    it('两位小数的浮点表示误差不误拒（0.29 元 → 29 分）', () => {
+      expect(yuanToFen(0.29)).toBe(29)
+      expect(yuanToFen(0.99)).toBe(99)
     })
 
     it('其他浮点精度边界值', () => {

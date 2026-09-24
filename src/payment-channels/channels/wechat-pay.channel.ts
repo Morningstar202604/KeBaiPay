@@ -212,7 +212,9 @@ export class WechatPayChannel implements PaymentChannel {
         payParams.nonce_str = nonceStr
         payParams.package = `prepay_id=${prepayId}`
         payParams.signType = 'RSA2'
-        payParams.paySign = pay.sha256WithRsa(`${appid}\n${timestamp}\n${nonceStr}\nprepay_id=${prepayId}\n`)
+        // 优先使用 SDK 返回的 paySign（微信侧签发，参数一致时权威），缺失时才按 V3 规则兜底自算
+        payParams.paySign = (data.paySign as string) ||
+          pay.sha256WithRsa(`${appid}\n${timestamp}\n${nonceStr}\nprepay_id=${prepayId}\n`)
         break
       }
       case 'h5':

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { businessDayKey } from '../common/date-helpers'
 import {
   Injectable,
@@ -179,7 +180,10 @@ export class RedPacketsService {
           totalCount,
           remainingCount: totalCount,
           perAmount: perAmountFen,
-          password: dto.password,
+          // 口令只存 SHA-256 摘要，不存明文——DB 读取者无法直接拿到口令
+          password: dto.password
+            ? createHash('sha256').update(dto.password).digest('hex')
+            : null,
           designatedReceiverId: dto.designatedReceiverId,
           receivedAmount: 0,
         },
@@ -299,7 +303,8 @@ export class RedPacketsService {
       })
       if (!packet) throw new NotFoundException(kbError(KBErrorCodes.RED_PACKET_NOT_FOUND))
 
-      // 幂等返回：当前用户已领取过该红包
+      // 幂等返回：当前用户已领取过该红包。
+      // 返回与正常领取一致的富对象形状（此前直接回吐裸 record，形状不一致）
       const existingRecord = await tx.redPacketRecord.findFirst({
         where: {
           redPacketId: packet.id,
@@ -307,7 +312,16 @@ export class RedPacketsService {
           type: RedPacketRecordType.RECEIVE,
         },
       })
-      if (existingRecord) return existingRecord
+      if (existingRecord) {
+        return {
+          packetNo: packet.packetNo,
+          amount: existingRecord.amount,
+          type: packet.type,
+          remainingCount: packet.remainingCount,
+          receivedAmount: packet.receivedAmount,
+          status: packet.status,
+        }
+      }
 
       // 校验红包状态
       if (
@@ -335,12 +349,13 @@ export class RedPacketsService {
         }
       }
 
-      // PASSWORD：校验口令
+      // PASSWORD：校验口令（库中存 SHA-256 摘要，比对摘要而非明文）
       if (type === RedPacketType.PASSWORD) {
         if (!options.password) {
           throw new BadRequestException(kbError(KBErrorCodes.RED_PACKET_PASSWORD_REQUIRED))
         }
-        if (packet.password !== options.password) {
+        const digest = createHash('sha256').update(options.password).digest('hex')
+        if (packet.password !== digest) {
           throw new BadRequestException(kbError(KBErrorCodes.RED_PACKET_PASSWORD_INCORRECT))
         }
       }
@@ -598,11 +613,13 @@ export class RedPacketsService {
   }
 
   async findSent(userId: string) {
-    return this.prisma.redPacket.findMany({
+    const packets = await this.prisma.redPacket.findMany({
       where: { senderId: userId },
       orderBy: { createdAt: 'desc' },
       include: { records: true },
     })
+    // 不回吐口令摘要字段（已存哈希，仍无必要展示）
+    return packets.map(({ password: _password, ...rest }) => rest)
   }
 
   async findReceived(userId: string) {

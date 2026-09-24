@@ -3,25 +3,37 @@ import { Cron } from '@nestjs/schedule'
 import { RiskEventType, RiskLevel } from '../common/enums'
 import { AuditLogService } from './audit-log.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { ScheduleHealthService } from '../common/schedule-health.service'
 
 /**
  * 审计链定时校验任务
  *
  * 每天凌晨 3 点全量校验审计日志哈希链完整性；
  * 发现异常时创建 RiskEvent 告警，便于运维及时介入。
+ * 任务本身注册到 ScheduleHealthService 自监控（此前未注册，失败无人告警）。
  */
 @Injectable()
 export class AuditSchedule {
+  private static readonly TASK_VERIFY_CHAIN = 'audit:verify-chain'
   private readonly logger = new Logger(AuditSchedule.name)
 
   constructor(
     private readonly auditLogService: AuditLogService,
     private readonly prisma: PrismaService,
-  ) {}
+    private readonly scheduleHealth: ScheduleHealthService,
+  ) {
+    this.scheduleHealth.register(
+      AuditSchedule.TASK_VERIFY_CHAIN,
+      '0 3 * * *',
+      '审计日志哈希链完整性校验',
+    )
+  }
 
   // 每天凌晨 3 点执行审计链校验
   @Cron('0 3 * * *')
   async verifyChain() {
+    const started = Date.now()
+    this.scheduleHealth.reportStart(AuditSchedule.TASK_VERIFY_CHAIN)
     try {
       const brokenId = await this.auditLogService.verifyChain()
       if (brokenId) {
@@ -29,12 +41,19 @@ export class AuditSchedule {
           `审计链校验发现异常，首条异常日志 id：${brokenId}`,
         )
         await this.createAuditAlert(brokenId)
+        this.scheduleHealth.reportComplete(
+          AuditSchedule.TASK_VERIFY_CHAIN, false, Date.now() - started, `审计链断点 ${brokenId}`,
+        )
       } else {
         this.logger.log('审计链校验通过，无异常')
+        this.scheduleHealth.reportComplete(AuditSchedule.TASK_VERIFY_CHAIN, true, Date.now() - started)
       }
     } catch (err) {
       this.logger.error(
         `审计链校验执行失败：${err instanceof Error ? err.message : String(err)}`,
+      )
+      this.scheduleHealth.reportComplete(
+        AuditSchedule.TASK_VERIFY_CHAIN, false, Date.now() - started, err instanceof Error ? err.message : String(err),
       )
       throw err
     }

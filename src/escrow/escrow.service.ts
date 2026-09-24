@@ -185,14 +185,9 @@ export class EscrowService {
             throw new BadRequestException(kbError(KBErrorCodes.ESCROW_STATUS_INVALID))
           }
           if (order.expiredAt && order.expiredAt < new Date()) {
-            // 标记为 EXPIRED，前端看到的状态更明确
-            await tx.escrowOrder.update({
-              where: { id: order.id },
-              data: {
-                status: EscrowStatus.EXPIRED,
-                cancelledAt: new Date(),
-              },
-            })
+            // 过期订单：直接拒绝。此处不再事务内 update EXPIRED——
+            // 紧跟 throw 会导致事务回滚，update 永不生效（死写），
+            // 状态翻转统一由 cron 过期任务处理
             throw new BadRequestException(kbError(KBErrorCodes.ESCROW_EXPIRED))
           }
 

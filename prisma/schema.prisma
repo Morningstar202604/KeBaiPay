@@ -367,14 +367,16 @@ model PaymentOrder {
 }
 
 model AdminUser {
-  id        String   @id @default(uuid())
-  username  String   @unique
-  password  String
-  nickname  String?
-  role      String   @default("SUPER_ADMIN")
-  status    String   @default("ACTIVE")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(uuid())
+  username     String   @unique
+  password     String
+  nickname     String?
+  role         String   @default("SUPER_ADMIN")
+  status       String   @default("ACTIVE")
+  // 改密后自增：旧 JWT 携带的 tokenVersion 与 DB 不一致即失效
+  tokenVersion Int      @default(0) @map("token_version")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("admin_users")
 }

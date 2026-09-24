@@ -32,6 +32,7 @@ export interface ReconciliationSummary {
   actualAssetsChange: number
   expectedAssetsChange: number
   adjustmentNet: number
+  totalRefund: number
   totalAssetsYuan: string
   totalRechargeYuan: string
   totalWithdrawalYuan: string
@@ -131,6 +132,15 @@ export class ReconciliationService {
     const totalFee = totalPaymentFee + totalWithdrawalFee
     const transactionCount = txOrders.length
 
+    // 退款 -：商户余额扣回退款额、等额资金由渠道原路退回付款方（平台外流出），
+    // 此前公式漏计退款导致每笔退款必然触发 assets_balance 差异告警。
+    // 退款总额直接从已取回的 txOrders 过滤（select 已含 type/amount）
+    // 注意：totalWithdrawal 为提现总额（含手续费），approve 已从 totalBalance 扣除全额，
+    // 因此不应再单独减去 totalWithdrawalFee，否则会重复扣减手续费
+    const totalRefund = txOrders
+      .filter((o) => o.type === TransactionType.REFUND)
+      .reduce((s, o) => s + o.amount, 0)
+
     // 管理员调账净额：DEBIT（加款）增加平台总资产，CREDIT（扣款）减少平台总资产
     const adjustmentDebit =
       adjustmentGroups.find((g) => g.direction === Direction.DEBIT)?._sum
@@ -222,6 +232,7 @@ export class ReconciliationService {
           actualAssetsChange: totalAssets,
           expectedAssetsChange: 0,
           adjustmentNet,
+          totalRefund,
           totalAssetsYuan: fenToYuan(totalAssets),
           totalRechargeYuan: fenToYuan(totalRecharge),
           totalWithdrawalYuan: fenToYuan(totalWithdrawal),
@@ -243,13 +254,7 @@ export class ReconciliationService {
     // 管理员调账 +adjustmentNet（加款增加、扣款减少总资产）
     // 转账、红包、支付在用户/商户账户间流转，净影响为 0
     // 退款 -：商户余额扣回退款额、等额资金由渠道原路退回付款方（平台外流出），
-    // 此前公式漏计退款导致每笔退款必然触发 assets_balance 差异告警。
-    // 退款总额直接从已取回的 txOrders 过滤（select 已含 type/amount）
-    // 注意：totalWithdrawal 为提现总额（含手续费），approve 已从 totalBalance 扣除全额，
-    // 因此不应再单独减去 totalWithdrawalFee，否则会重复扣减手续费
-    const totalRefund = txOrders
-      .filter((o) => o.type === TransactionType.REFUND)
-      .reduce((s, o) => s + o.amount, 0)
+    // totalRefund 已在函数前部统一计算（见上）
     const expectedAssetsChange =
       totalRecharge - totalWithdrawal - totalPaymentFee + adjustmentNet - totalRefund
 
@@ -312,6 +317,7 @@ export class ReconciliationService {
       actualAssetsChange,
       expectedAssetsChange,
       adjustmentNet,
+      totalRefund,
       totalAssetsYuan: fenToYuan(totalAssets),
       totalRechargeYuan: fenToYuan(totalRecharge),
       totalWithdrawalYuan: fenToYuan(totalWithdrawal),

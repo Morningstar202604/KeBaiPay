@@ -32,6 +32,10 @@ describe('ChannelConfigController', () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    paymentOrder: {
+      // 删除渠道前的在途单保护查询
+      count: jest.fn().mockResolvedValue(0),
+    },
   }
   const mockAuditLog = {
     log: jest.fn().mockResolvedValue(undefined),

@@ -4,6 +4,14 @@ import { ServeStaticModule } from '@nestjs/serve-static'
 import { ScheduleModule } from '@nestjs/schedule'
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'
 import { APP_GUARD } from '@nestjs/core'
+import {
+  AUTH_THROTTLE_LIMIT,
+  AUTH_THROTTLE_TTL_MS,
+  OPEN_API_THROTTLE_LIMIT,
+  OPEN_API_THROTTLE_TTL_MS,
+  GLOBAL_THROTTLE_LIMIT,
+  GLOBAL_THROTTLE_TTL_MS,
+} from './common/constants'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { AuthModule } from './auth/auth.module'
@@ -95,18 +103,18 @@ function spaStaticModules() {
     ThrottlerModule.forRoot([
       {
         name: 'default',
-        ttl: 60000,
-        limit: 100,
+        ttl: GLOBAL_THROTTLE_TTL_MS,
+        limit: GLOBAL_THROTTLE_LIMIT,
       },
       {
         name: 'auth',
-        ttl: 60000,
-        limit: 10,
+        ttl: AUTH_THROTTLE_TTL_MS,
+        limit: AUTH_THROTTLE_LIMIT,
       },
       {
         name: 'open-api',
-        ttl: 60000,
-        limit: 30,
+        ttl: OPEN_API_THROTTLE_TTL_MS,
+        limit: OPEN_API_THROTTLE_LIMIT,
       },
     ]),
     ...spaStaticModules(),

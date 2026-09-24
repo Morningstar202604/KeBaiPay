@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { Cron, CronExpression } from '@nestjs/schedule'
 import { ConnectorRegistry } from './connector.registry'
 import { ConnectorRouter } from './connector-router'
@@ -26,7 +26,7 @@ interface HealthRecord {
  * - 更新健康状态到路由器缓存
  */
 @Injectable()
-export class ConnectorHealthService implements OnModuleDestroy {
+export class ConnectorHealthService {
   private readonly logger = new Logger(ConnectorHealthService.name)
   private readonly records = new Map<string, HealthRecord>()
 
@@ -164,11 +164,6 @@ export class ConnectorHealthService implements OnModuleDestroy {
     if (isHealthy && existing && !existing.healthy) {
       this.logger.log(`连接器 ${name} 已恢复 ACTIVE`)
     }
-  }
-
-  onModuleDestroy(): void {
-    // ScheduleModule manages cron lifecycle; this method ensures
-    // the interface contract is honored so Jest can detect no open handles
   }
 
   private sleep(ms: number): Promise<void> {

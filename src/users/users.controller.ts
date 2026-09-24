@@ -68,7 +68,7 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Post('reset-pay-password')
-  @ApiOperation({ summary: '重置支付密码', description: '验证旧支付密码后设置新密码' })
+  @ApiOperation({ summary: '重置支付密码', description: '实名信息核验通过后设置新支付密码' })
   @ApiResponse({ status: 200, description: '重置成功' })
   @ApiResponse({ status: 400, description: 'KB208 支付密码错误' })
   resetPayPassword(@CurrentUser() user: Pick<User, 'id'>, @Body() dto: ResetPayPasswordDto) {

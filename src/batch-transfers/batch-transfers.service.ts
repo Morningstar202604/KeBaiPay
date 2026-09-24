@@ -340,6 +340,8 @@ export class BatchTransfersService {
                   status: TransactionStatus.SUCCESS,
                   amount: failedTotalAmount,
                   fromUserId: senderId,
+                  // 确定性幂等键，与 resumeProcessing 收尾退款统一；崩溃恢复重放时不会重复退款
+                  idempotencyKey: `BT-REFUND:${batch!.batchNo}`,
                   remark: `批次 ${batch!.batchNo} 失败笔数退款`,
                   completedAt: new Date(),
                 },

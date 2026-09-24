@@ -84,10 +84,22 @@ export class CouponsService {
     })
   }
 
-  /** 查询优惠券详情 */
+  /** 查询优惠券详情（任意登录用户可查；只回吐公开字段，不暴露 ownerId/issuedCount 等内部信息） */
   async findByCouponNo(couponNo: string) {
     const coupon = await this.prisma.coupon.findUnique({
       where: { couponNo },
+      select: {
+        couponNo: true,
+        name: true,
+        type: true,
+        value: true,
+        minAmount: true,
+        totalQuota: true,
+        perUserLimit: true,
+        status: true,
+        expiresAt: true,
+        createdAt: true,
+      },
     })
     if (!coupon) throw new NotFoundException(kbError(KBErrorCodes.COUPON_NOT_FOUND))
     return coupon

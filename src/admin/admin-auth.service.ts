@@ -52,7 +52,7 @@ export class AdminAuthService {
     if (failCount >= ADMIN_LOGIN_MAX_FAILS) {
       this.logger.warn(`管理员登录被锁定: ${username}`)
       await this.prisma.loginLog.create({
-        data: { userId: null, ip, userAgent, success: false, reason: 'ADMIN:账号已锁定' },
+        data: { userId: null, ip, userAgent, success: false, reason: `ADMIN:账号已锁定(${username})` },
       })
       throw new UnauthorizedException(
         kbError(KBErrorCodes.INVALID_CREDENTIALS, '登录失败次数过多，请 15 分钟后再试'),
@@ -65,7 +65,7 @@ export class AdminAuthService {
     if (!admin) {
       await this.recordFailure(lockKey)
       await this.prisma.loginLog.create({
-        data: { userId: null, ip, userAgent, success: false, reason: 'ADMIN:账号不存在' },
+        data: { userId: null, ip, userAgent, success: false, reason: `ADMIN:账号不存在(${username})` },
       })
       throw new UnauthorizedException(kbError(KBErrorCodes.INVALID_CREDENTIALS))
     }
@@ -73,7 +73,7 @@ export class AdminAuthService {
     if (!ok) {
       await this.recordFailure(lockKey)
       await this.prisma.loginLog.create({
-        data: { userId: null, ip, userAgent, success: false, reason: 'ADMIN:密码错误' },
+        data: { userId: null, ip, userAgent, success: false, reason: `ADMIN:密码错误(${username})` },
       })
       throw new UnauthorizedException(kbError(KBErrorCodes.INVALID_CREDENTIALS))
     }
@@ -81,9 +81,14 @@ export class AdminAuthService {
     // 登录成功：清除失败计数
     await this.clearFailCount(lockKey)
     await this.prisma.loginLog.create({
-      data: { userId: null, ip, userAgent, success: true, reason: 'ADMIN' },
+      data: { userId: null, ip, userAgent, success: true, reason: `ADMIN:登录成功(${admin.username})` },
     })
-    const token = this.jwtService.sign({ sub: admin.id, role: admin.role, typ: JWT_TOKEN_TYPE_ADMIN })
+    const token = this.jwtService.sign({
+      sub: admin.id,
+      role: admin.role,
+      typ: JWT_TOKEN_TYPE_ADMIN,
+      tokenVersion: admin.tokenVersion,
+    })
     return { adminId: admin.id, token }
   }
 

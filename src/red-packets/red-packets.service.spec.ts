@@ -308,11 +308,17 @@ describe('RedPacketsService', () => {
       await expect(env.service.receive('r1', 'RP202609140001', { password: '0000' })).rejects.toThrow(BadRequestException)
     })
 
-    it('重复领取同一红包 -> 幂等返回上次记录', async () => {
+    it('重复领取同一红包 -> 幂等返回与正常领取一致的富对象形状', async () => {
       const env = buildReceiveEnv(buildPacket())
       env.tx.redPacketRecord.findFirst.mockResolvedValue({ id: 'rec-old', amount: 50 })
       const result = await env.service.receive('r1', 'RP202609140001')
-      expect(result).toMatchObject({ id: 'rec-old' })
+      // 幂等路径返回统一富对象（packetNo/amount/type/状态），不再回吐裸 record
+      expect(result).toMatchObject({
+        packetNo: 'RP202609140001',
+        amount: 50,
+        type: 'LUCKY',
+      })
+      expect(result).not.toHaveProperty('id')
       // 不应再走扣减
       expect(env.tx.redPacket.updateMany).not.toHaveBeenCalled()
     })

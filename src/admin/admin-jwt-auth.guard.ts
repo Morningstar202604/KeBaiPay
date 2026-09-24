@@ -59,6 +59,10 @@ export class AdminJwtAuthGuard implements CanActivate {
     if (admin.status !== 'ACTIVE') {
       throw new UnauthorizedException(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '管理员已禁用'))
     }
+    // 改密后 tokenVersion 自增：旧 JWT 携带的版本落后于 DB，直接拒绝（踢下线）
+    if (payload.tokenVersion !== admin.tokenVersion) {
+      throw new UnauthorizedException(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '管理员密码已变更，请重新登录'))
+    }
 
     // H1-Sec: 使用 DB 中的最新 role 而非 JWT 中的 role，防止降权后权限残留
     request.user = { ...payload, role: admin.role }

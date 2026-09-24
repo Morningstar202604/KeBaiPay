@@ -246,6 +246,12 @@ export class AlipayChannel implements PaymentChannel {
     const tradeStatus = params.trade_status
     const status = tradeStatus === 'TRADE_SUCCESS' || tradeStatus === 'TRADE_FINISHED' ? 'SUCCESS' : 'FAILED'
 
+    // TRADE_SUCCESS/TRADE_FINISHED 时支付宝必回 trade_no；缺失说明回调异常，
+    // 静默回退我方订单号会让对账/退款取错渠道单号（此前静默回退）
+    if (status === 'SUCCESS' && !params.trade_no) {
+      throw new Error(kbError(KBErrorCodes.CALLBACK_CHANNEL_MISMATCH, '支付宝成功回调缺少 trade_no'))
+    }
+
     const totalAmount = parseFloat(params.total_amount || '0')
     const amountFen = Math.round(totalAmount * 100)
 
@@ -289,7 +295,8 @@ export class AlipayChannel implements PaymentChannel {
             out_request_no: params.refundNo,
           },
         },
-        { validateSign: false },
+        // 退款直接动资金，开启响应验签（回调链路已要求公钥，此处必然已配置）
+        { validateSign: true },
       )
 
       if (result.code !== '10000') {
@@ -347,7 +354,8 @@ export class AlipayChannel implements PaymentChannel {
       const result = await sdk.exec(
         'alipay.trade.fastpay.refund.query',
         { bizContent: { trade_no: tradeNo, out_request_no: outRequestNo } },
-        { validateSign: false },
+        // 退款结果查询影响对账/状态机，开启验签
+        { validateSign: true },
       )
 
       if (result.code !== '10000') {
@@ -403,8 +411,10 @@ export class AlipayChannel implements PaymentChannel {
       throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '支付宝退款回调签名验证失败'))
     }
 
-    const totalAmount = parseFloat(params.total_amount || '0')
-    const amountFen = Math.round(totalAmount * 100)
+    // 支付宝退款异步通知：退款金额字段为 refund_amount（新版）/ refund_fee（旧版兼容）。
+    // 此前误读 total_amount（原订单额），部分退款时回调金额恒为全额，对账错乱
+    const refundAmountStr = params.refund_amount || params.refund_fee || '0'
+    const amountFen = Math.round(parseFloat(refundAmountStr) * 100)
 
     return {
       channelRefundNo: params.trade_no || '',

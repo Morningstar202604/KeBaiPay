@@ -49,6 +49,9 @@ export class AgentAuthController {
   @Post('authorize')
   @ApiOperation({ summary: '用户授权 Agent 代为操作' })
   async authorize(@Req() req: any, @Body() dto: AuthorizeAgentDto) {
+    // 当前仅开放 C 端 user 主体授权（AgentUserAuthGuard 按 userId 鉴权）；
+    // merchant 主体授权尚无入口，底层 AgentService 已支持 subjectType 扩展，
+    // 待 B 端店长助理场景接入时再增加 merchant 路由
     return this.agentAuthService.authorize({
       agentId: dto.agentId,
       subjectType: 'user',

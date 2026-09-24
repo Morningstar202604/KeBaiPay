@@ -7,7 +7,6 @@ import {
   ConnectorStatus,
 } from '../connector.interface'
 import { WechatPayChannel } from '../channels/wechat-pay.channel'
-import { RechargeRequest, ChannelConfig } from '../payment-channel.interface'
 
 /**
  * 微信支付 Connector 适配器
@@ -48,60 +47,6 @@ export class WechatPayConnector implements Connector {
 
   setConfig(config: Partial<ConnectorConfig>): void {
     this.config = { ...this.config, ...config }
-  }
-
-  async createPayment(request: RechargeRequest): Promise<any & { connectorOrderId: string }> {
-    const response = await this.channel.createRecharge(request)
-    return {
-      ...response,
-      connectorOrderId: response.channelOrderNo,
-    }
-  }
-
-  async queryPayment(connectorOrderId: string): Promise<any> {
-    const response = await this.channel.queryOrder(connectorOrderId, {})
-    return {
-      ...response,
-      connectorOrderId: response.channelOrderNo,
-    }
-  }
-
-  async refundPayment(
-    connectorOrderId: string,
-    amount: number,
-    reason?: string,
-  ): Promise<any> {
-    const response = await this.channel.refund({
-      orderNo: '',
-      refundNo: '',
-      amount,
-      reason,
-      channelConfig: {} as ChannelConfig,
-      channelOrderNo: connectorOrderId,
-    })
-    return {
-      ...response,
-      connectorOrderId: response.channelRefundNo,
-    }
-  }
-
-  verifyWebhook(payload: string, headers: Record<string, string>): boolean {
-    try {
-      return this.channel.verifyWebhookSignature(payload, headers, {})
-    } catch {
-      return false
-    }
-  }
-
-  parseWebhookEvent(
-    payload: string,
-    headers: Record<string, string>,
-  ): { event: string; data: any } {
-    const result = this.channel.parseRechargeCallback(payload, headers, {})
-    return {
-      event: result.status === 'SUCCESS' ? 'payment.success' : 'payment.failure',
-      data: result,
-    }
   }
 
   async healthCheck(): Promise<ConnectorHealth> {

@@ -21,17 +21,21 @@ export class RequestLoggingMiddleware implements NestMiddleware {
     const { method, originalUrl, ip } = req
     const startTime = Date.now()
 
+    // 脱敏 URL：查询串可能携带密码重置/邀请链接等 token/code/signature，
+    // 直接打印完整 originalUrl 会让敏感凭据明文落入日志
+    const safeUrl = originalUrl.split('?')[0]
+
     // res.on('finish') 在请求结束时触发，此时 ALS 上下文可能已退出，
     // 用闭包捕获 traceId 而非依赖 getTraceId()
     res.on('finish', () => {
       const duration = Date.now() - startTime
       const { statusCode } = res
       if (statusCode >= 500) {
-        this.logger.error(`[${traceId}] ${method} ${originalUrl} ${statusCode} ${duration}ms ${ip}`)
+        this.logger.error(`[${traceId}] ${method} ${safeUrl} ${statusCode} ${duration}ms ${ip}`)
       } else if (statusCode >= 400) {
-        this.logger.warn(`[${traceId}] ${method} ${originalUrl} ${statusCode} ${duration}ms ${ip}`)
+        this.logger.warn(`[${traceId}] ${method} ${safeUrl} ${statusCode} ${duration}ms ${ip}`)
       } else {
-        this.logger.log(`[${traceId}] ${method} ${originalUrl} ${statusCode} ${duration}ms`)
+        this.logger.log(`[${traceId}] ${method} ${safeUrl} ${statusCode} ${duration}ms`)
       }
     })
 

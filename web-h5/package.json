@@ -17,7 +17,6 @@
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
     "axios": "^1.20.0",
-    "dayjs": "^1.11.23",
     "element-plus": "^2.14.6",
     "pinia": "^4.0.3",
     "vue": "^3.5.43",

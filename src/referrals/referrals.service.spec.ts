@@ -538,15 +538,4 @@ describe('ReferralsService', () => {
       expect(result?.rewardAmount).toBe(2000)
     })
   })
-
-  // ============== findCodeByCode ==============
-  describe('findCodeByCode', () => {
-    it('应转大写后查询', async () => {
-      prisma.referralCode.findUnique.mockResolvedValue({ id: 'rc1', code: 'ABCD1234' })
-      await service.findCodeByCode('abcd1234')
-      expect(prisma.referralCode.findUnique).toHaveBeenCalledWith({
-        where: { code: 'ABCD1234' },
-      })
-    })
-  })
 })

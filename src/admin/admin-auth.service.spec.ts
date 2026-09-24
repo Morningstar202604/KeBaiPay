@@ -71,7 +71,7 @@ describe('AdminAuthService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             success: true,
-            reason: 'ADMIN',
+            reason: 'ADMIN:登录成功(admin)',
             ip: '1.2.3.4',
             userAgent: 'ua',
           }),
@@ -90,7 +90,7 @@ describe('AdminAuthService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             success: false,
-            reason: 'ADMIN:账号不存在',
+            reason: 'ADMIN:账号不存在(admin)',
           }),
         }),
       )
@@ -107,7 +107,7 @@ describe('AdminAuthService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             success: false,
-            reason: 'ADMIN:密码错误',
+            reason: 'ADMIN:密码错误(admin)',
           }),
         }),
       )
@@ -133,7 +133,7 @@ describe('AdminAuthService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             success: false,
-            reason: 'ADMIN:账号已锁定',
+            reason: 'ADMIN:账号已锁定(admin)',
           }),
         }),
       )
@@ -192,7 +192,7 @@ describe('AdminAuthService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             success: false,
-            reason: 'ADMIN:账号已锁定',
+            reason: 'ADMIN:账号已锁定(admin)',
           }),
         }),
       )

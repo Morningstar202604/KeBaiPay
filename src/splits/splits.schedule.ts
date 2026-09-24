@@ -39,9 +39,12 @@ export class SplitsSchedule {
         include: { items: { where: { status: SplitItemStatus.PENDING }, select: { id: true } } },
       })
       for (const split of stuck) {
-        if (split.items.length === 0) continue
         await this.redis.withLock(buildLockKey('split:recover', split.id), 60, () =>
-          this.splitsService.resumeProcessing(split.id),
+          // 有 PENDING 明细：重放；无 PENDING 明细（已全处理但进程未收尾）：补 finalize。
+          // 此前无 PENDING 明细的订单被 continue 跳过，永久卡 PROCESSING
+          split.items.length > 0
+            ? this.splitsService.resumeProcessing(split.id)
+            : this.splitsService.finalizeIfNoPending(split.id),
         )
         this.logger.log(`分账恢复完成: ${split.splitNo}`)
       }

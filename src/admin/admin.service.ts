@@ -1368,11 +1368,11 @@ export class AdminService {
     // bcrypt.hash 在事务外执行：CPU 密集型操作不应在 DB 事务内拉长持锁时间
     const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS)
 
-    // 业务写与审计日志在同一事务，保证密码重置可追溯
+    // 业务写与审计日志在同一事务，保证密码重置可追溯；tokenVersion 自增使已签发旧 JWT 全部失效
     await this.prisma.$transaction(async (tx) => {
       await tx.adminUser.update({
         where: { id },
-        data: { password: hashedPassword },
+        data: { password: hashedPassword, tokenVersion: { increment: 1 } },
       })
 
       await this.auditLog.log(
@@ -1410,11 +1410,11 @@ export class AdminService {
     // bcrypt.hash 在事务外执行：CPU 密集型操作不应在 DB 事务内拉长持锁时间
     const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS)
 
-    // 业务写与审计日志在同一事务，保证密码变更可追溯
+    // 业务写与审计日志在同一事务，保证密码变更可追溯；tokenVersion 自增使该管理员旧 JWT 全部失效
     await this.prisma.$transaction(async (tx) => {
       await tx.adminUser.update({
         where: { id: adminId },
-        data: { password: hashedPassword },
+        data: { password: hashedPassword, tokenVersion: { increment: 1 } },
       })
 
       await this.auditLog.log(

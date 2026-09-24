@@ -119,16 +119,6 @@ export class TransfersService {
    *    该确认即为本操作的授权凭据（opLogId 同时用作幂等键，天然防重放）；
    *  - 强制 Agent 专项限额：单笔/单日上限来自 AGENT_MAX_AMOUNT_PER_OP /
    *    AGENT_MAX_AMOUNT_PER_DAY（分），独立于普通转账日限额；
-   *  - 其余校验（实名/账户状态/风控/余额原子扣减/账本账单）与 transfer() 完全一致。
-   */
-  /**
-   * Agent 代用户转账（智能体确认流程专用）
-   *
-   * 与 transfer() 的差异：
-   *  - 免支付密码：资金操作已经过用户在 /agent/confirm 显式二次确认，
-   *    该确认即为本操作的授权凭据（opLogId 同时用作幂等键，天然防重放）；
-   *  - 强制 Agent 专项限额：单笔/单日上限来自 AGENT_MAX_AMOUNT_PER_OP /
-   *    AGENT_MAX_AMOUNT_PER_DAY（分），独立于普通转账日限额；
    *  - 资金移动/账本/账单复用 moveFundsAndRecord 内核，与 transfer() 单一实现。
    */
   async agentTransfer(

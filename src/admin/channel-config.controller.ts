@@ -63,7 +63,7 @@ export class ChannelConfigController {
     return this.channelConfigService.createChannel(dto, {
       admin,
       ip: req.ip,
-      userAgent: req.headers['user-agent'] as string,
+      userAgent: Array.isArray(req.headers['user-agent']) ? req.headers['user-agent'][0] : req.headers['user-agent'],
     })
   }
 
@@ -80,7 +80,7 @@ export class ChannelConfigController {
     return this.channelConfigService.updateChannel(code, dto, {
       admin,
       ip: req.ip,
-      userAgent: req.headers['user-agent'] as string,
+      userAgent: Array.isArray(req.headers['user-agent']) ? req.headers['user-agent'][0] : req.headers['user-agent'],
     })
   }
 
@@ -96,7 +96,7 @@ export class ChannelConfigController {
     return this.channelConfigService.deleteChannel(code, {
       admin,
       ip: req.ip,
-      userAgent: req.headers['user-agent'] as string,
+      userAgent: Array.isArray(req.headers['user-agent']) ? req.headers['user-agent'][0] : req.headers['user-agent'],
     })
   }
 
