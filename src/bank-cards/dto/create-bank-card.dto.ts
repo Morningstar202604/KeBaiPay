@@ -5,7 +5,7 @@ export type BankCardType = 'DEBIT' | 'CREDIT'
 
 /**
  * 绑卡请求 DTO
- * 字段与前端 public/app.js renderBankCards 中的 api('/bank-cards', { body: ... }) 调用一致
+ * 字段与前端（web-h5 银行卡模块）调用 /bank-cards 时提交的结构一致
  */
 export class CreateBankCardDto {
   @IsString()

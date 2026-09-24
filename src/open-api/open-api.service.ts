@@ -26,6 +26,7 @@ import { RiskEngineService } from '../risk/risk-engine.service'
 import { fenToYuan, generateOrderNo, generatePaymentNo, isCallbackUrlSafe, yuanToFen } from '../common/helpers'
 import { kbError, KBErrorCodes } from '../common/error-codes'
 import {
+  buildLockKey,
   MAX_ORDER_EXPIRY_MS,
   ORDER_EXPIRY_MS,
   REDIS_LOCK_TTL_SECONDS,
@@ -167,7 +168,7 @@ export class OpenApiService {
       idempotencyKey?: string
     },
   ) {
-    return this.redis.withLock(`refund:${dto.orderNo}`, REDIS_LOCK_TTL_SECONDS, async () => {
+    return this.redis.withLock(buildLockKey('refund', dto.orderNo), REDIS_LOCK_TTL_SECONDS, async () => {
       return this.prisma.$transaction(async (tx) => {
         // 事务内重新读取订单，避免外部读取的脏数据
         const order = await tx.paymentOrder.findUnique({
@@ -199,12 +200,19 @@ export class OpenApiService {
 
         const newRefundAmount = currentRefunded + refundAmount
 
-        // 幂等：命中已有交易直接返回
+        // 幂等：命中已有交易直接返回（P2 修复：必须校验归属——退款单 relatedOrderNo 指向
+        // 本收款单且发起方为本商户，防止携他人幂等键读回他人退款单）
         if (dto.idempotencyKey) {
           const existing = await tx.transactionOrder.findUnique({
             where: { idempotencyKey: dto.idempotencyKey },
           })
-          if (existing) return existing
+          if (
+            existing &&
+            existing.relatedOrderNo === order.orderNo &&
+            existing.fromUserId === order.merchant.userId
+          ) {
+            return existing
+          }
         }
 
         // 风控检查：付款方收款风控
@@ -418,7 +426,7 @@ export class OpenApiService {
       idempotencyKey?: string
     },
   ) {
-    const lockKey = `openapi:transfer:${app.appId}:${dto.idempotencyKey || dto.toUserId}`
+    const lockKey = buildLockKey('openapi:transfer', `${app.appId}:${dto.idempotencyKey || dto.toUserId}`)
     return this.redis.withLock(lockKey, REDIS_LOCK_TTL_SECONDS, async () => {
       const merchant = await this.prisma.merchant.findUnique({
         where: { id: app.merchantId },
@@ -478,12 +486,15 @@ export class OpenApiService {
       }
 
       return this.prisma.$transaction(async (tx) => {
-        // 幂等
+        // 幂等（P2 修复：必须校验归属——转账单 fromUserId 为本商户，
+        // 防止携他人幂等键读回他人转账单造成跨租户信息泄露）
         if (dto.idempotencyKey) {
           const existing = await tx.transactionOrder.findUnique({
             where: { idempotencyKey: dto.idempotencyKey },
           })
-          if (existing) return existing
+          if (existing && existing.fromUserId === merchant.userId) {
+            return existing
+          }
         }
 
         const fromAccount = await tx.account.findUnique({

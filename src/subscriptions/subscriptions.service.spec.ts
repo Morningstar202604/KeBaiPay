@@ -377,6 +377,13 @@ describe('SubscriptionsService', () => {
           subscriberId: 'user1',
           status: SubscriptionStatus.ACTIVE,
         })
+        // 锁内重读（取消前状态，含归属校验所需字段）
+        .mockResolvedValueOnce({
+          id: 'sub1',
+          subscriptionNo: 'SUB1',
+          subscriberId: 'user1',
+          status: SubscriptionStatus.ACTIVE,
+        })
         .mockResolvedValueOnce({
           id: 'sub1',
           status: SubscriptionStatus.CANCELLED,
@@ -421,6 +428,12 @@ describe('SubscriptionsService', () => {
         })
         .mockResolvedValueOnce({
           id: 'sub1',
+          subscriberId: 'user1',
+          status: SubscriptionStatus.ACTIVE,
+        })
+        .mockResolvedValueOnce({
+          id: 'sub1',
+          subscriberId: 'user1',
           status: SubscriptionStatus.SUSPENDED,
         })
       prisma.subscription.updateMany.mockResolvedValue({ count: 1 })
@@ -441,6 +454,13 @@ describe('SubscriptionsService', () => {
   describe('resume', () => {
     it('应成功恢复订阅', async () => {
       prisma.subscription.findUnique
+        .mockResolvedValueOnce({
+          id: 'sub1',
+          subscriberId: 'user1',
+          status: SubscriptionStatus.SUSPENDED,
+          nextChargeAt: null,
+          plan: { id: 'p1', ownerId: 'owner1', amount: 1000, period: 'MONTHLY', intervalCount: 1 },
+        })
         .mockResolvedValueOnce({
           id: 'sub1',
           subscriberId: 'user1',

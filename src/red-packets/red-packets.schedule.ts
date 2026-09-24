@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { RedPacketsService } from './red-packets.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
+import { buildLockKey } from '../common/constants'
 
 /** 单轮扫描最多处理的红包数，防积压时无界装载（剩余的留给下一轮 cron） */
 const EXPIRE_SCAN_TAKE = 200
@@ -28,7 +29,7 @@ export class RedPacketsSchedule {
     this.scheduleHealth.reportStart('red-packets:expire')
     try {
       // 分布式锁串行化：多实例部署时防止并发扫描重复退回（三个资金调度任务的统一口径）
-      const processed = await this.redis.withLock('sched:red-packet:expire', 240, async () => {
+      const processed = await this.redis.withLock(buildLockKey('sched:red-packet:expire'), 240, async () => {
         const now = new Date()
         const pendingPackets = await this.prisma.redPacket.findMany({
           where: {

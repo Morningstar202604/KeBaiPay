@@ -108,8 +108,8 @@ export const MAX_REFERRAL_REWARD_CENTS = 1000 * 100
 export const REFERRAL_CODE_LENGTH = 8
 // 触发奖励的交易最小金额（分）：1 元
 export const REFERRAL_TRIGGER_MIN_AMOUNT_CENTS = 100
-// 单用户最多邀请数量（0=不限）
-export const MAX_REFERRALS_PER_USER = 0
+// 单用户最多邀请数量（原为 0=不限，配合"仅外部充值触发"防批量刷奖励；生产可按需用环境变量覆盖）
+export const MAX_REFERRALS_PER_USER = 20
 
 /** 商户回调通知 */
 export const MAX_CALLBACK_RETRIES = 5
@@ -168,3 +168,10 @@ export const AGENT_GENESIS_HASH = '0'.repeat(64)
  * Agent 咨询锁 ID（用于并发安全写入 AgentOperationLog）
  */
 export const AGENT_LOG_ADVISORY_LOCK_ID = 8832
+
+
+/** 统一分布式锁键：kb:lock:<namespace>[:<id>]
+ *  统一前缀避免与其他 Redis key（缓存/计数）撞名；所有业务锁必须经此生成 */
+export function buildLockKey(namespace: string, id?: string): string {
+  return id ? `kb:lock:${namespace}:${id}` : `kb:lock:${namespace}`
+}

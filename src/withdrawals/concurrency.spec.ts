@@ -195,7 +195,7 @@ describe('WithdrawalsService 并发安全', () => {
       expect(prisma.withdrawalOrder.create).toHaveBeenCalledTimes(1)
       // 两个提现使用同一把锁（基于 userId，create 锁）
       const lockKeys = redis.withLock.mock.calls.map((c: unknown[]) => c[0] as string)
-      expect(lockKeys).toEqual(['withdraw:create:u1', 'withdraw:create:u1'])
+      expect(lockKeys).toEqual(['kb:lock:withdraw:create:u1', 'kb:lock:withdraw:create:u1'])
     })
   })
 
@@ -312,7 +312,7 @@ describe('WithdrawalsService 并发安全', () => {
       expect(prisma.withdrawalOrder.update).toHaveBeenCalledTimes(1)
       // 两个 approve 使用同一把锁（基于 orderId）
       const lockKeys = redis.withLock.mock.calls.map((c: unknown[]) => c[0] as string)
-      expect(lockKeys).toEqual(['withdraw:approve:w1', 'withdraw:approve:w1'])
+      expect(lockKeys).toEqual(['kb:lock:withdraw:approve:w1', 'kb:lock:withdraw:approve:w1'])
       // 串行化：withLock 被调用两次（排队执行，不并发）
       expect(redis.withLock).toHaveBeenCalledTimes(2)
     })

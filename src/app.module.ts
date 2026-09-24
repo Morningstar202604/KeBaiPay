@@ -27,9 +27,6 @@ import { CouponsModule } from './coupons/coupons.module'
 import { ReferralsModule } from './referrals/referrals.module'
 import { MessagesModule } from './messages/messages.module'
 import { InvoicesModule } from './invoices/invoices.module'
-import { RiskAuditModule } from './risk-audit/risk-audit.module'
-import { CustomRulesModule } from './custom-rules/custom-rules.module'
-import { ChannelReconciliationModule } from './channel-reconciliation/channel-reconciliation.module'
 import { OpenApiModule } from './open-api/open-api.module'
 import { AdminModule } from './admin/admin.module'
 import { FinanceModule } from './finance/finance.module'
@@ -84,7 +81,7 @@ function spaStaticModules() {
       ServeStaticModule.forRoot({
         rootPath: adminDist,
         serveRoot: '/admin',
-        exclude: ['/admin/auth/{*splat}', '/admin/dashboard/{*splat}', '/admin/users/{*splat}', '/admin/merchants/{*splat}', '/admin/withdrawals/{*splat}', '/admin/payment-orders/{*splat}', '/admin/risk-events/{*splat}', '/admin/finance/{*splat}', '/admin/login-logs/{*splat}', '/admin/system-config/{*splat}', '/admin/system-config', '/admin/risk-rules/{*splat}', '/admin/identity/{*splat}', '/admin/accounts/{*splat}', '/admin/audit-logs/{*splat}', '/admin/admin-users/{*splat}', '/admin/channels/{*splat}', '/admin/channel-reconciliation/{*splat}', '/admin/reconciliation/{*splat}', '/agent/{*splat}'],
+        exclude: ['/admin/auth/{*splat}', '/admin/dashboard/{*splat}', '/admin/users/{*splat}', '/admin/merchants/{*splat}', '/admin/withdrawals/{*splat}', '/admin/payment-orders/{*splat}', '/admin/risk-events/{*splat}', '/admin/finance/{*splat}', '/admin/login-logs/{*splat}', '/admin/system-config/{*splat}', '/admin/system-config', '/admin/risk-rules/{*splat}', '/admin/identity/{*splat}', '/admin/accounts/{*splat}', '/admin/audit-logs/{*splat}', '/admin/admin-users/{*splat}', '/admin/channels/{*splat}', '/admin/reconciliation/{*splat}', '/agent/{*splat}'],
       }),
     )
   }
@@ -145,9 +142,6 @@ function spaStaticModules() {
     ReferralsModule,
     MessagesModule,
     InvoicesModule,
-    RiskAuditModule,
-    CustomRulesModule,
-    ChannelReconciliationModule,
     OpenApiModule,
     AdminModule,
     FinanceModule,

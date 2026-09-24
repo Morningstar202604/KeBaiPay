@@ -5,6 +5,7 @@ import { SplitStatus, SplitItemStatus } from '../common/enums'
 import { RedisService } from '../redis/redis.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 import { SplitsService } from './splits.service'
+import { buildLockKey } from '../common/constants'
 
 /** 分账崩溃恢复：超过该时长的 PROCESSING 订单视为可能中断（给正常处理留出时间窗） */
 const RECOVERY_DELAY_MS = 5 * 60 * 1000
@@ -39,7 +40,7 @@ export class SplitsSchedule {
       })
       for (const split of stuck) {
         if (split.items.length === 0) continue
-        await this.redis.withLock(`split:recover:${split.id}`, 60, () =>
+        await this.redis.withLock(buildLockKey('split:recover', split.id), 60, () =>
           this.splitsService.resumeProcessing(split.id),
         )
         this.logger.log(`分账恢复完成: ${split.splitNo}`)

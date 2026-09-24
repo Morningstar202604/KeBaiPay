@@ -2,7 +2,6 @@ import { Global, Module } from '@nestjs/common'
 import { HttpModule } from '@nestjs/axios'
 import { PaymentChannelRegistry } from './payment-channel.registry'
 import { RefundService } from './refund.service'
-import { ChannelHealthService } from './channel-health.service'
 
 // 新增 —— Connector 体系
 import { ConnectorRegistry } from './connector.registry'
@@ -19,8 +18,6 @@ import { AlipayChannel } from './channels/alipay.channel'
 import { AlipayConnector } from './connectors/alipay.connector'
 import { WechatPayConnector } from './connectors/wechat-pay.connector'
 import { MockConnector } from './connectors/mock.connector'
-import { UnionPayConnector } from './connectors/unionpay.connector'
-import { StripeConnector } from './connectors/stripe.connector'
 
 import { PrismaModule } from '../prisma/prisma.module'
 import { RedisModule } from '../redis/redis.module'
@@ -34,7 +31,6 @@ import { FinanceModule } from '../finance/finance.module'
     // 兼容层
     PaymentChannelRegistry,
     RefundService,
-    ChannelHealthService,
     MockChannel,
     WechatPayChannel,
     AlipayChannel,
@@ -43,8 +39,6 @@ import { FinanceModule } from '../finance/finance.module'
     AlipayConnector,
     WechatPayConnector,
     MockConnector,
-    UnionPayConnector,
-    StripeConnector,
     ConnectorRegistry,
     ConnectorRouter,
     ConnectorHealthService,
@@ -54,7 +48,6 @@ import { FinanceModule } from '../finance/finance.module'
     // 兼容层
     PaymentChannelRegistry,
     RefundService,
-    ChannelHealthService,
     MockChannel,
     WechatPayChannel,
     AlipayChannel,
@@ -66,8 +59,6 @@ import { FinanceModule } from '../finance/finance.module'
     AlipayConnector,
     WechatPayConnector,
     MockConnector,
-    UnionPayConnector,
-    StripeConnector,
   ],
 })
 export class PaymentChannelsModule {}

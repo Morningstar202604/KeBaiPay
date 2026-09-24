@@ -11,7 +11,8 @@ import {
 } from '../common/enums'
 import { PrismaService } from '../prisma/prisma.service'
 import { FinanceService } from './finance.service'
-import { getDateRange as buildUtcRange, getPreviousDate as utcPreviousDate } from '../common/date-helpers'
+import { businessDayRange, businessDayKey } from '../common/date-helpers'
+import { DAY_MS } from '../common/constants'
 import { fenToYuan } from '../common/helpers'
 import { escapeCsvField } from '../common/csv'
 
@@ -400,13 +401,16 @@ export class ReconciliationService {
   }
 
   private getDateRange(date: string) {
-    return buildUtcRange(date, date)
+    // 业务日口径（北京时间）：与限额/风控/财务日报统一
+    return businessDayRange(date)
   }
 
   private getPreviousDate(date: string): string | null {
     // 无效日期输入时返回 null（与历史行为一致：跳过前日快照对比）
-    const prev = utcPreviousDate(date)
-    return /^\d{4}-\d{2}-\d{2}$/.test(prev) ? prev : null
+    // 基于业务日键做日期递减，避免 UTC 日界造成"昨天"错位
+    const d = new Date(`${date}T12:00:00+08:00`)
+    if (Number.isNaN(d.getTime())) return null
+    return businessDayKey(new Date(d.getTime() - DAY_MS))
   }
 
 }

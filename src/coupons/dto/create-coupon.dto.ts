@@ -62,17 +62,3 @@ export class UpdateCouponStatusDto {
   @MaxLength(64)
   status!: string
 }
-
-/** 使用用户优惠券 */
-export class UseUserCouponDto {
-  @IsString()
-  @IsNotEmpty({ message: '订单号不能为空' })
-  @MaxLength(64)
-  orderNo!: string
-
-  // 实际订单金额（元），用于校验是否满足满减门槛
-  @IsInt()
-  @Min(1)
-  @Type(() => Number)
-  orderAmount!: number
-}

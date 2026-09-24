@@ -277,8 +277,8 @@ describe('AgentModule (e2e)', () => {
   })
 
   describe('POST /agent/conversations', () => {
-    it('创建会话成功', async () => {
-      mockPrisma.agent.findFirst.mockResolvedValue({
+    it('创建会话成功（绑定 token 对应 Agent）', async () => {
+      mockPrisma.agent.findUnique.mockResolvedValue({
         id: TEST_AGENT_ID,
         scenario: 'wallet',
         status: 'ACTIVE',
@@ -305,12 +305,16 @@ describe('AgentModule (e2e)', () => {
       expect(res.body.title).toBe('测试会话')
     })
 
-    it('无匹配 Agent 时返回 404', async () => {
-      mockPrisma.agent.findFirst.mockResolvedValue(null)
+    it('scenario 与 Agent 不匹配时返回 400', async () => {
+      mockPrisma.agent.findUnique.mockResolvedValue({
+        id: TEST_AGENT_ID,
+        scenario: 'wallet',
+        status: 'ACTIVE',
+      })
       const res = await request(app.getHttpServer())
         .post('/agent/conversations')
         .send({ scenario: 'unknown' })
-      expect(res.status).toBe(404)
+      expect(res.status).toBe(400)
     })
   })
 
@@ -506,18 +510,6 @@ describe('AgentModule (e2e)', () => {
         .post('/agent/confirm')
         .send({ opLogId: 'op-2', decision: 'CONFIRM' })
       expect(res.status).toBe(403)
-    })
-  })
-
-  describe('GET /agent/verify-chain/:agentId', () => {
-    it('哈希链完整返回 valid=true', async () => {
-      // AgentAuditLogService.verifyChain 返回 null 表示完整
-      mockPrisma.agentOperationLog.findMany.mockResolvedValue([])
-      const res = await request(app.getHttpServer())
-        .get('/agent/verify-chain/' + TEST_AGENT_ID)
-      expect(res.status).toBe(200)
-      expect(res.body).toHaveProperty('valid')
-      expect(res.body.valid).toBe(true)
     })
   })
 

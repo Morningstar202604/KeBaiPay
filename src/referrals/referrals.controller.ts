@@ -57,8 +57,11 @@ export class ReferralsController {
   @UseGuards(JwtAuthGuard)
   @Get(':referralNo')
   @ApiOperation({ summary: '查询邀请关系详情' })
-  findByReferralNo(@Param('referralNo') referralNo: string) {
-    return this.referralsService.findByReferralNo(referralNo)
+  findByReferralNo(
+    @CurrentUser() user: CurrentUserType,
+    @Param('referralNo') referralNo: string,
+  ) {
+    return this.referralsService.findByReferralNo(referralNo, user.id)
   }
 
   @UseGuards(JwtAuthGuard)

@@ -192,13 +192,24 @@ export class ChannelConfigService {
     return { success: true }
   }
 
-  testChannel(code: string) {
+  /** 渠道连通性检查：真实校验注册渠道 + DB 启用配置（原实现恒返回 available=true 为假测试） */
+  async testChannel(code: string) {
     const channel = this.channelRegistry.getChannel(code)
-    return {
-      code: channel.code,
-      name: channel.name,
-      available: true,
-      message: `${channel.name} 渠道可用`,
+    try {
+      const cfg = await this.channelRegistry.getEnabledConfig(code)
+      return {
+        code: channel.code,
+        name: channel.name,
+        available: true,
+        message: `${channel.name} 渠道已启用（${cfg.type}）`,
+      }
+    } catch {
+      return {
+        code: channel.code,
+        name: channel.name,
+        available: false,
+        message: `${channel.name} 渠道未启用或配置缺失`,
+      }
     }
   }
 

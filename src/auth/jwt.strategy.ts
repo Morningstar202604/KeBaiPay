@@ -34,8 +34,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (user.status === 'FROZEN') {
       throw new UnauthorizedException(kbError(KBErrorCodes.ACCOUNT_FROZEN))
     }
-    // 不返回敏感字段（如 loginPassword）给控制器
-    const { loginPassword, ...safeUser } = user
+    // P2：剔除所有口令哈希（loginPassword + payPassword）——payPassword 哈希
+    // 不得进入控制器上下文，防止日志/响应序列化时泄露口令材料
+    const { loginPassword, payPassword, ...safeUser } = user
     return safeUser
   }
 }

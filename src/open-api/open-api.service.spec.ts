@@ -418,7 +418,8 @@ describe('OpenApiService', () => {
 
     it('幂等：相同 idempotencyKey 直接返回已有交易', async () => {
       setupRefundHappyPath()
-      const existed = { id: 't0', orderNo: 'R0', amount: 1000 }
+      // 归属校验：退款单 relatedOrderNo 必须指向本收款单 P1、fromUserId 为本商户
+      const existed = { id: 't0', orderNo: 'R0', amount: 1000, relatedOrderNo: 'P1', fromUserId: merchant().userId }
       prisma.transactionOrder.findUnique.mockResolvedValue(existed)
       const result = await service.refund(app, {
         orderNo: 'P1',
@@ -427,6 +428,19 @@ describe('OpenApiService', () => {
       expect(result).toBe(existed)
       // 不重复扣款
       expect(prisma.account.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('幂等：他人幂等键（归属不符）不命中，继续正常处理', async () => {
+      setupRefundHappyPath()
+      // 攻击者用他人退款单的幂等键：relatedOrderNo 指向别的收款单 → 不返回，走正常退款
+      prisma.transactionOrder.findUnique.mockResolvedValue({
+        id: 't0', orderNo: 'R0', amount: 1000, relatedOrderNo: 'OTHER', fromUserId: merchant().userId,
+      })
+      const result = await service.refund(app, {
+        orderNo: 'P1',
+        idempotencyKey: 'key-1',
+      })
+      expect(result).not.toEqual({ id: 't0' })
     })
   })
 
@@ -561,7 +575,7 @@ describe('OpenApiService', () => {
 
     it('幂等：相同 idempotencyKey 直接返回已有交易', async () => {
       setupTransferHappyPath()
-      const existed = { id: 't0', orderNo: 'T0', amount: 1000 }
+      const existed = { id: 't0', orderNo: 'T0', amount: 1000, fromUserId: merchant().userId }
       prisma.transactionOrder.findUnique.mockResolvedValue(existed)
       const result = await service.transfer(app, {
         toUserId: 'u3',
@@ -570,6 +584,19 @@ describe('OpenApiService', () => {
       })
       expect(result).toBe(existed)
       expect(prisma.account.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('幂等：他人转账单的幂等键（fromUserId 不符）不命中，继续正常转账', async () => {
+      setupTransferHappyPath()
+      prisma.transactionOrder.findUnique.mockResolvedValue({
+        id: 't0', orderNo: 'T0', amount: 1000, fromUserId: 'u-other-merchant',
+      })
+      const result = await service.transfer(app, {
+        toUserId: 'u3',
+        amount: 10,
+        idempotencyKey: 'key-2',
+      })
+      expect(result).not.toEqual({ id: 't0' })
     })
   })
 

@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule'
 import { EscrowService } from './escrow.service'
 import { RedisService } from '../redis/redis.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
+import { buildLockKey } from '../common/constants'
 
 @Injectable()
 export class EscrowSchedule {
@@ -24,7 +25,7 @@ export class EscrowSchedule {
     this.scheduleHealth.reportStart('escrow:auto-expire')
     try {
       // 分布式锁串行化：多实例部署时防止并发扫描重复取消
-      const count = await this.redis.withLock('sched:escrow:auto-expire', 240, () =>
+      const count = await this.redis.withLock(buildLockKey('sched:escrow:auto-expire'), 240, () =>
         this.escrowService.autoExpire(),
       )
       const duration = Date.now() - start
@@ -46,7 +47,7 @@ export class EscrowSchedule {
     const start = Date.now()
     this.scheduleHealth.reportStart('escrow:auto-confirm')
     try {
-      const count = await this.redis.withLock('sched:escrow:auto-confirm', 240, () =>
+      const count = await this.redis.withLock(buildLockKey('sched:escrow:auto-confirm'), 240, () =>
         this.escrowService.autoConfirm(),
       )
       const duration = Date.now() - start

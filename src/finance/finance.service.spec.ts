@@ -106,8 +106,8 @@ describe('FinanceService', () => {
         where: {
           status: TransactionStatus.SUCCESS,
           completedAt: {
-            gte: new Date('2026-06-01T00:00:00.000Z'),
-            lte: new Date('2026-06-02T23:59:59.999Z'),
+            gte: new Date('2026-05-31T16:00:00.000Z'),
+            lte: new Date('2026-06-02T15:59:59.999Z'),
           },
         },
         select: {
@@ -187,8 +187,8 @@ describe('FinanceService', () => {
         where: {
           status: PaymentOrderStatus.PAID,
           paidAt: {
-            gte: new Date('2026-06-01T00:00:00.000Z'),
-            lte: new Date('2026-06-30T23:59:59.999Z'),
+            gte: new Date('2026-05-31T16:00:00.000Z'),
+            lte: new Date('2026-06-30T15:59:59.999Z'),
           },
         },
         _sum: { amount: true, fee: true },
@@ -249,13 +249,13 @@ describe('FinanceService', () => {
   describe('getFeeIncome', () => {
     it('应分别按日期统计 paymentFee 与 withdrawalFee，并汇总为 totalFee', async () => {
       prisma.paymentOrder.findMany.mockResolvedValue([
-        { fee: 100, paidAt: new Date('2026-06-01T10:00:00.000Z') },
-        { fee: 200, paidAt: new Date('2026-06-01T14:00:00.000Z') },
-        { fee: 50, paidAt: new Date('2026-06-02T09:00:00.000Z') },
+        { fee: 100, paidAt: new Date('2026-06-01T10:00:00.000Z') }, // 北京 18:00 → 06-01
+        { fee: 200, paidAt: new Date('2026-06-01T14:00:00.000Z') }, // 北京 22:00 → 06-01
+        { fee: 50, paidAt: new Date('2026-06-02T09:00:00.000Z') }, // 北京 17:00 → 06-02
       ])
       prisma.withdrawalOrder.findMany.mockResolvedValue([
-        { fee: 30, reviewedAt: new Date('2026-06-01T11:00:00.000Z') },
-        { fee: 70, reviewedAt: new Date('2026-06-02T16:00:00.000Z') },
+        { fee: 30, reviewedAt: new Date('2026-06-01T11:00:00.000Z') }, // 北京 19:00 → 06-01
+        { fee: 70, reviewedAt: new Date('2026-06-02T05:00:00.000Z') }, // 北京 13:00 → 06-02
       ])
 
       const result = await service.getFeeIncome({
@@ -263,12 +263,13 @@ describe('FinanceService', () => {
         endDate: '2026-06-02',
       })
 
+      // 业务日口径（北京时间）：06-01 = UTC 05-31T16:00 ~ 06-01T15:59:59
       expect(prisma.paymentOrder.findMany).toHaveBeenCalledWith({
         where: {
           status: PaymentOrderStatus.PAID,
           paidAt: {
-            gte: new Date('2026-06-01T00:00:00.000Z'),
-            lte: new Date('2026-06-02T23:59:59.999Z'),
+            gte: new Date('2026-05-31T16:00:00.000Z'),
+            lte: new Date('2026-06-02T15:59:59.999Z'),
           },
         },
         select: { fee: true, paidAt: true },
@@ -277,8 +278,8 @@ describe('FinanceService', () => {
         where: {
           status: WithdrawalStatus.SUCCESS,
           reviewedAt: {
-            gte: new Date('2026-06-01T00:00:00.000Z'),
-            lte: new Date('2026-06-02T23:59:59.999Z'),
+            gte: new Date('2026-05-31T16:00:00.000Z'),
+            lte: new Date('2026-06-02T15:59:59.999Z'),
           },
         },
         select: { fee: true, reviewedAt: true },
@@ -346,8 +347,8 @@ describe('FinanceService', () => {
         where: {
           status: PaymentOrderStatus.PAID,
           paidAt: {
-            gte: new Date('2026-06-01T00:00:00.000Z'),
-            lte: new Date('2026-06-01T23:59:59.999Z'),
+            gte: new Date('2026-05-31T16:00:00.000Z'),
+            lte: new Date('2026-06-01T15:59:59.999Z'),
           },
         },
         _sum: { fee: true },
@@ -356,8 +357,8 @@ describe('FinanceService', () => {
         where: {
           status: WithdrawalStatus.SUCCESS,
           reviewedAt: {
-            gte: new Date('2026-06-01T00:00:00.000Z'),
-            lte: new Date('2026-06-01T23:59:59.999Z'),
+            gte: new Date('2026-05-31T16:00:00.000Z'),
+            lte: new Date('2026-06-01T15:59:59.999Z'),
           },
         },
         _sum: { fee: true },

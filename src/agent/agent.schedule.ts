@@ -19,7 +19,6 @@ import { AGENT_RESULT_PENDING_CONFIRM, AGENT_RESULT_EXPIRED } from '../common/co
 export class AgentSchedule {
   private readonly logger = new Logger(AgentSchedule.name)
   private static readonly TASK_HEALTH_CHECK = 'agent:health-check'
-  private static readonly TASK_RECONCILE_SCAN = 'agent:reconcile-scan'
   private static readonly TASK_RISK_SCAN = 'agent:risk-scan'
   private static readonly TASK_CONFIRM_EXPIRE_SCAN = 'agent:confirm-expire-scan'
 
@@ -34,11 +33,6 @@ export class AgentSchedule {
       AgentSchedule.TASK_HEALTH_CHECK,
       CronExpression.EVERY_10_MINUTES,
       'AI 巡检：系统健康与调度任务异常告警',
-    )
-    this.scheduleHealth.register(
-      AgentSchedule.TASK_RECONCILE_SCAN,
-      CronExpression.EVERY_HOUR,
-      'AI 巡检：对账差异自动调查',
     )
     this.scheduleHealth.register(
       AgentSchedule.TASK_RISK_SCAN,
@@ -169,48 +163,6 @@ ${degraded.map((s) => `- ${s.name}：${s.lastError ?? '未知'}`).join('\n')}
         AgentSchedule.TASK_HEALTH_CHECK, false, Date.now() - start, err instanceof Error ? err.message : String(err),
       )
       this.logger.error(`AI 巡检失败：${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined)
-    }
-  }
-
-  /** 每小时扫描对账差异 */
-  @Cron(CronExpression.EVERY_HOUR)
-  async scanReconciliationDiffs() {
-    const start = Date.now()
-    this.scheduleHealth.reportStart(AgentSchedule.TASK_RECONCILE_SCAN)
-    try {
-      const pendingDiffs = await this.prisma.reconciliationDifferenceItem.findMany({
-        where: { status: 'PENDING' },
-        take: 20,
-        orderBy: { createdAt: 'desc' },
-      })
-      if (pendingDiffs.length === 0) {
-        this.scheduleHealth.reportComplete(AgentSchedule.TASK_RECONCILE_SCAN, true, Date.now() - start)
-        return
-      }
-
-      const prompt = `作为对账审计 AI，分析以下 PENDING 状态的对账差异项，给出处置建议：
-
-${pendingDiffs.map((d) => `- ID: ${d.id}，类型: ${d.diffType}，金额: ${d.amount ?? 'N/A'}，渠道: ${d.channelCode ?? 'N/A'}`).join('\n')}
-
-请分类：
-1. 应自动解决（如回调延迟导致）
-2. 需人工介入（如金额不一致）
-3. 建议标记为 IGNORED 的误报
-
-输出格式：每条差异的 ID + 处置建议。`
-
-      const result = await this.llm.chat({
-        messages: [{ role: 'user', content: prompt }],
-        systemPrompt: '你是 KeBaiPay 对账审计 AI。',
-      })
-
-      this.logger.log(`AI 扫描 ${pendingDiffs.length} 个对账差异，建议：${result.content}`)
-      this.scheduleHealth.reportComplete(AgentSchedule.TASK_RECONCILE_SCAN, true, Date.now() - start)
-    } catch (err: unknown) {
-      this.scheduleHealth.reportComplete(
-        AgentSchedule.TASK_RECONCILE_SCAN, false, Date.now() - start, err instanceof Error ? err.message : String(err),
-      )
-      this.logger.error(`AI 对账差异扫描失败：${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined)
     }
   }
 

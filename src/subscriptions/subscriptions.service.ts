@@ -31,6 +31,7 @@ import { RedisService } from '../redis/redis.service'
 import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
+  buildLockKey,
   DEFAULT_SUBSCRIPTION_DAILY_LIMIT_CENTS,
   LARGE_SUBSCRIPTION_THRESHOLD_CENTS,
   MAX_SUBSCRIPTIONS_PER_USER,
@@ -236,8 +237,8 @@ export class SubscriptionsService {
     }
 
     const lockKey = dto.idempotencyKey
-      ? `subscribe:idem:${dto.idempotencyKey}`
-      : `subscribe:user:${subscriberId}:${plan.id}`
+      ? buildLockKey('subscribe:idem', dto.idempotencyKey)
+      : buildLockKey('subscribe:user', `${subscriberId}:${plan.id}`)
 
     return this.redis.withLock(lockKey, REDIS_LOCK_TTL_SECONDS, async () => {
       return this.prisma.$transaction(async (tx) => {
@@ -611,90 +612,124 @@ export class SubscriptionsService {
 
   /** 取消订阅（不再扣款，已扣款不退回） */
   async cancel(subscriberId: string, subscriptionNo: string, reason?: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const sub = await tx.subscription.findUnique({
-        where: { subscriptionNo },
-      })
-      if (!sub) throw new NotFoundException(kbError(KBErrorCodes.SUBSCRIPTION_NOT_FOUND))
-      if (sub.subscriberId !== subscriberId) {
-        throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权操作该订阅'))
-      }
-      if (sub.status === SubscriptionStatus.CANCELLED) {
-        throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID))
-      }
-      const lockResult = await tx.subscription.updateMany({
-        where: {
-          id: sub.id,
-          status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.SUSPENDED] },
-        },
-        data: {
-          status: SubscriptionStatus.CANCELLED,
-          cancelledAt: new Date(),
-          nextChargeAt: null,
-        },
-      })
-      if (lockResult.count === 0) {
-        throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID))
-      }
-      return tx.subscription.findUnique({ where: { id: sub.id } })
+    // 与自动扣款 chargeOnce 共用同一把锁，消除竞态：
+    // 此前 cancel 不持锁，若自动扣款事务已先扣款、cancel 后提交置 CANCELLED，
+    // 会出现"用户看到已取消、本期费用仍被扣走且不退还"。共用锁后两者串行化。
+    const sub = await this.prisma.subscription.findUnique({
+      where: { subscriptionNo },
     })
+    if (!sub) throw new NotFoundException(kbError(KBErrorCodes.SUBSCRIPTION_NOT_FOUND))
+    if (sub.subscriberId !== subscriberId) {
+      throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权操作该订阅'))
+    }
+    return this.redis.withLock(buildLockKey('subscription:charge', sub.id),
+      REDIS_LOCK_TTL_SECONDS,
+      async () => this.prisma.$transaction(async (tx) => {
+        // 锁内重读：拿到锁时订阅可能已取消/已扣款推进，重新校验状态
+        const locked = await tx.subscription.findUnique({ where: { id: sub.id } })
+        if (!locked) throw new NotFoundException(kbError(KBErrorCodes.SUBSCRIPTION_NOT_FOUND))
+        if (locked.subscriberId !== subscriberId) {
+          throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权操作该订阅'))
+        }
+        if (locked.status === SubscriptionStatus.CANCELLED) {
+          throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID))
+        }
+        const lockResult = await tx.subscription.updateMany({
+          where: {
+            id: sub.id,
+            status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.SUSPENDED] },
+          },
+          data: {
+            status: SubscriptionStatus.CANCELLED,
+            cancelledAt: new Date(),
+            nextChargeAt: null,
+          },
+        })
+        if (lockResult.count === 0) {
+          throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID))
+        }
+        return tx.subscription.findUnique({ where: { id: sub.id } })
+      }),
+    )
   }
 
-  /** 暂停订阅 */
+  /** 暂停订阅（与自动扣款 chargeOnce 共用锁，防止暂停瞬间本期费用仍被扣走） */
   async suspend(subscriberId: string, subscriptionNo: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const sub = await tx.subscription.findUnique({
-        where: { subscriptionNo },
-      })
-      if (!sub) throw new NotFoundException(kbError(KBErrorCodes.SUBSCRIPTION_NOT_FOUND))
-      if (sub.subscriberId !== subscriberId) {
-        throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权操作该订阅'))
-      }
-      if (sub.status !== SubscriptionStatus.ACTIVE) {
-        throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID))
-      }
-      const lockResult = await tx.subscription.updateMany({
-        where: { id: sub.id, status: SubscriptionStatus.ACTIVE },
-        data: { status: SubscriptionStatus.SUSPENDED },
-      })
-      if (lockResult.count === 0) {
-        throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID))
-      }
-      return tx.subscription.findUnique({ where: { id: sub.id } })
+    const sub = await this.prisma.subscription.findUnique({
+      where: { subscriptionNo },
     })
+    if (!sub) throw new NotFoundException(kbError(KBErrorCodes.SUBSCRIPTION_NOT_FOUND))
+    if (sub.subscriberId !== subscriberId) {
+      throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权操作该订阅'))
+    }
+    return this.redis.withLock(buildLockKey('subscription:charge', sub.id),
+      REDIS_LOCK_TTL_SECONDS,
+      async () => this.prisma.$transaction(async (tx) => {
+        // 锁内重读：拿到锁时订阅可能已被取消/暂停/扣款推进
+        const locked = await tx.subscription.findUnique({
+          where: { id: sub.id },
+        })
+        if (!locked) throw new NotFoundException(kbError(KBErrorCodes.SUBSCRIPTION_NOT_FOUND))
+        if (locked.subscriberId !== subscriberId) {
+          throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权操作该订阅'))
+        }
+        if (locked.status !== SubscriptionStatus.ACTIVE) {
+          throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID))
+        }
+        const lockResult = await tx.subscription.updateMany({
+          where: { id: sub.id, status: SubscriptionStatus.ACTIVE },
+          data: { status: SubscriptionStatus.SUSPENDED },
+        })
+        if (lockResult.count === 0) {
+          throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID))
+        }
+        return tx.subscription.findUnique({ where: { id: sub.id } })
+      }),
+    )
   }
 
-  /** 恢复订阅 */
+  /** 恢复订阅（与自动扣款共用锁，防止恢复与扣款并发导致 nextChargeAt 错乱） */
   async resume(subscriberId: string, subscriptionNo: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const sub = await tx.subscription.findUnique({
-        where: { subscriptionNo },
-        include: { plan: true },
-      })
-      if (!sub) throw new NotFoundException(kbError(KBErrorCodes.SUBSCRIPTION_NOT_FOUND))
-      if (sub.subscriberId !== subscriberId) {
-        throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权操作该订阅'))
-      }
-      if (sub.status !== SubscriptionStatus.SUSPENDED) {
-        throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID))
-      }
-      // 重新计算 nextChargeAt：若已过期则设为 now
-      const now = new Date()
-      const nextChargeAt = sub.nextChargeAt && sub.nextChargeAt > now
-        ? sub.nextChargeAt
-        : now
-      const lockResult = await tx.subscription.updateMany({
-        where: { id: sub.id, status: SubscriptionStatus.SUSPENDED },
-        data: {
-          status: SubscriptionStatus.ACTIVE,
-          nextChargeAt,
-        },
-      })
-      if (lockResult.count === 0) {
-        throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID))
-      }
-      return tx.subscription.findUnique({ where: { id: sub.id } })
+    const sub = await this.prisma.subscription.findUnique({
+      where: { subscriptionNo },
+      include: { plan: true },
     })
+    if (!sub) throw new NotFoundException(kbError(KBErrorCodes.SUBSCRIPTION_NOT_FOUND))
+    if (sub.subscriberId !== subscriberId) {
+      throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权操作该订阅'))
+    }
+    return this.redis.withLock(buildLockKey('subscription:charge', sub.id),
+      REDIS_LOCK_TTL_SECONDS,
+      async () => this.prisma.$transaction(async (tx) => {
+        const locked = await tx.subscription.findUnique({
+          where: { id: sub.id },
+          include: { plan: true },
+        })
+        if (!locked) throw new NotFoundException(kbError(KBErrorCodes.SUBSCRIPTION_NOT_FOUND))
+        if (locked.subscriberId !== subscriberId) {
+          throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权操作该订阅'))
+        }
+        if (locked.status !== SubscriptionStatus.SUSPENDED) {
+          throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID))
+        }
+        // 重新计算 nextChargeAt：若已过期则设为 now
+        const now = new Date()
+        const nextChargeAt = locked.nextChargeAt && locked.nextChargeAt > now
+          ? locked.nextChargeAt
+          : now
+        const lockResult = await tx.subscription.updateMany({
+          where: { id: sub.id, status: SubscriptionStatus.SUSPENDED },
+          data: {
+            status: SubscriptionStatus.ACTIVE,
+            nextChargeAt,
+          },
+        })
+        if (lockResult.count === 0) {
+          throw new BadRequestException(kbError(KBErrorCodes.SUBSCRIPTION_STATUS_INVALID))
+        }
+        return tx.subscription.findUnique({ where: { id: sub.id } })
+      }),
+    )
   }
 
   /** 查询订阅详情 */
@@ -798,8 +833,7 @@ export class SubscriptionsService {
    * 执行一次订阅扣款（独立事务 + Redis 锁）
    */
   private async chargeOnce(subscriptionId: string) {
-    return this.redis.withLock(
-      `subscription:charge:${subscriptionId}`,
+    return this.redis.withLock(buildLockKey('subscription:charge', subscriptionId),
       REDIS_LOCK_TTL_SECONDS,
       () =>
         this.prisma.$transaction(async (tx) => {

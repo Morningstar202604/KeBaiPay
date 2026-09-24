@@ -3,8 +3,6 @@ import { Connector, ConnectorCapability, ConnectorConfig } from './connector.int
 import { AlipayConnector } from './connectors/alipay.connector'
 import { WechatPayConnector } from './connectors/wechat-pay.connector'
 import { MockConnector } from './connectors/mock.connector'
-import { UnionPayConnector } from './connectors/unionpay.connector'
-import { StripeConnector } from './connectors/stripe.connector'
 
 /**
  * 连接器注册中心
@@ -30,14 +28,10 @@ export class ConnectorRegistry {
     alipayConnector?: AlipayConnector,
     wechatPayConnector?: WechatPayConnector,
     mockConnector?: MockConnector,
-    unionPayConnector?: UnionPayConnector,
-    stripeConnector?: StripeConnector,
   ) {
     if (mockConnector) this.register(mockConnector)
     if (alipayConnector) this.register(alipayConnector)
     if (wechatPayConnector) this.register(wechatPayConnector)
-    if (unionPayConnector) this.register(unionPayConnector)
-    if (stripeConnector) this.register(stripeConnector)
   }
 
   register(connector: Connector): void {

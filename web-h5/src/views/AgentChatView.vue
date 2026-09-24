@@ -45,9 +45,11 @@
           <div class="bubble">{{ m.content }}</div>
           <div v-if="m.pendingOps" class="pending">
             <div v-for="op in m.pendingOps" :key="op.opLogId" class="pending-op">
-              <span>{{ op.message }}</span>
-              <el-button size="small" type="success" @click="decide(op.opLogId, 'CONFIRM')">确认</el-button>
-              <el-button size="small" type="danger" @click="decide(op.opLogId, 'REJECT')">拒绝</el-button>
+              <span class="pending-desc">{{ op.display || op.message }}</span>
+              <div class="pending-actions">
+                <el-button size="small" type="success" @click="decide(op.opLogId, 'CONFIRM')">确认</el-button>
+                <el-button size="small" type="danger" @click="decide(op.opLogId, 'REJECT')">拒绝</el-button>
+              </div>
             </div>
           </div>
         </div>
@@ -179,6 +181,8 @@ onMounted(load)
 .msg.user .bubble { background: linear-gradient(135deg,#0fa968,#0c8a57); color:#fff; border-bottom-right-radius:4px; }
 .msg.assistant .bubble { background:#fff; border:1px solid var(--el-border-color-lighter); color:var(--el-text-color-primary); border-bottom-left-radius:4px; }
 .pending { margin-top:8px; display:flex; flex-direction:column; gap:6px; width:100%; }
-.pending-op { display:flex; align-items:center; gap:8px; background:#fef3c7; border-radius:10px; padding:8px 12px; font-size:12px; color:#92400e; }
+.pending-op { display:flex; flex-wrap:wrap; align-items:center; gap:8px; background:#fef3c7; border-radius:10px; padding:8px 12px; font-size:12px; color:#92400e; }
+.pending-desc { flex:1; min-width:140px; word-break:break-all; }
+.pending-actions { display:flex; gap:6px; }
 .chat-input { display:flex; gap:8px; padding-top:10px; }
 </style>

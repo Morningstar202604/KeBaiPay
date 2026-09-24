@@ -29,7 +29,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import axios from 'axios'
+import http from '@/api/http'
 import { extractError } from '@/api/http'
 
 const formRef = ref<FormInstance>()
@@ -68,7 +68,7 @@ const rules: FormRules = {
 
 onMounted(async () => {
   try {
-    const { data } = await axios.get('/users/me')
+    const { data } = await http.get('/users/me')
     verified.value = data?.realNameStatus === 'VERIFIED'
   } catch {
     /* 忽略：未登录时路由守卫会处理 */
@@ -80,7 +80,7 @@ async function submit() {
   await formRef.value.validate()
   loading.value = true
   try {
-    await axios.post('/users/verify-identity', {
+    await http.post('/users/verify-identity', {
       realName: form.realName.trim(),
       idCard: form.idCard.trim(),
       payPassword: form.payPassword,

@@ -113,6 +113,18 @@ export async function payCashierOrder(orderNo: string, payPassword: string): Pro
   return data
 }
 
+/** 扫码收款信息（无需登录）：GET /cashier/qrcode/:code 返回商户与收款信息 */
+export async function fetchQrCodeInfo(code: string): Promise<{
+  merchantNo: string
+  merchantName: string
+  amountYuan: string | null
+  remark: string
+  subject: string
+}> {
+  const { data } = await http.get(`/cashier/qrcode/${code}`)
+  return data
+}
+
 // ---------- AI 智能体（用户侧授权/登录，用用户 token） ----------
 export interface MyAgent {
   id: string

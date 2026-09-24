@@ -7,7 +7,7 @@
 
   <title>KeBaiPay 科佰支付 · 自托管的开源支付中台</title>
   <meta name="description" content="KeBaiPay 科佰支付：自托管开源支付中台。个人钱包、商户收单、开放 API、多渠道对账聚合、AI 智能体五层打通，NestJS + Prisma + PostgreSQL + Redis，MIT 开源。">
-  <meta name="keywords" content="KeBaiPay,科佰支付,开源支付系统,支付中台,自托管支付,聚合支付,钱包系统,商户收单,开放API,对账,微信支付,支付宝,MCP,AI智能体">
+  <meta name="keywords" content="KeBaiPay,科佰支付,开源支付系统,支付中台,自托管支付,聚合支付,钱包系统,商户收单,开放API,对账,微信支付,支付宝,AI智能体">
   <meta name="author" content="KeBaiPay Contributors">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#0FA968">
@@ -26,7 +26,6 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="apple-touch-icon" href="/favicon.svg">
   <link rel="canonical" href="/">
-  <link rel="stylesheet" href="style.css">
 
   <script type="application/ld+json">
   {
@@ -38,16 +37,45 @@
     "description": "自托管的开源支付中台：个人钱包、商户收单、开放 API、多渠道对账聚合与 AI 智能体。",
     "license": "https://opensource.org/licenses/MIT",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CNY" },
-    "softwareVersion": "0.3.0",
+    "softwareVersion": "0.3.2",
     "programmingLanguage": ["TypeScript", "Vue"]
   }
   </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; background: #f8fafc; color: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .page { width: 100%; max-width: 720px; padding: 40px 20px; text-align: center; }
+    .logo { width: 64px; height: 64px; margin: 0 auto 16px; display: block; }
+    h1 { font-size: 26px; font-weight: 700; color: #0fa968; margin-bottom: 8px; }
+    .sub { font-size: 14px; color: #64748b; margin-bottom: 32px; line-height: 1.7; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+    .card { display: block; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px 16px; text-decoration: none; color: inherit; transition: border-color .2s, box-shadow .2s, transform .15s; }
+    .card:hover { border-color: #0fa968; box-shadow: 0 8px 24px rgba(15,169,104,.12); transform: translateY(-2px); }
+    .card h2 { font-size: 16px; margin-bottom: 6px; }
+    .card p { font-size: 12px; color: #94a3b8; line-height: 1.6; }
+    .foot { margin-top: 32px; font-size: 12px; color: #94a3b8; }
+  </style>
 </head>
 <body>
-  <div id="app">
-    <!-- 动态内容由 app.js 渲染 -->
+  <div class="page">
+    <img class="logo" src="/logo.svg" alt="KeBaiPay">
+    <h1>KeBaiPay 科佰支付</h1>
+    <p class="sub">自托管开源支付中台 · 个人钱包 / 商户收单 / 开放 API / 多渠道对账 / AI 智能体</p>
+    <div class="grid">
+      <a class="card" href="/portal">
+        <h2>门户端</h2>
+        <p>登录 / 注册 / 个人钱包入口</p>
+      </a>
+      <a class="card" href="/h5">
+        <h2>移动端 H5</h2>
+        <p>手机端钱包与智能体对话</p>
+      </a>
+      <a class="card" href="/admin">
+        <h2>管理后台</h2>
+        <p>运营 / 审核 / 对账 / 风控</p>
+      </a>
+    </div>
+    <p class="foot">OpenAPI SDK 文档见 <a href="/docs">/docs</a> · 开放接口调试见 <a href="/api">/api</a></p>
   </div>
-  <script src="sdk/qrcode.min.js"></script>
-  <script src="app.js"></script>
 </body>
 </html>

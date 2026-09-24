@@ -333,7 +333,8 @@ describe('ReferralsService', () => {
       type: TransactionType.RECHARGE,
       status: TransactionStatus.SUCCESS,
       amount: 10000, // 100 元
-      fromUserId: 'u2',
+      fromUserId: null, // 外部渠道充值：fromUserId 恒为 null
+      toUserId: 'u2', // 充值入账给被邀请人
     }
     const mockReferrerAccount = {
       id: 'a1',
@@ -414,6 +415,27 @@ describe('ReferralsService', () => {
       })
       await expect(
         service.triggerReward('u2', { transactionNo: 'TX1' }),
+      ).rejects.toThrow(BadRequestException)
+    })
+
+    it('奖励单（relatedOrderNo 非空）不能作为触发交易：防递归套娃绕过', async () => {
+      // 真实攻击路径：邀请人 u1 同时是 u3 的被邀请人（referral.inviteeId=u1），
+      // 用自己的奖励单（type=RECHARGE、toUserId=u1 与 inviteeId 一致）触发，
+      // toUserId 校验会通过，仅 relatedOrderNo 非空能拦截 —— 套娃链在下一层被截断
+      prisma.referral.findUnique.mockResolvedValue({
+        ...mockReferral,
+        referralNo: 'REF9',
+        referrerId: 'u3', // 上一层邀请人
+        inviteeId: 'u1', // u1 是 u3 的被邀请人
+      })
+      prisma.transactionOrder.findFirst.mockResolvedValue({
+        ...mockOrder,
+        orderNo: 'RWD1',
+        toUserId: 'u1', // 奖励单入账方 = inviteeId，toUserId 校验放行
+        relatedOrderNo: 'REF1', // 奖励单恒带指向邀请单的 relatedOrderNo
+      })
+      await expect(
+        service.triggerReward('u1', { transactionNo: 'RWD1' }),
       ).rejects.toThrow(BadRequestException)
     })
 

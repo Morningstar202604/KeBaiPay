@@ -33,7 +33,8 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const auth = useAuthStore()
-  if (to.name !== 'login' && !auth.isAuthenticated) {
+  // login / register 为匿名可达页；其余页面未登录一律回登录页（此前 register 被误拦导致注册页不可达）
+  if (to.name !== 'login' && to.name !== 'register' && !auth.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   if (to.name === 'login' && auth.isAuthenticated) return { name: 'home' }

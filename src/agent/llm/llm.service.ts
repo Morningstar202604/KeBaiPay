@@ -36,7 +36,7 @@ export interface LlmResult {
 
 /**
  * LLM 服务封装：
- *  - LLM_PROVIDER=mock 时降级为本地模板引擎（复用 RiskAuditAiEngine 模式）
+ *  - LLM_PROVIDER=mock 时降级为本地模板引擎（保证无 LLM 环境可运行与测试）
  *  - 非 mock 时调用 Vercel AI SDK（@ai-sdk/openai）走 OpenAI 兼容协议
  *
  * 设计原则：
@@ -96,7 +96,7 @@ export class LlmService {
     systemPrompt?: string
     maxSteps?: number
   }): Promise<LlmResult> {
-    // mock 模式：直接返回固定模板（兼容 RiskAuditAiEngine 的现有行为）
+    // mock 模式：直接返回固定模板，保证无 LLM 环境下功能可用
     if (this.isMock) {
       return this.mockChat(input.messages, input.tools ?? [])
     }
@@ -170,7 +170,7 @@ export class LlmService {
 
   /**
    * mock 模式：简单的关键词匹配模板
-   * 复用 RiskAuditAiEngine 的设计思路，保证测试在无 LLM 环境下也能跑
+   * 模板引擎思路，保证测试在无 LLM 环境下也能跑
    */
   private async mockChat(messages: LlmMessage[], tools: LlmTool[]): Promise<LlmResult> {
     const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')

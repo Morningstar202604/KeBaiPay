@@ -1,5 +1,6 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger'
+import { Request } from 'express'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { CurrentUser as CurrentUserType } from '../auth/current-user.interface'
@@ -18,12 +19,13 @@ export class TransactionsController {
   @ApiResponse({ status: 201, description: '充值订单创建成功' })
   @ApiResponse({ status: 400, description: 'KB503 充值金额无效 / KB504 无可用渠道' })
   @ApiResponse({ status: 403, description: 'KB003 超出单日限额' })
-  recharge(@CurrentUser() user: CurrentUserType, @Body() dto: RechargeDto) {
+  recharge(@CurrentUser() user: CurrentUserType, @Body() dto: RechargeDto, @Req() req: Request) {
     return this.transactionsService.recharge(
       user.id,
       dto.amount,
       dto.payPassword,
       dto.idempotencyKey,
+      req.ip,
     )
   }
 }

@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule'
 import { SubscriptionsService } from './subscriptions.service'
 import { RedisService } from '../redis/redis.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
+import { buildLockKey } from '../common/constants'
 
 @Injectable()
 export class SubscriptionsSchedule {
@@ -26,7 +27,7 @@ export class SubscriptionsSchedule {
     const start = Date.now()
     this.scheduleHealth.reportStart('subscriptions:auto-charge')
     try {
-      await this.redis.withLock('sched:subscription:auto-charge', 240, () =>
+      await this.redis.withLock(buildLockKey('sched:subscription:auto-charge'), 240, () =>
         this.subscriptionsService.autoCharge(),
       )
       const duration = Date.now() - start

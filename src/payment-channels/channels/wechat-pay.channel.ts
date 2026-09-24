@@ -172,7 +172,9 @@ export class WechatPayChannel implements PaymentChannel {
         result = await pay.transactions_h5({
           ...baseOrder,
           scene_info: {
-            payer_client_ip: '127.0.0.1',
+            // P1-5：必须传真实终端 IP，微信侧硬编码 127.0.0.1 会触发风控/被拒；
+            // 取不到（如无代理头的服务端直连）时兜底
+            payer_client_ip: params.clientIp || '127.0.0.1',
             h5_info: {
               type: 'Wap',
               app_url: (cfg.wapUrl as string) || 'https://www.example.com',
@@ -363,7 +365,9 @@ export class WechatPayChannel implements PaymentChannel {
         notify_url: notifyUrl,
         amount: {
           refund: params.amount,
-          total: params.amount,
+          // P1-4：微信要求 total=原订单支付金额。部分退款时若错填退款金额会被渠道拒绝；
+          // 未传 originalAmount 时（全额退款）回退为退款金额
+          total: params.originalAmount ?? params.amount,
           currency: 'CNY',
         },
       })

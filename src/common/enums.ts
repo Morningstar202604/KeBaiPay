@@ -341,61 +341,6 @@ export enum InvoiceStatus {
 }
 
 // 风控审计会话状态
-export enum RiskAuditSessionStatus {
-  ACTIVE = 'ACTIVE',       // 进行中
-  CLOSED = 'CLOSED',       // 已关闭
-}
-
-// 风控审计消息角色
-export enum RiskAuditMessageRole {
-  USER = 'USER',                 // 用户消息
-  ASSISTANT = 'ASSISTANT',       // AI 助手回复
-  SYSTEM = 'SYSTEM',             // 系统消息
-}
-
-// 风控审计意图分类（用于 AI 引擎分流）
-export enum RiskAuditIntent {
-  GREETING = 'GREETING',                       // 问候/帮助
-  RULE_LIST = 'RULE_LIST',                     // 查询风控规则
-  RULE_DETAIL = 'RULE_DETAIL',                 // 查询某条规则详情
-  EVENT_LIST = 'EVENT_LIST',                   // 查询风险事件
-  EVENT_EXPLAIN = 'EVENT_EXPLAIN',             // 解释为何被拦截
-  TRANSACTION_LIST = 'TRANSACTION_LIST',       // 查询最近交易
-  ACCOUNT_STATUS = 'ACCOUNT_STATUS',           // 账户状态查询
-  APPEAL = 'APPEAL',                           // 申诉/解冻请求
-  UNKNOWN = 'UNKNOWN',                         // 未识别意图
-}
-
-// 自定义规则 DSL：支持的字段
-export enum CustomRuleField {
-  AMOUNT = 'amount',                  // 交易金额（分）
-  TYPE = 'type',                      // 交易类型
-  HOUR = 'hour',                      // 当前小时 (0-23)
-  DAY_OF_WEEK = 'dayOfWeek',          // 星期几 (0=周日, 6=周六)
-  USER_RISK_LEVEL = 'userRiskLevel',  // 用户风险等级
-  IP = 'ip',                          // 用户 IP
-}
-
-// 自定义规则 DSL：支持的算子
-export enum CustomRuleOperator {
-  EQ = '==',
-  NE = '!=',
-  GT = '>',
-  GTE = '>=',
-  LT = '<',
-  LTE = '<=',
-  IN = 'in',
-  NOT_IN = 'not_in',
-  IN_RANGE = 'in_range',       // 范围（支持跨午夜）
-  CONTAINS = 'contains',       // 字符串包含
-}
-
-// 自定义规则逻辑运算符
-export enum CustomRuleLogicalOp {
-  AND = 'AND',
-  OR = 'OR',
-}
-
 // 邀请关系状态
 export enum ReferralStatus {
   PENDING = 'PENDING',     // 已绑定邀请关系，等待触发奖励

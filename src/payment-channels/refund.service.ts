@@ -13,7 +13,7 @@ import { PaymentChannelBridge } from './payment-channel.bridge'
 import { RefundRequest, RefundResponse, ChannelConfig } from './payment-channel.interface'
 import { generateOrderNo, fenToYuan } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
-import { REDIS_LOCK_TTL_SECONDS } from '../common/constants'
+import {buildLockKey, REDIS_LOCK_TTL_SECONDS} from '../common/constants'
 import { JournalService } from '../finance/journal.service'
 
 /**
@@ -61,7 +61,7 @@ export class RefundService {
       throw new BadRequestException(kbError(KBErrorCodes.REFUND_AMOUNT_INVALID))
     }
 
-    return this.redis.withLock(`refund:create:${orderNo}`, REDIS_LOCK_TTL_SECONDS, async () => {
+    return this.redis.withLock(buildLockKey('refund:create', orderNo), REDIS_LOCK_TTL_SECONDS, async () => {
       // 查找原订单
       const order = await this.prisma.transactionOrder.findUnique({
         where: { orderNo },
@@ -147,6 +147,8 @@ export class RefundService {
         reason: reason || '用户退款',
         channelOrderNo: order.channelOrderNo || orderNo,
         channelConfig: channelConfig.config,
+        // P1-4：微信退款要求 amount.total=原订单支付金额，部分退款必须区分
+        originalAmount: order.amount,
       }
 
       let refundResult: RefundResponse
@@ -283,7 +285,7 @@ export class RefundService {
     const channelConfig = await this.channelRegistry.getEnabledConfig(channelCode)
     const result = channel.parseRefundCallback(rawBody, headers, channelConfig.config)
 
-    return this.redis.withLock(`refund:callback:${result.refundNo}`, REDIS_LOCK_TTL_SECONDS, async () => {
+    return this.redis.withLock(buildLockKey('refund:callback', result.refundNo), REDIS_LOCK_TTL_SECONDS, async () => {
       // 事务内只做条件状态迁移；资金退回统一走 processRefundSuccess
       //（独立锁 + 账本键幂等 + 双腿分录）。此前回调路径自带一份扣款逻辑，
       // 与 processRefundSuccess 分属两把不同的锁、各自检查幂等，同步成功与
@@ -347,7 +349,7 @@ export class RefundService {
    * 此前只有商户单边扣款账本——资金去向不明、对账 assets_balance 必然告警。
    */
   private async processRefundSuccess(refundNo: string): Promise<void> {
-    await this.redis.withLock(`refund:process:${refundNo}`, REDIS_LOCK_TTL_SECONDS, async () => {
+    await this.redis.withLock(buildLockKey('refund:process', refundNo), REDIS_LOCK_TTL_SECONDS, async () => {
       // 查找退款订单
       const refundOrder = await this.prisma.transactionOrder.findUnique({
         where: { orderNo: refundNo },

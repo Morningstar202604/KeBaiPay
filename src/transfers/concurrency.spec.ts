@@ -155,7 +155,7 @@ describe('TransfersService 并发安全', () => {
       expect(prisma.transactionOrder.create).toHaveBeenCalledTimes(1)
       // 两个转账使用同一把锁（基于 idempotencyKey）
       const lockKeys = redis.withLock.mock.calls.map((c: unknown[]) => c[0] as string)
-      expect(lockKeys).toEqual(['transfer:idem:k1', 'transfer:idem:k1'])
+      expect(lockKeys).toEqual(['kb:lock:transfer:idem:k1', 'kb:lock:transfer:idem:k1'])
     })
   })
 
@@ -276,7 +276,7 @@ describe('TransfersService 并发安全', () => {
       expect(prisma.transactionOrder.create).toHaveBeenCalledTimes(1)
       // 两笔转账使用同一把锁（基于 fromUserId）
       const lockKeys = redis.withLock.mock.calls.map((c: unknown[]) => c[0] as string)
-      expect(lockKeys).toEqual(['transfer:user:u1', 'transfer:user:u1'])
+      expect(lockKeys).toEqual(['kb:lock:transfer:user:u1', 'kb:lock:transfer:user:u1'])
       // 串行化：withLock 被调用两次（排队执行，不并发）
       expect(redis.withLock).toHaveBeenCalledTimes(2)
     })
@@ -290,7 +290,7 @@ describe('TransfersService 并发安全', () => {
     it('有 idempotencyKey 时使用 transfer:idem:${key} 锁', async () => {
       prisma.transactionOrder.findUnique.mockResolvedValue({ id: 't1', fromUserId: 'u1' })
       await service.transfer('u1', { toUserId: 'u2', amount: 10, payPassword: '123456', idempotencyKey: 'my-key' })
-      expect(redis.withLock.mock.calls[0][0]).toBe('transfer:idem:my-key')
+      expect(redis.withLock.mock.calls[0][0]).toBe('kb:lock:transfer:idem:my-key')
     })
 
     it('无 idempotencyKey 时使用 transfer:user:${fromUserId} 锁', async () => {
@@ -305,7 +305,7 @@ describe('TransfersService 并发安全', () => {
       prisma.transactionOrder.create.mockResolvedValue({ id: 't1', orderNo: 'T1' })
 
       await service.transfer('u1', { toUserId: 'u2', amount: 10, payPassword: '123456' })
-      expect(redis.withLock.mock.calls[0][0]).toBe('transfer:user:u1')
+      expect(redis.withLock.mock.calls[0][0]).toBe('kb:lock:transfer:user:u1')
     })
   })
 })

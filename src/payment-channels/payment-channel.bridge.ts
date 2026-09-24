@@ -22,8 +22,6 @@ export const CHANNEL_CONNECTOR_NAME: Record<string, string> = {
   wechat: 'wechat_pay',
   alipay: 'alipay',
   mock: 'mock',
-  unionpay: 'unionpay',
-  stripe: 'stripe',
 }
 
 /**

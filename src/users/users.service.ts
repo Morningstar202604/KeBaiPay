@@ -309,6 +309,19 @@ export class UsersService {
     userId: string,
     dto: { realName: string; idCard: string; newPayPassword: string },
   ) {
+    // 防爆破：身份比对（realName+idCard）复用支付密码尝试计数，5 次失败锁 15 分钟，
+    // 防止攻击者脚本化枚举身份信息重置他人支付密码
+    const now = Date.now()
+    const record = await this.getAttempts(userId)
+    if (record.lockedUntil > now) {
+      throw new BadRequestException(
+        kbError(
+          KBErrorCodes.PAY_PASSWORD_LOCKED,
+          `身份校验失败次数过多，请 ${Math.ceil((record.lockedUntil - now) / 60000)} 分钟后重试`,
+        ),
+      )
+    }
+
     const identity = await this.prisma.identityVerification.findUnique({
       where: { userId },
     })
@@ -323,7 +336,29 @@ export class UsersService {
     // 解密存储的身份证号进行比较
     const decryptedIdCard = this.crypto.decrypt(identity.idCard)
     if (identity.realName !== dto.realName || decryptedIdCard !== dto.idCard) {
+      // 身份不匹配：计数 +1，达到上限锁定
+      const attempts = record.count + 1
+      if (attempts >= this.maxPayPasswordAttempts) {
+        await this.setAttempts(userId, {
+          count: attempts,
+          lockedUntil: now + this.payPasswordLockMs,
+        })
+        throw new BadRequestException(
+          kbError(KBErrorCodes.PAY_PASSWORD_LOCKED_OUT),
+        )
+      }
+      await this.setAttempts(userId, {
+        count: attempts,
+        lockedUntil: 0,
+      })
       throw new BadRequestException(kbError(KBErrorCodes.IDENTITY_MISMATCH))
+    }
+
+    // 身份校验通过清零尝试计数
+    if (this.redis.isEnabled()) {
+      await this.redis.del(this.payPasswordKey(userId))
+    } else {
+      this.payPasswordAttempts.delete(userId)
     }
 
     const payPasswordHash = await this.hashPassword(dto.newPayPassword)

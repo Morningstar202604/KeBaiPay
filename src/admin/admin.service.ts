@@ -30,7 +30,7 @@ import { RedisService } from '../redis/redis.service'
 import { UpdateRiskRuleDto } from './dto/update-risk-rule.dto'
 import { fenToYuan, yuanToFen, generateOrderNo } from '../common/helpers'
 import { kbError, KBErrorCodes } from '../common/error-codes'
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, REDIS_LOCK_TTL_SECONDS, BCRYPT_SALT_ROUNDS } from '../common/constants'
+import { buildLockKey,  DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, REDIS_LOCK_TTL_SECONDS, BCRYPT_SALT_ROUNDS } from '../common/constants'
 
 /**
  * 审计日志附加元信息
@@ -906,38 +906,56 @@ export class AdminService {
     }
 
     const amountYuan = approval.amountFen / 100
-    try {
-      const result = await this.adjustAccount(
-        approval.targetUserId,
-        amountYuan,
-        `${approval.reason}（双人复核，发起人:${approval.initiatorAdminId}，审批人:${approverAdminId}）`,
-        approverAdminId,
-        auditMeta,
-      )
-      const updated = await this.prisma.adjustmentApproval.update({
-        where: { id },
-        data: { status: 'EXECUTED', executedAt: new Date() },
-      })
-      await this.auditLog.log({
-        adminId: approverAdminId,
-        action: 'ACCOUNT_ADJUST_APPROVAL_APPROVED',
-        target: approval.targetUserId,
-        detail: {
-          approvalId: id,
-          amountYuan,
-          initiatorAdminId: approval.initiatorAdminId,
-        },
-        ip: auditMeta?.ip,
-        userAgent: auditMeta?.userAgent,
-      })
-      return updated
-    } catch (err) {
-      // 执行失败：退还执行权，审批单回到 PENDING 允许修正后重试
-      await this.prisma.adjustmentApproval
-        .updateMany({ where: { id, status: 'EXECUTING' }, data: { status: 'PENDING' } })
-        .catch(() => undefined)
-      throw err
-    }
+    // 审批声明 + 动账 + EXECUTED 写入 + 审计全部放进同一事务（外层再套分布式锁防并发）：
+    // 任一步失败整体回滚，杜绝旧实现"动账已提交、EXECUTED 写失败后 catch 回退 PENDING
+    // 导致同一审批单重复打款"的资金窗口（P1-2）。
+    return this.redis.withLock(
+      buildLockKey('admin:adjust:approve', id),
+      REDIS_LOCK_TTL_SECONDS,
+      async () =>
+        this.prisma.$transaction(async (tx) => {
+          // 事务内乐观锁声明执行权：并发审批仅第一个把 PENDING → EXECUTING 的请求继续
+          const claimed = await tx.adjustmentApproval.updateMany({
+            where: { id, status: 'PENDING' },
+            data: { status: 'EXECUTING', approverAdminId, decidedAt: new Date() },
+          })
+          if (claimed.count === 0) {
+            throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '审批单已被处理'))
+          }
+
+          // 事务内真实调账（复用 adjustAccountCore，不嵌套事务/锁）
+          await this.adjustAccountCore(
+            tx,
+            approval.targetUserId,
+            amountYuan,
+            `${approval.reason}（双人复核，发起人:${approval.initiatorAdminId}，审批人:${approverAdminId}）`,
+            approverAdminId,
+            auditMeta,
+          )
+
+          // 事务内标记 EXECUTED + 写入审批审计
+          const updated = await tx.adjustmentApproval.update({
+            where: { id },
+            data: { status: 'EXECUTED', executedAt: new Date() },
+          })
+          await this.auditLog.log(
+            {
+              adminId: approverAdminId,
+              action: 'ACCOUNT_ADJUST_APPROVAL_APPROVED',
+              target: approval.targetUserId,
+              detail: {
+                approvalId: id,
+                amountYuan,
+                initiatorAdminId: approval.initiatorAdminId,
+              },
+              ip: auditMeta?.ip,
+              userAgent: auditMeta?.userAgent,
+            },
+            tx,
+          )
+          return updated
+        }),
+    )
   }
 
   /** 驳回大额调账申请（仅 PENDING 可驳回） */
@@ -984,6 +1002,29 @@ export class AdminService {
     adminId: string,
     auditMeta?: AuditMeta,
   ) {
+    // 分布式锁 + 独立事务包裹核心逻辑；统一事务调用方（如审批原子化）直接复用 adjustAccountCore
+    return this.redis.withLock(
+      buildLockKey('admin:adjust', userId),
+      REDIS_LOCK_TTL_SECONDS,
+      async () =>
+        this.prisma.$transaction((tx) =>
+          this.adjustAccountCore(tx, userId, amount, reason, adminId, auditMeta),
+        ),
+    )
+  }
+
+  /**
+   * 事务内调账核心：不自行开事务/加锁，供 adjustAccount 与 approveAdjustment 原子复用。
+   * 校验 + 动账 + 账本 + 账单 + 审计全部在传入事务内完成。
+   */
+  private async adjustAccountCore(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    amount: number,
+    reason: string,
+    adminId: string,
+    auditMeta?: AuditMeta,
+  ) {
     if (!amount || amount === 0) {
       throw new BadRequestException(kbError(KBErrorCodes.ADJUSTMENT_AMOUNT_INVALID))
     }
@@ -1000,95 +1041,87 @@ export class AdminService {
       throw new BadRequestException(kbError(KBErrorCodes.ADJUSTMENT_AMOUNT_INVALID))
     }
 
-    // H2: 管理员调账加 Redis 分布式锁，防止并发调账导致账本 balanceBefore/After 失真或余额异常
-    return this.redis.withLock(
-      `admin:adjust:${userId}`,
-      REDIS_LOCK_TTL_SECONDS,
-      async () =>
-        this.prisma.$transaction(async (tx) => {
-          const account = await tx.account.findUnique({ where: { userId } })
-          if (!account) throw new NotFoundException(kbError(KBErrorCodes.ACCOUNT_NOT_FOUND))
+    const account = await tx.account.findUnique({ where: { userId } })
+    if (!account) throw new NotFoundException(kbError(KBErrorCodes.ACCOUNT_NOT_FOUND))
 
-          let updatedAccount: typeof account
-          if (isDebit) {
-            updatedAccount = await tx.account.update({
-              where: { id: account.id },
-              data: {
-                availableBalance: { increment: amountFen },
-                totalBalance: { increment: amountFen },
-              },
-            })
-          } else {
-            const updateResult = await tx.account.updateMany({
-              where: {
-                id: account.id,
-                availableBalance: { gte: absFen },
-              },
-              data: {
-                availableBalance: { decrement: absFen },
-                totalBalance: { decrement: absFen },
-              },
-            })
-            if (updateResult.count === 0) {
-              throw new BadRequestException(kbError(KBErrorCodes.INSUFFICIENT_BALANCE))
-            }
-            updatedAccount = (await tx.account.findUnique({
-              where: { id: account.id },
-            }))!
-          }
+    let updatedAccount: typeof account
+    if (isDebit) {
+      updatedAccount = await tx.account.update({
+        where: { id: account.id },
+        data: {
+          availableBalance: { increment: amountFen },
+          totalBalance: { increment: amountFen },
+        },
+      })
+    } else {
+      const updateResult = await tx.account.updateMany({
+        where: {
+          id: account.id,
+          availableBalance: { gte: absFen },
+        },
+        data: {
+          availableBalance: { decrement: absFen },
+          totalBalance: { decrement: absFen },
+        },
+      })
+      if (updateResult.count === 0) {
+        throw new BadRequestException(kbError(KBErrorCodes.INSUFFICIENT_BALANCE))
+      }
+      updatedAccount = (await tx.account.findUnique({
+        where: { id: account.id },
+      }))!
+    }
 
-          const balanceAfter = updatedAccount!.availableBalance
-          // H1: balanceBefore 由 balanceAfter 反推，避免使用事务前读取的陈旧余额
-          // 加款（isDebit）：balanceBefore = balanceAfter - amountFen
-          // 扣款（!isDebit）：balanceBefore = balanceAfter + absFen
-          const balanceBefore = isDebit ? balanceAfter - amountFen : balanceAfter + absFen
-          const transactionId = generateOrderNo('ADJ')
+    const balanceAfter = updatedAccount!.availableBalance
+    // H1: balanceBefore 由 balanceAfter 反推，避免使用事务前读取的陈旧余额
+    // 加款（isDebit）：balanceBefore = balanceAfter - amountFen
+    // 扣款（!isDebit）：balanceBefore = balanceAfter + absFen
+    const balanceBefore = isDebit ? balanceAfter - amountFen : balanceAfter + absFen
+    const transactionId = generateOrderNo('ADJ')
 
-          await tx.accountLedger.create({
-            data: {
-              accountId: account.id,
-              transactionId,
-              type: LedgerType.ADJUSTMENT,
-              amount: absFen,
-              balanceBefore,
-              balanceAfter,
-              direction: isDebit ? Direction.DEBIT : Direction.CREDIT,
-              remark: `管理员调账:${reason}`,
-            },
-          })
+    await tx.accountLedger.create({
+      data: {
+        accountId: account.id,
+        transactionId,
+        type: LedgerType.ADJUSTMENT,
+        amount: absFen,
+        balanceBefore,
+        balanceAfter,
+        direction: isDebit ? Direction.DEBIT : Direction.CREDIT,
+        remark: `管理员调账:${reason}`,
+      },
+    })
 
-          await tx.bill.create({
-            data: {
-              userId,
-              transactionId,
-              type: isDebit ? BillType.RECEIPT : BillType.PAYMENT,
-              direction: isDebit ? BillDirection.INCOME : BillDirection.EXPENSE,
-              amount: absFen,
-              remark: `管理员调账:${reason}`,
-            },
-          })
+    await tx.bill.create({
+      data: {
+        userId,
+        transactionId,
+        type: isDebit ? BillType.RECEIPT : BillType.PAYMENT,
+        direction: isDebit ? BillDirection.INCOME : BillDirection.EXPENSE,
+        amount: absFen,
+        remark: `管理员调账:${reason}`,
+      },
+    })
 
-          // 敏感操作写入防篡改审计日志
-          await this.auditLog.log(
-            {
-              adminId,
-              action: 'ACCOUNT_ADJUST',
-              target: userId,
-              detail: { amountYuan: amount, reason },
-              ip: auditMeta?.ip,
-              userAgent: auditMeta?.userAgent,
-            },
-            tx,
-          )
-
-          return {
-            ...updatedAccount,
-            availableBalanceYuan: fenToYuan(updatedAccount.availableBalance),
-            frozenBalanceYuan: fenToYuan(updatedAccount.frozenBalance),
-            totalBalanceYuan: fenToYuan(updatedAccount.totalBalance),
-          }
-        }),
+    // 敏感操作写入防篡改审计日志
+    await this.auditLog.log(
+      {
+        adminId,
+        action: 'ACCOUNT_ADJUST',
+        target: userId,
+        detail: { amountYuan: amount, reason },
+        ip: auditMeta?.ip,
+        userAgent: auditMeta?.userAgent,
+      },
+      tx,
     )
+
+    return {
+      ...updatedAccount,
+      availableBalanceYuan: fenToYuan(updatedAccount.availableBalance),
+      frozenBalanceYuan: fenToYuan(updatedAccount.frozenBalance),
+      totalBalanceYuan: fenToYuan(updatedAccount.totalBalance),
+    }
   }
 
   // ==================== Admin User Management ====================

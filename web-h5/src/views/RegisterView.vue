@@ -30,8 +30,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import axios from 'axios'
-import { extractError } from '@/api/http'
+import http, { extractError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -64,7 +63,7 @@ async function submit() {
   await formRef.value.validate()
   loading.value = true
   try {
-    await axios.post('/auth/register', {
+    await http.post('/auth/register', {
       nickname: form.nickname.trim(),
       phone: form.phone.trim(),
       password: form.password,

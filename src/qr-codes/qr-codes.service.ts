@@ -27,6 +27,7 @@ import { RiskEngineService } from '../risk/risk-engine.service'
 import { fenToYuan, generateOrderNo, generateQrCode, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
+  buildLockKey,
   DEFAULT_PAYMENT_DAILY_LIMIT_CENTS,
   REDIS_LOCK_TTL_SECONDS,
 } from '../common/constants'
@@ -317,8 +318,7 @@ export class QrCodesService {
 
     // 同 idempotencyKey 并发请求通过 Redis 锁串行化，防止第二个 create 抛 P2002 未捕获
     if (dto.idempotencyKey) {
-      return this.redis.withLock(
-        `qrpay:idem:${dto.idempotencyKey}`,
+      return this.redis.withLock(buildLockKey('qrpay:idem', dto.idempotencyKey),
         REDIS_LOCK_TTL_SECONDS,
         runTransaction,
       )

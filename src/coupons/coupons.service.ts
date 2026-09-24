@@ -17,8 +17,8 @@ import { UsersService } from '../users/users.service'
 import { RedisService } from '../redis/redis.service'
 import { generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
-import { REDIS_LOCK_TTL_SECONDS } from '../common/constants'
-import { CreateCouponDto, UseUserCouponDto } from './dto/create-coupon.dto'
+import {buildLockKey, REDIS_LOCK_TTL_SECONDS} from '../common/constants'
+import { CreateCouponDto } from './dto/create-coupon.dto'
 
 /**
  * 优惠券 / 折扣码服务
@@ -30,7 +30,7 @@ import { CreateCouponDto, UseUserCouponDto } from './dto/create-coupon.dto'
  * 流程：
  *  1. 商家 createCoupon 创建优惠券
  *  2. 用户 claim 领取优惠券（受 perUserLimit / totalQuota 限制）
- *  3. 用户 useUserCoupon 使用优惠券（满减门槛校验、状态置为 USED）
+ *  3. 核销端点已下线：优惠券抵扣未接入任何支付流，见 controller 注释
  *  4. 过期优惠券由调度标记 EXPIRED
  */
 @Injectable()
@@ -131,8 +131,7 @@ export class CouponsService {
 
   /** 用户领取优惠券 */
   async claim(userId: string, couponNo: string) {
-    return this.redis.withLock(
-      `coupon:claim:${couponNo}:${userId}`,
+    return this.redis.withLock(buildLockKey('coupon:claim', `${couponNo}:${userId}`),
       REDIS_LOCK_TTL_SECONDS,
       async () =>
         this.prisma.$transaction(async (tx) => {
@@ -207,69 +206,6 @@ export class CouponsService {
    * 使用用户优惠券
    * @returns 折扣金额（分）
    */
-  async useUserCoupon(userId: string, userCouponNo: string, dto: UseUserCouponDto) {
-    return this.prisma.$transaction(async (tx) => {
-      const uc = await tx.userCoupon.findUnique({
-        where: { userCouponNo },
-        include: { coupon: true },
-      })
-      if (!uc) throw new NotFoundException(kbError(KBErrorCodes.USER_COUPON_NOT_FOUND))
-      if (uc.userId !== userId) {
-        throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权使用该优惠券'))
-      }
-      if (uc.status === UserCouponStatus.USED) {
-        throw new BadRequestException(kbError(KBErrorCodes.USER_COUPON_USED))
-      }
-      if (uc.status === UserCouponStatus.EXPIRED) {
-        throw new BadRequestException(kbError(KBErrorCodes.COUPON_EXPIRED))
-      }
-      if (uc.coupon.status !== CouponStatus.ACTIVE) {
-        throw new BadRequestException(kbError(KBErrorCodes.COUPON_DISABLED))
-      }
-      if (uc.coupon.expiresAt && uc.coupon.expiresAt <= new Date()) {
-        throw new BadRequestException(kbError(KBErrorCodes.COUPON_EXPIRED))
-      }
-
-      // 满减门槛校验
-      const orderAmountFen = yuanToFen(dto.orderAmount)
-      if (orderAmountFen < uc.coupon.minAmount) {
-        throw new BadRequestException(
-          kbError(KBErrorCodes.COUPON_VALUE_INVALID, '订单金额不满足满减门槛'),
-        )
-      }
-
-      // 计算折扣金额
-      let discountFen = 0
-      if (uc.coupon.type === CouponType.FIXED) {
-        discountFen = uc.coupon.value
-      } else if (uc.coupon.type === CouponType.PERCENT) {
-        discountFen = Math.floor((orderAmountFen * uc.coupon.value) / 100)
-      }
-      // 折扣不能超过订单金额
-      if (discountFen > orderAmountFen) discountFen = orderAmountFen
-
-      // 条件更新抢占核销：并发核销同一张券时仅一方成功，
-      // 防止一张券对多笔订单各抵扣一次（一券多用）
-      const claimUse = await tx.userCoupon.updateMany({
-        where: { id: uc.id, status: UserCouponStatus.AVAILABLE },
-        data: {
-          status: UserCouponStatus.USED,
-          usedAt: new Date(),
-          usedOrderNo: dto.orderNo,
-        },
-      })
-      if (claimUse.count === 0) {
-        throw new BadRequestException(kbError(KBErrorCodes.USER_COUPON_USED))
-      }
-
-      return {
-        userCouponNo: uc.userCouponNo,
-        discountAmount: discountFen,
-        finalAmount: orderAmountFen - discountFen,
-      }
-    })
-  }
-
   /** 查询用户优惠券详情 */
   async findUserCoupon(userId: string, userCouponNo: string) {
     const uc = await this.prisma.userCoupon.findUnique({

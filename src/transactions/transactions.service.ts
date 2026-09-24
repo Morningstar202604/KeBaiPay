@@ -24,7 +24,7 @@ import { RiskEngineService } from '../risk/risk-engine.service'
 import { JournalService } from '../finance/journal.service'
 import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
-import { REDIS_LOCK_TTL_SECONDS } from '../common/constants'
+import {buildLockKey, REDIS_LOCK_TTL_SECONDS} from '../common/constants'
 
 @Injectable()
 export class TransactionsService {
@@ -46,7 +46,13 @@ export class TransactionsService {
    * 新流程：创建 PENDING 订单 → 调用渠道 → 返回支付参数
    * 实际到账由渠道回调 handleRechargeCallback 完成
    */
-  async recharge(userId: string, amountYuan: number, payPassword: string, idempotencyKey?: string) {
+  async recharge(
+    userId: string,
+    amountYuan: number,
+    payPassword: string,
+    idempotencyKey?: string,
+    clientIp?: string,
+  ) {
     if (amountYuan <= 0) {
       throw new BadRequestException(kbError(KBErrorCodes.RECHARGE_AMOUNT_INVALID))
     }
@@ -145,6 +151,8 @@ export class TransactionsService {
         subject: '余额充值',
         notifyUrl,
         channelConfig: config,
+        // P1-5：透传客户端真实 IP，供 H5 支付 payer_client_ip 使用
+        clientIp,
       })
     } catch (error) {
       // 渠道调用失败：标记订单 FAILED，避免订单卡死在 PENDING（无 channelOrderNo，
@@ -194,7 +202,7 @@ export class TransactionsService {
     const channelConfig = await this.channelRegistry.getEnabledConfig(channelCode)
     const result = channel.parseRechargeCallback(rawBody, headers, channelConfig.config)
 
-    return this.redis.withLock(`recharge:callback:${result.orderNo}`, REDIS_LOCK_TTL_SECONDS, async () => {
+    return this.redis.withLock(buildLockKey('recharge:callback', result.orderNo), REDIS_LOCK_TTL_SECONDS, async () => {
       const txResult = await this.prisma.$transaction(async (tx) => {
         const order = await tx.transactionOrder.findUnique({
           where: { orderNo: result.orderNo },
@@ -414,8 +422,7 @@ export class TransactionsService {
       return 'STILL_PENDING'
     }
 
-    const txResult = await this.redis.withLock(
-      `recharge:callback:${order.orderNo}`,
+    const txResult = await this.redis.withLock(buildLockKey('recharge:callback', order.orderNo),
       REDIS_LOCK_TTL_SECONDS,
       async () => {
         return this.prisma.$transaction(async (tx) => {

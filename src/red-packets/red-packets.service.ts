@@ -26,7 +26,7 @@ import { RedisService } from '../redis/redis.service'
 import { createFrozenLegLedgerEntry, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import { randomInt } from 'crypto'
-import { DEFAULT_RED_PACKET_DAILY_LIMIT_CENTS, RED_PACKET_EXPIRY_MS, REDIS_LOCK_TTL_SECONDS } from '../common/constants'
+import {buildLockKey, DEFAULT_RED_PACKET_DAILY_LIMIT_CENTS, RED_PACKET_EXPIRY_MS, REDIS_LOCK_TTL_SECONDS} from '../common/constants'
 import { CreateRedPacketDto } from './dto/create-red-packet.dto'
 
 /**
@@ -124,8 +124,7 @@ export class RedPacketsService {
       )
     }
 
-    return this.redis.withLock(
-      `redpacket:create:${senderId}`,
+    return this.redis.withLock(buildLockKey('redpacket:create', senderId),
       REDIS_LOCK_TTL_SECONDS,
       async () => this.prisma.$transaction(async (tx) => {
       // 幂等键预检查
@@ -263,8 +262,7 @@ export class RedPacketsService {
       throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '账户状态异常，无法领取红包'))
     }
 
-    return this.redis.withLock(
-      `redpacket:receive:${packetNo}`,
+    return this.redis.withLock(buildLockKey('redpacket:receive', packetNo),
       REDIS_LOCK_TTL_SECONDS,
       async () => {
       // 风控检查移到事务外：riskEngine.check 含 Redis 窗口统计与非事务 DB 读，

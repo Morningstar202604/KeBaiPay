@@ -77,11 +77,9 @@ async function bootstrap() {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
-        // script-src-attr 必须放行内联事件属性：原生 SPA 的管理端/商户端仍用
-        // onclick 绑定交互（v0.3.1 起所有进入 onclick 的动态值都经 jsStr/jsNum
-        // 收敛，注入向量已在源头封死）。'none' 会导致全部按钮静默失效。
-        // 原生 SPA 退役（入口收敛到 Vue 三端）后应改回 'none'。
-        scriptSrcAttr: ["'unsafe-inline'"],
+        // 原生 SPA 已退役（入口收敛到 Vue 三端，构建产物为外部脚本），
+        // 内联事件属性一律禁止，封死 XSS 注入面。
+        scriptSrcAttr: ["'none'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'https:'],
         connectSrc: ["'self'"],

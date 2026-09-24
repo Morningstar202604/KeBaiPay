@@ -137,6 +137,13 @@ export class SmsService implements OnModuleDestroy {
     const rateLimitKey = `sms:ratelimit:${phone}:${scene}`;
     const acquired = await this.redis.setRateLimit(rateLimitKey, RESEND_INTERVAL_SECONDS);
     if (!acquired) {
+      // P2 修复：60s 拒绝路径必须回滚手机号/IP 日配额计数——
+      // 否则攻击者每 60 秒触发一次拒绝即可在 24h 内耗尽受害者当日短信额度，
+      // 受害者真实需要验证码时被 SMS_DAILY_LIMIT 拒绝
+      await this.redis.decr(phoneDailyKey).catch(() => {});
+      if (clientIp) {
+        await this.redis.decr(`sms:daily:ip:${clientIp}:${today}`).catch(() => {});
+      }
       return {
         success: false,
         code: 'SMS_RATE_LIMIT',

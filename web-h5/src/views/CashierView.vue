@@ -3,6 +3,9 @@
     <el-card shadow="never" class="card">
       <template #header>创建付款订单</template>
       <el-form label-position="top">
+        <el-form-item v-if="payeeName" label="收款方">
+          <div class="sub">{{ payeeName }}（扫码收款）</div>
+        </el-form-item>
         <el-form-item label="商户订单号">
           <el-input v-model="merchantOrderNo" placeholder="唯一订单号" size="large" />
         </el-form-item>
@@ -36,17 +39,25 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { CashierOrder } from '@/types'
-import { createCashierOrder, fetchCashierOrders, payCashierOrder } from '@/api/modules'
+import {
+  createCashierOrder,
+  fetchCashierOrders,
+  payCashierOrder,
+  fetchQrCodeInfo,
+} from '@/api/modules'
 import { extractError } from '@/api/http'
 
+const route = useRoute()
 const merchantOrderNo = ref(`MO${Date.now()}`)
 const subject = ref('')
 const amount = ref(10)
 const creating = ref(false)
 const loading = ref(true)
 const orders = ref<CashierOrder[]>([])
+const payeeName = ref('')
 
 function statusText(s: string) {
   const map: Record<string, string> = { PENDING: '待支付', PAID: '已支付', CLOSED: '已关闭', REFUNDED: '已退款' }
@@ -104,7 +115,23 @@ async function load() {
   }
 }
 
-onMounted(load)
+// 扫码进入：/cashier?code=xxx（商户收款码）→ 拉取收款信息预填金额与商品名；
+// 无参数则保持手动创建。登录后由守卫 redirect 带回完整 query。
+onMounted(async () => {
+  const code = route.query.code as string | undefined
+  if (code) {
+    try {
+      const info = await fetchQrCodeInfo(code)
+      subject.value = info.subject
+      payeeName.value = info.merchantName
+      if (info.amountYuan) amount.value = Number(info.amountYuan)
+      ElMessage.success(`向「${info.merchantName}」付款`)
+    } catch (e) {
+      ElMessage.error(extractError(e))
+    }
+  }
+  await load()
+})
 </script>
 
 <style scoped>

@@ -39,6 +39,7 @@ describe('ChannelConfigController', () => {
   const mockChannelRegistry = {
     getChannel: jest.fn(),
     clearChannelConfigCache: jest.fn(),
+    getEnabledConfig: jest.fn(),
   }
   const mockConnector = {
     getConfig: jest.fn(() => ({})),
@@ -226,14 +227,21 @@ describe('ChannelConfigController', () => {
 
   it('testChannel 返回渠道可用信息', async () => {
     mockChannelRegistry.getChannel.mockReturnValue({ code: 'alipay', name: '支付宝' })
+    mockChannelRegistry.getEnabledConfig.mockResolvedValue({
+      code: 'alipay',
+      name: '支付宝',
+      type: 'RECHARGE',
+      config: {},
+    })
     const result = await controller.testChannel('alipay')
     expect(result).toEqual({
       code: 'alipay',
       name: '支付宝',
       available: true,
-      message: '支付宝 渠道可用',
+      message: '支付宝 渠道已启用（RECHARGE）',
     })
     expect(mockChannelRegistry.getChannel).toHaveBeenCalledWith('alipay')
+    expect(mockChannelRegistry.getEnabledConfig).toHaveBeenCalledWith('alipay')
   })
 
   it('createChannel 事务提交后同步连接器配置', async () => {

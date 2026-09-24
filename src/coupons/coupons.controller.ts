@@ -13,7 +13,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { CurrentUser as CurrentUserType } from '../auth/current-user.interface'
 import { CouponsService } from './coupons.service'
-import { CreateCouponDto, UpdateCouponStatusDto, UseUserCouponDto } from './dto/create-coupon.dto'
+import { CreateCouponDto, UpdateCouponStatusDto } from './dto/create-coupon.dto'
 import { ListCouponDto, ListUserCouponDto } from './dto/list-coupon.dto'
 
 @ApiTags('优惠券 / 折扣码')
@@ -80,16 +80,10 @@ export class CouponsController {
     return this.couponsService.listMyCoupons(user.id, query)
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Post('mine/:userCouponNo/use')
-  @ApiOperation({ summary: '使用用户优惠券', description: '返回折扣金额和最终金额' })
-  use(
-    @CurrentUser() user: CurrentUserType,
-    @Param('userCouponNo') userCouponNo: string,
-    @Body() dto: UseUserCouponDto,
-  ) {
-    return this.couponsService.useUserCoupon(user.id, userCouponNo, dto)
-  }
+  // 注：原「使用优惠券」核销端点已下线。
+  // 原因：项目无订单实体，优惠券抵扣从未接入任何支付流（充值/转账/红包均不校验券），
+  // 该端点只能把券标记为 USED 而无真实支付效果，属于孤岛功能。
+  // 未来接入真实支付立减时，应在支付结算事务内原子核销（方案见重构报告 P2-3）。
 
   @UseGuards(JwtAuthGuard)
   @Get('mine/:userCouponNo')

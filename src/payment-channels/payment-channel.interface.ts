@@ -27,6 +27,8 @@ export interface RechargeRequest {
   payMethod?: string
   /** JSAPI 支付时的 openid */
   openid?: string
+  /** 客户端真实 IP（H5 支付微信要求 payer_client_ip 为真实终端 IP，P1-5） */
+  clientIp?: string
 }
 
 /** 充值响应 */
@@ -78,6 +80,9 @@ export interface RefundRequest {
   channelConfig: ChannelConfig
   /** 原支付渠道订单号 */
   channelOrderNo: string
+  /** 原支付单金额（分）。微信退款要求 amount.total 为原订单支付金额，
+   *  部分退款时若错填退款金额会被渠道拒绝（P1-4） */
+  originalAmount?: number
 }
 
 /** 退款响应 */

@@ -549,4 +549,51 @@ describe('EscrowService', () => {
       confirmSpy.mockRestore()
     })
   })
+
+  describe('list 查询列表（P1-3 越权修复）', () => {
+    it("role='all' 必须限定为当前用户参与的订单（OR 买家/卖家），不得全表", async () => {
+      prisma.escrowOrder.findMany.mockResolvedValue([{ id: 'e1' }])
+      await service.list('u1', { role: 'all' })
+      expect(prisma.escrowOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { OR: [{ buyerId: 'u1' }, { sellerId: 'u1' }] },
+        }),
+      )
+    })
+
+    it("role='buyer' 只查买家身份", async () => {
+      await service.list('u1', { role: 'buyer' })
+      expect(prisma.escrowOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { buyerId: 'u1' } }),
+      )
+    })
+
+    it("role='seller' 只查卖家身份", async () => {
+      await service.list('u1', { role: 'seller' })
+      expect(prisma.escrowOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { sellerId: 'u1' } }),
+      )
+    })
+
+    it('默认（无 role）等价于 all，同样限定当前用户', async () => {
+      await service.list('u1', {})
+      expect(prisma.escrowOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { OR: [{ buyerId: 'u1' }, { sellerId: 'u1' }] },
+        }),
+      )
+    })
+
+    it('status 筛选与用户限定共存', async () => {
+      await service.list('u1', { role: 'all', status: 'PAID' })
+      expect(prisma.escrowOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [{ buyerId: 'u1' }, { sellerId: 'u1' }],
+            status: 'PAID',
+          },
+        }),
+      )
+    })
+  })
 })

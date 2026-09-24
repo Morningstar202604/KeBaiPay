@@ -331,32 +331,6 @@ export class ToolRegistry {
           }
         },
       },
-      {
-        name: 'kbpay_query_reconciliation_diff',
-        description: '查询当前商户的对账差异项列表',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            status: { type: 'string' },
-            limit: { type: 'number' },
-          },
-        },
-        requireConfirm: false,
-        execute: async (args: any) => {
-          this.checkScope(ctx, 'merchant:read')
-          const subjectId = this.requireSubjectId(ctx)
-          const limit = Math.min(args?.limit ?? 20, 100)
-          // 安全修复：必须按 merchantId 过滤，防止跨租户数据泄露（IDOR）
-          const where: any = { merchantId: subjectId }
-          if (args?.status) where.status = args.status
-          const diffs = await this.prisma.reconciliationDifferenceItem.findMany({
-            where,
-            orderBy: { createdAt: 'desc' },
-            take: limit,
-          })
-          return { count: diffs.length, diffs }
-        },
-      },
     ]
   }
 
@@ -397,27 +371,6 @@ export class ToolRegistry {
         execute: async () => {
           this.checkScope(ctx, 'risk:read')
           return deps.scheduleHealthService.getScheduleStatus()
-        },
-      },
-      {
-        name: 'kbpay_query_reconciliation_diffs',
-        description: '查询 S5 多平台对账差异列表',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            status: { type: 'string' },
-            limit: { type: 'number' },
-          },
-        },
-        requireConfirm: false,
-        execute: async (args: any) => {
-          this.checkScope(ctx, 'risk:read')
-          const limit = Math.min(args?.limit ?? 20, 100)
-          return this.prisma.reconciliationDifferenceItem.findMany({
-            where: args?.status ? { status: args.status } : undefined,
-            orderBy: { createdAt: 'desc' },
-            take: limit,
-          })
         },
       },
     ]

@@ -26,7 +26,7 @@ import { RiskEngineService } from '../risk/risk-engine.service'
 import { RedisService } from '../redis/redis.service'
 import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
-import { DEFAULT_TRANSFER_DAILY_LIMIT_CENTS, LARGE_TRANSFER_THRESHOLD_CENTS, REDIS_LOCK_TTL_SECONDS } from '../common/constants'
+import {buildLockKey, DEFAULT_TRANSFER_DAILY_LIMIT_CENTS, LARGE_TRANSFER_THRESHOLD_CENTS, REDIS_LOCK_TTL_SECONDS} from '../common/constants'
 
 @Injectable()
 export class TransfersService {
@@ -44,8 +44,8 @@ export class TransfersService {
     dto: { toUserId: string; amount: number; remark?: string; payPassword: string; idempotencyKey?: string },
   ) {
     const lockKey = dto.idempotencyKey
-      ? `transfer:idem:${dto.idempotencyKey}`
-      : `transfer:user:${fromUserId}`
+      ? buildLockKey('transfer:idem', dto.idempotencyKey)
+      : buildLockKey('transfer:user', fromUserId)
     return this.redis.withLock(lockKey, REDIS_LOCK_TTL_SECONDS, async () => {
       if (dto.amount <= 0) {
         throw new BadRequestException(kbError(KBErrorCodes.TRANSFER_AMOUNT_INVALID))
@@ -151,7 +151,7 @@ export class TransfersService {
       )
     }
 
-    return this.redis.withLock(`agent-transfer:${idempotencyKey}`, REDIS_LOCK_TTL_SECONDS, async () => {
+    return this.redis.withLock(buildLockKey('agent-transfer', idempotencyKey), REDIS_LOCK_TTL_SECONDS, async () => {
       const { fromUser, toUser } = await this.validateParties(fromUserId, toUserId)
 
       const riskResult = await this.riskEngine.check({

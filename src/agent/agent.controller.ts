@@ -19,7 +19,6 @@ import {
  *  1. /agent/conversations   - 会话管理
  *  2. /agent/chat            - 发送消息（核心入口）
  *  3. /agent/confirm         - 确认/拒绝待确认操作
- *  4. /agent/verify-chain    - 校验操作哈希链
  *
  * 认证/授权管理（login / authorize / revoke / authorizations）见
  * AgentAuthController（用户 JWT）；创建/管理 Agent 见 AgentAdminController（管理员 JWT）。
@@ -41,7 +40,7 @@ export class AgentController {
     @Body() dto: StartConversationDto,
   ) {
     return this.agentService.createConversation(
-      user.subjectId!, dto.scenario, dto.title, dto.metadata,
+      user, dto.scenario, dto.title, dto.metadata,
     )
   }
 
@@ -101,11 +100,5 @@ export class AgentController {
       decision: dto.decision,
       user,
     })
-  }
-
-  @Get('verify-chain/:agentId')
-  @ApiOperation({ summary: '校验 Agent 操作哈希链（防篡改）' })
-  async verifyChain(@Param('agentId') agentId: string) {
-    return this.agentService.verifyHashChain(agentId)
   }
 }

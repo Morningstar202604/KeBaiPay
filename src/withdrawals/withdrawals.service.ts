@@ -26,7 +26,7 @@ import { JournalService } from '../finance/journal.service'
 import { CryptoService } from '../crypto/crypto.service'
 import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
-import { DEFAULT_WITHDRAW_DAILY_LIMIT_CENTS, LARGE_WITHDRAWAL_THRESHOLD_CENTS, RATE_DENOMINATOR, REDIS_LOCK_TTL_SECONDS } from '../common/constants'
+import {buildLockKey, DEFAULT_WITHDRAW_DAILY_LIMIT_CENTS, LARGE_WITHDRAWAL_THRESHOLD_CENTS, RATE_DENOMINATOR, REDIS_LOCK_TTL_SECONDS} from '../common/constants'
 
 @Injectable()
 export class WithdrawalsService {
@@ -78,7 +78,7 @@ export class WithdrawalsService {
       throw new BadRequestException(kbError(KBErrorCodes.WITHDRAWAL_AMOUNT_INVALID))
     }
 
-    return this.redis.withLock(`withdraw:create:${userId}`, REDIS_LOCK_TTL_SECONDS, async () => {
+    return this.redis.withLock(buildLockKey('withdraw:create', userId), REDIS_LOCK_TTL_SECONDS, async () => {
       const user = await this.usersService.findById(userId)
       if (!user) throw new NotFoundException(kbError(KBErrorCodes.USER_NOT_FOUND))
       if (user.realNameStatus !== RealNameStatus.VERIFIED) {
@@ -274,7 +274,7 @@ export class WithdrawalsService {
 
   async approve(orderId: string, adminId: string) {
     // 使用 Redis 锁防止并发审核（同一订单同时被两个管理员审核）
-    return this.redis.withLock(`withdraw:approve:${orderId}`, REDIS_LOCK_TTL_SECONDS, async () => {
+    return this.redis.withLock(buildLockKey('withdraw:approve', orderId), REDIS_LOCK_TTL_SECONDS, async () => {
       const order = await this.prisma.withdrawalOrder.findUnique({
         where: { id: orderId },
       })
@@ -429,7 +429,7 @@ export class WithdrawalsService {
     const channelConfig = await this.channelRegistry.getEnabledConfig(channelCode)
     const result = channel.parsePayoutCallback(rawBody, headers, channelConfig.config)
 
-    return this.redis.withLock(`payout:callback:${result.orderNo}`, REDIS_LOCK_TTL_SECONDS, async () => {
+    return this.redis.withLock(buildLockKey('payout:callback', result.orderNo), REDIS_LOCK_TTL_SECONDS, async () => {
       return this.prisma.$transaction(async (tx) => {
         const order = await tx.withdrawalOrder.findUnique({
           where: { orderNo: result.orderNo },
@@ -585,7 +585,7 @@ export class WithdrawalsService {
   }
 
   async reject(orderId: string, adminId: string, reason?: string) {
-    return this.redis.withLock(`withdraw:reject:${orderId}`, REDIS_LOCK_TTL_SECONDS, async () => {
+    return this.redis.withLock(buildLockKey('withdraw:reject', orderId), REDIS_LOCK_TTL_SECONDS, async () => {
       return this.prisma.$transaction(async (tx) => {
         // 原子锁定订单：仅当状态为 PENDING 时才能改为 REJECTED，防止并发双退
         const lockResult = await tx.withdrawalOrder.updateMany({

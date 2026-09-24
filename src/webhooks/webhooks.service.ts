@@ -13,6 +13,7 @@ import { WithdrawalsService } from '../withdrawals/withdrawals.service'
 import { RefundService } from '../payment-channels/refund.service'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import type { ChannelConfig } from '../payment-channels/payment-channel.interface'
+import { buildLockKey } from '../common/constants'
 
 /**
  * Webhook 处理服务
@@ -47,7 +48,7 @@ export class WebhooksService {
     // 锁 key 使用 rawBody hash：微信 V3 回调外层无 out_trade_no（需解密），
     // 改用 hash 保证同一回调内容多次重试时锁同一把，避免锁 key 退化为 unknown
     const orderNo = this.extractOrderNo(rawBody, channelCode)
-    const lockKey = `webhook:recharge:${channelCode}:${orderNo}`
+    const lockKey = buildLockKey('webhook:recharge', `${channelCode}:${orderNo}`)
 
     const startTime = Date.now()
     return this.redis.withLock(lockKey, 30, async () => {
@@ -111,7 +112,7 @@ export class WebhooksService {
     headers: Record<string, string>,
   ): Promise<string> {
     const orderNo = this.extractOrderNo(rawBody, channelCode)
-    const lockKey = `webhook:payout:${channelCode}:${orderNo}`
+    const lockKey = buildLockKey('webhook:payout', `${channelCode}:${orderNo}`)
 
     const startTime = Date.now()
     return this.redis.withLock(lockKey, 30, async () => {
@@ -171,7 +172,7 @@ export class WebhooksService {
     headers: Record<string, string>,
   ): Promise<string> {
     const refundNo = this.extractRefundNo(rawBody, channelCode)
-    const lockKey = `webhook:refund:${channelCode}:${refundNo}`
+    const lockKey = buildLockKey('webhook:refund', `${channelCode}:${refundNo}`)
 
     const startTime = Date.now()
     return this.redis.withLock(lockKey, 30, async () => {

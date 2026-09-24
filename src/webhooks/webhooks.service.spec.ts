@@ -101,7 +101,7 @@ describe('WebhooksService', () => {
     it('微信回调使用 rawBody hash 作为锁 key 后缀，避免退化为 unknown', async () => {
       await service.handleRechargeCallback('wechat', '{"encrypted":"data"}', {})
       const lockKey = redis.withLock.mock.calls[0][0] as string
-      expect(lockKey).toMatch(/^webhook:recharge:wechat:hash:[a-f0-9]{16}$/)
+      expect(lockKey).toMatch(/^kb:lock:webhook:recharge:wechat:hash:[a-f0-9]{16}$/)
     })
   })
 

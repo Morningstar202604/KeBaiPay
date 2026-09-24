@@ -44,20 +44,22 @@ describe('TransactionsController', () => {
   })
 
   describe('recharge 方法调用', () => {
-    it('正确透传 user.id / amount / payPassword / idempotencyKey 到 service', async () => {
+    it('正确透传 user.id / amount / payPassword / idempotencyKey / clientIp 到 service', async () => {
       const user = { id: 'u1' }
       const dto = { amount: 100, payPassword: '123456', idempotencyKey: 'idem-1' }
-      await controller.recharge(user as any, dto as any)
+      const req = { ip: '203.0.113.7' }
+      await controller.recharge(user as any, dto as any, req as any)
 
-      expect(mockService.recharge).toHaveBeenCalledWith('u1', 100, '123456', 'idem-1')
+      expect(mockService.recharge).toHaveBeenCalledWith('u1', 100, '123456', 'idem-1', '203.0.113.7')
     })
 
     it('无 idempotencyKey 时透传 undefined', async () => {
       const user = { id: 'u2' }
       const dto = { amount: 50, payPassword: '654321' }
-      await controller.recharge(user as any, dto as any)
+      const req = { ip: '203.0.113.8' }
+      await controller.recharge(user as any, dto as any, req as any)
 
-      expect(mockService.recharge).toHaveBeenCalledWith('u2', 50, '654321', undefined)
+      expect(mockService.recharge).toHaveBeenCalledWith('u2', 50, '654321', undefined, '203.0.113.8')
     })
   })
 })

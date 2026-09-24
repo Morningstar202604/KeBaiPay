@@ -7,6 +7,7 @@ import { PaymentChannelRegistry } from '../payment-channels/payment-channel.regi
 import { PaymentChannelBridge } from '../payment-channels/payment-channel.bridge'
 import { ChannelConfig } from '../payment-channels/payment-channel.interface'
 import { ScheduleHealthService } from '../common/schedule-health.service'
+import { buildLockKey } from '../common/constants'
 
 /** PROCESSING 状态超过该时长视为异常，需兜底核对渠道真实状态 */
 const PROCESSING_TIMEOUT_MS = 10 * 60 * 1000
@@ -53,7 +54,7 @@ export class WithdrawalsSchedule {
     }
     try {
       await this.redis.withLock(
-        'sched:withdrawal:timeout',
+        buildLockKey('sched:withdrawal:timeout'),
         SCHED_LOCK_TTL_SECONDS,
         async () => {
           await this.scanTimeoutOrders().catch((err) =>

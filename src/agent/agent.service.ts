@@ -17,7 +17,6 @@ import {
   AGENT_RESULT_SUCCESS,
   AGENT_RESULT_REJECTED,
   AGENT_RESULT_EXPIRED,
-  AGENT_GENESIS_HASH,
 } from '../common/constants'
 import type { AgentCurrentUser } from './agent-current-user.interface'
 
@@ -69,22 +68,34 @@ export class AgentService {
     }
   }
 
-  /** 创建会话 */
-  async createConversation(userId: string, scenario: string, title?: string, metadata?: any) {
-    // 找一个匹配 scenario 的 Agent
-    const agent = await this.prisma.agent.findFirst({
-      where: { scenario, status: 'ACTIVE' },
+  /**
+   * 创建会话（绑定 token 中已授权的 Agent）
+   *
+   * 修复说明：此前按 scenario findFirst 猜测 Agent，可能与 token 绑定的已授权 Agent 不一致，
+   * 导致会话归属、审计日志与权限边界错乱。现在会话必须挂在 token 对应的 Agent（user.sub）上，
+   * 请求的 scenario 仅作一致性校验。
+   */
+  async createConversation(user: AgentCurrentUser, scenario?: string, title?: string, metadata?: any) {
+    const agentId = user.sub
+    const agent = await this.prisma.agent.findUnique({
+      where: { id: agentId },
     })
     if (!agent) {
-      throw new NotFoundException(`未找到 scenario=${scenario} 的可用智能体`)
+      throw new NotFoundException('未找到可用的智能体')
+    }
+    if (agent.status !== 'ACTIVE') {
+      throw new BadRequestException('智能体已停用')
+    }
+    if (scenario && scenario !== agent.scenario) {
+      throw new BadRequestException(`场景不匹配：该智能体仅支持 ${agent.scenario} 场景`)
     }
     const conv = await this.prisma.agentConversation.create({
       data: {
         convNo: generateOrderNo('CONV'),
-        agentId: agent.id,
-        userId,
-        scenario,
-        title: title ?? `${scenario} 智能助手会话`,
+        agentId,
+        userId: user.subjectId!,
+        scenario: agent.scenario,
+        title: title ?? `${agent.scenario} 智能助手会话`,
         metadata: metadata ? JSON.stringify(metadata) : null,
       },
     })
@@ -93,7 +104,7 @@ export class AgentService {
       data: {
         convId: conv.id,
         role: AGENT_ROLE_SYSTEM,
-        content: this.welcomeMessage(scenario),
+        content: this.welcomeMessage(agent.scenario),
       },
     })
     return conv
@@ -233,13 +244,15 @@ export class AgentService {
             toolName: tc.name,
             args: tc.args,
             message: `操作待确认：${tc.name}`,
+            // 人类可读的确认文案：展示收款人昵称/金额/备注，防止用户对着 UUID 盲目确认（防 AI 钓鱼）
+            display: await this.describeOpForConfirm(tc.name, tc.args),
           })
           // 通知用户
           await this.messagesService.sendMessage({
             userId: conv.userId,
             category: 'SYSTEM',
             title: '智能体操作待确认',
-            content: `智能体请求执行 ${tc.name}，操作详情：${JSON.stringify(tc.args)}。请在 ${confirmTimeoutSec} 秒内确认。`,
+            content: `智能体请求执行 ${tc.name}：${await this.describeOpForConfirm(tc.name, tc.args)}。请在 ${confirmTimeoutSec} 秒内确认。`,
             channels: 'IN_APP',
             priority: 'HIGH',
           })
@@ -270,6 +283,33 @@ export class AgentService {
       toolCalls: llmResult.toolCalls,
       pendingOps: pendingOps.length > 0 ? pendingOps : undefined,
     }
+  }
+
+  /**
+   * 生成人类可读的待确认操作文案。
+   * 对资金类工具解析收款人昵称与金额，避免向用户展示晦涩 ID 导致误确认。
+   */
+  private async describeOpForConfirm(toolName: string, args: any): Promise<string> {
+    if (toolName === 'kbpay_transfer' && args && typeof args === 'object') {
+      const toUserId = String(args.toUserId ?? '').slice(0, 64)
+      const amount = Number(args.amountYuan)
+      const amountText = Number.isFinite(amount) ? amount.toFixed(2) : '未知金额'
+      let receiverText = toUserId || '未知用户'
+      if (toUserId) {
+        try {
+          const target = await this.prisma.user.findUnique({
+            where: { id: toUserId },
+            select: { nickname: true },
+          })
+          if (target?.nickname) receiverText = `${target.nickname}（${toUserId}）`
+        } catch {
+          // 查询失败时退化为原始 ID，不影响确认流程
+        }
+      }
+      const remark = typeof args.remark === 'string' ? args.remark : ''
+      return `向用户「${receiverText}」转账 ¥${amountText} 元${remark ? `，备注：${remark.slice(0, 100)}` : ''}`
+    }
+    return `${toolName}：${JSON.stringify(args ?? {})}`
   }
 
   /**
@@ -369,12 +409,6 @@ export class AgentService {
       })
       throw err
     }
-  }
-
-  /** 校验 Agent 哈希链 */
-  async verifyHashChain(agentId: string): Promise<{ valid: boolean; brokenAt?: string }> {
-    const brokenAt = await this.auditLog.verifyChain(agentId)
-    return { valid: brokenAt === null, brokenAt: brokenAt ?? undefined }
   }
 
   private buildSystemPrompt(scenario: string, user: AgentCurrentUser): string {

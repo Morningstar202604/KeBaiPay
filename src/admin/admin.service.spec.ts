@@ -729,6 +729,7 @@ describe('AdminService', () => {
       })
       expect(auditLog.log).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'ACCOUNT_ADJUST_APPROVAL_APPROVED' }),
+        expect.anything(), // 第二参数为事务客户端 tx
       )
     })
 
@@ -752,7 +753,7 @@ describe('AdminService', () => {
       expect(prisma.adjustmentApproval.updateMany).not.toHaveBeenCalled()
     })
 
-    it('执行失败时回滚执行权到 PENDING 并抛出原错误', async () => {
+    it('执行失败时整体原子回滚，不写 EXECUTED 状态', async () => {
       prisma.adjustmentApproval.findUnique.mockResolvedValue({
         id: 'ap1',
         targetUserId: 'ghost',
@@ -762,16 +763,11 @@ describe('AdminService', () => {
         status: 'PENDING',
       })
       prisma.adjustmentApproval.updateMany.mockResolvedValue({ count: 1 })
-      // 账户不存在 → adjustAccount 抛 NotFoundException
+      // 账户不存在 → adjustAccountCore 抛 NotFoundException，事务整体回滚
       prisma.account.findUnique.mockResolvedValue(null)
 
-      await expect(service.approveAdjustment('ap1', 'admin2', meta)).rejects.toThrow()
-      // 回滚声明
-      expect(prisma.adjustmentApproval.updateMany).toHaveBeenCalledWith({
-        where: { id: 'ap1', status: 'EXECUTING' },
-        data: { status: 'PENDING' },
-      })
-      // 不置 EXECUTED
+      await expect(service.approveAdjustment('ap1', 'admin2', meta)).rejects.toThrow(NotFoundException)
+      // 不置 EXECUTED（事务失败回滚，审批单保持 PENDING 可重试，杜绝重复打款窗口）
       expect(prisma.adjustmentApproval.update).not.toHaveBeenCalled()
     })
 

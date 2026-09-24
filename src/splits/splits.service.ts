@@ -29,6 +29,7 @@ import { RedisService } from '../redis/redis.service'
 import { fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
+  buildLockKey,
   DEFAULT_SPLIT_DAILY_LIMIT_CENTS,
   LARGE_SPLIT_THRESHOLD_CENTS,
   MAX_SPLIT_RECEIVERS,
@@ -169,8 +170,8 @@ export class SplitsService {
     }
 
     const lockKey = dto.idempotencyKey
-      ? `split:idem:${dto.idempotencyKey}`
-      : `split:user:${senderId}:${dto.sourceOrderNo}`
+      ? buildLockKey('split:idem', dto.idempotencyKey)
+      : buildLockKey('split:user', `${senderId}:${dto.sourceOrderNo}`)
 
     return this.redis.withLock(lockKey, REDIS_LOCK_TTL_SECONDS, async () => {
       // 1. 落分账记录（事务）

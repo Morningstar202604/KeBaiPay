@@ -26,6 +26,7 @@ import { RedisService } from '../redis/redis.service'
 import { createFrozenLegLedgerEntry, fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
+  buildLockKey,
   DEFAULT_ESCROW_DAILY_LIMIT_CENTS,
   ESCROW_AUTO_CONFIRM_MS,
   ESCROW_PAY_DEADLINE_MS,
@@ -95,8 +96,7 @@ export class EscrowService {
       throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '对方账户当前禁止收款'))
     }
 
-    return this.redis.withLock(
-      `escrow:create:${buyerId}`,
+    return this.redis.withLock(buildLockKey('escrow:create', buyerId),
       REDIS_LOCK_TTL_SECONDS,
       () =>
         this.prisma.$transaction(async (tx) => {
@@ -138,8 +138,7 @@ export class EscrowService {
 
   /** 买家付款（资金冻结到买家自己账户的 frozenBalance） */
   async pay(buyerId: string, orderNo: string, payPassword: string) {
-    return this.redis.withLock(
-      `escrow:pay:${orderNo}`,
+    return this.redis.withLock(buildLockKey('escrow:pay', orderNo),
       REDIS_LOCK_TTL_SECONDS,
       async () => {
         // 支付密码与风控在事务外校验：验密含 Redis 计数与 bcrypt 慢哈希、
@@ -353,8 +352,7 @@ export class EscrowService {
 
   /** 买家确认收货（放款给卖家） */
   async confirm(buyerId: string, orderNo: string) {
-    return this.redis.withLock(
-      `escrow:confirm:${orderNo}`,
+    return this.redis.withLock(buildLockKey('escrow:confirm', orderNo),
       REDIS_LOCK_TTL_SECONDS,
       () =>
         this.prisma.$transaction(async (tx) => {
@@ -505,8 +503,7 @@ export class EscrowService {
     decision: 'APPROVE_REFUND' | 'REJECT_REFUND',
     reason?: string,
   ) {
-    return this.redis.withLock(
-      `escrow:resolve:${orderNo}`,
+    return this.redis.withLock(buildLockKey('escrow:resolve', orderNo),
       REDIS_LOCK_TTL_SECONDS,
       () =>
         this.prisma.$transaction(async (tx) => {
@@ -733,10 +730,15 @@ export class EscrowService {
     userId: string,
     query: { role?: 'buyer' | 'seller' | 'all'; status?: string },
   ) {
+    // P1-3 修复：'all' 也必须限定为当前用户参与的单据（买家或卖家），
+    // 旧实现 where 为空对象 → 任意登录用户可读全站担保订单（含双方身份/金额/退款原因）
     const role = query.role || 'all'
-    const where: Prisma.EscrowOrderWhereInput = {}
-    if (role === 'buyer') where.buyerId = userId
-    else if (role === 'seller') where.sellerId = userId
+    const where: Prisma.EscrowOrderWhereInput =
+      role === 'buyer'
+        ? { buyerId: userId }
+        : role === 'seller'
+          ? { sellerId: userId }
+          : { OR: [{ buyerId: userId }, { sellerId: userId }] }
     if (query.status) where.status = query.status
 
     return this.prisma.escrowOrder.findMany({

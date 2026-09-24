@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 import { TransactionsService } from './transactions.service'
+import { buildLockKey } from '../common/constants'
 
 /** PENDING 状态超过该时长视为异常，需核实渠道真实状态 */
 const PENDING_TIMEOUT_MS = 15 * 60 * 1000
@@ -43,7 +44,7 @@ export class TransactionsSchedule {
     }
     try {
       await this.redis.withLock(
-        'sched:recharge:timeout',
+        buildLockKey('sched:recharge:timeout'),
         SCHED_LOCK_TTL_SECONDS,
         async () => {
           await this.scanTimeoutOrders().catch((err) =>

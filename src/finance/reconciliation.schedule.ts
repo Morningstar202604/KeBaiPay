@@ -9,7 +9,8 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { FinanceService } from './finance.service'
 import { ReconciliationService } from './reconciliation.service'
-import { DAY_MS } from '../common/constants'
+import {buildLockKey, DAY_MS} from '../common/constants'
+import { businessDayKey } from '../common/date-helpers'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 
 // 补跑窗口：最近多少天检查缺失的对账/快照
@@ -51,8 +52,7 @@ export class ReconciliationSchedule {
       return
     }
     try {
-      await this.redis.withLock(
-        `sched:reconcile:${yesterday}`,
+      await this.redis.withLock(buildLockKey('sched:reconcile', yesterday),
         SCHED_LOCK_TTL_SECONDS,
         async () => {
           await this.executeReconciliation(yesterday, start)
@@ -170,13 +170,16 @@ export class ReconciliationSchedule {
       }
     }
 
+    // P2 修复：告警改写入 adminOperationLog（adminId 无外键约束，可用 'system' 占位），
+    // 旧实现写 riskEvent.userId='system' 会命中 User 外键约束必然失败，
+    // 被 catch 吞掉导致所有 HIGH 级对账差异告警静默丢失
     try {
-      await this.prisma.riskEvent.create({
+      await this.prisma.adminOperationLog.create({
         data: {
-          userId: 'system',
-          type: RiskEventType.STATUS_CHANGED,
-          level: RiskLevel.HIGH,
-          description: `对账差异: ${diffMessages}`,
+          adminId: 'system',
+          action: 'RECONCILE_ALERT',
+          target: date,
+          detail: `对账差异: ${diffMessages}`,
         },
       })
       this.logger.warn(`对账 ${date} 失败已创建风控告警`)
@@ -196,6 +199,7 @@ export class ReconciliationSchedule {
   }
 
   private formatDate(date: Date): string {
-    return date.toISOString().slice(0, 10)
+    // 业务日口径（北京时间）：对账日切与限额/风控一致，避免 0:00-8:00 数据跨日错账
+    return businessDayKey(date)
   }
 }

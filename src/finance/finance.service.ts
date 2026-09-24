@@ -9,7 +9,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import { fenToYuan } from '../common/helpers'
 import { escapeCsvField } from '../common/csv'
-import { getDateRange } from '../common/date-helpers'
+import { businessDayKey, businessDayRange } from '../common/date-helpers'
 import { SettlementService } from '../notifications/settlement.service'
 
 @Injectable()
@@ -471,22 +471,25 @@ export class FinanceService {
     if (!startDate && !endDate) {
       return { start: undefined, end: undefined }
     }
+    // 业务日口径（北京时间）：查询日界与分组口径（formatDate→businessDayKey）保持一致，
+    // 否则"查询 06-01~06-02"会漏掉北京 06-03 00:00 落账的数据而分组里却出现 06-03
     const start = startDate
-      ? new Date(`${startDate}T00:00:00.000Z`)
+      ? businessDayRange(startDate).start
       : new Date('1970-01-01T00:00:00.000Z')
     const end = endDate
-      ? new Date(`${endDate}T23:59:59.999Z`)
-      : new Date(`${new Date().toISOString().slice(0, 10)}T23:59:59.999Z`)
+      ? businessDayRange(endDate).end
+      : new Date(`${businessDayKey()}T23:59:59.999+08:00`)
     return { start, end }
   }
 
   private getDateRange(date: string) {
-    // 统一走 common/date-helpers（dayjs UTC 实现），避免手写 Date 拼接的边界差异
-    return getDateRange(date, date)
+    // 业务日口径（北京时间）：与限额/风控/订单日切一致，避免财务日报与
+    // 用户"当日"在 0:00-8:00 间对不上（原 UTC 日界早 8 小时）
+    return businessDayRange(date)
   }
 
   private formatDate(date: Date) {
-    return new Date(date).toISOString().slice(0, 10)
+    return businessDayKey(date)
   }
 
   private incomeTypes(): TransactionType[] {

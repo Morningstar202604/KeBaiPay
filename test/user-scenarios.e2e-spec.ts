@@ -60,7 +60,6 @@ import { AlipayConnector } from 'src/payment-channels/connectors/alipay.connecto
 import { WechatPayConnector } from 'src/payment-channels/connectors/wechat-pay.connector'
 import { AlipayChannel } from 'src/payment-channels/channels/alipay.channel'
 import { WechatPayChannel } from 'src/payment-channels/channels/wechat-pay.channel'
-import { ChannelHealthService } from 'src/payment-channels/channel-health.service'
 
 // ---- Mock 层 ----
 import { PrismaService } from 'src/prisma/prisma.service'

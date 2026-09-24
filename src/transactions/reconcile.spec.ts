@@ -106,7 +106,7 @@ describe('TransactionsService.reconcilePendingRecharge', () => {
     expect(action).toBe('CREDITED')
     // 与回调共用同一把锁
     expect(redis.withLock).toHaveBeenCalledWith(
-      'recharge:callback:R_TEST_1',
+      'kb:lock:recharge:callback:R_TEST_1',
       expect.any(Number),
       expect.any(Function),
     )

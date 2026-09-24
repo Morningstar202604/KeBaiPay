@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule'
 import { SettlementService } from './settlement.service'
 import { RedisService } from '../redis/redis.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
+import { buildLockKey } from '../common/constants'
 
 @Injectable()
 export class SettlementSchedule {
@@ -19,7 +20,7 @@ export class SettlementSchedule {
   @Cron('0 3 * * *') // 每天凌晨 3 点执行 T+1 结算
   async handleSettlement() {
     const start = Date.now()
-    const lockKey = 'settlement:daily'
+    const lockKey = buildLockKey('settlement:daily')
     this.scheduleHealth.reportStart('settlement:daily')
     try {
       // 锁 TTL 单位是秒，300 秒 = 5 分钟（与 cron 周期匹配）；误传 300_000 会占锁 3.47 天

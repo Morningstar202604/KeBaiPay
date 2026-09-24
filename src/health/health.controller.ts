@@ -10,8 +10,8 @@ import { SkipThrottle } from '@nestjs/throttler'
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger'
 import { HealthService } from './health.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
-import { ChannelHealthService } from '../payment-channels/channel-health.service'
 import { AdminJwtAuthGuard } from '../admin/admin-jwt-auth.guard'
+import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
 
 /**
  * 健康检查端点。
@@ -21,7 +21,7 @@ import { AdminJwtAuthGuard } from '../admin/admin-jwt-auth.guard'
  * 确保 k8s/docker 按状态码与 status 字段判断存活。
  *
  * /health 与 /health/ready 保持公开（k8s probe）；
- * schedules/channels 诊断端点会暴露内部任务名与 lastError 原文，须管理员认证。
+ * schedules/channels 诊断端点会暴露内部任务名与配置状态，须管理员认证。
  */
 @ApiTags('健康检查')
 @Controller('health')
@@ -30,7 +30,7 @@ export class HealthController {
   constructor(
     private readonly healthService: HealthService,
     private readonly scheduleHealthService: ScheduleHealthService,
-    private readonly channelHealthService: ChannelHealthService,
+    private readonly channelRegistry: PaymentChannelRegistry,
   ) {}
 
   @Get()
@@ -63,16 +63,33 @@ export class HealthController {
   @Get('channels')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth('user-auth')
-  @ApiOperation({ summary: '支付渠道健康状态（管理员）' })
-  getChannelHealth() {
-    return this.channelHealthService.getAllChannelHealth()
+  @ApiOperation({ summary: '支付渠道状态（管理员）：已注册渠道及其启用配置' })
+  async getChannelHealth() {
+    // 真实渠道状态：registry 注册集合 + DB 启用配置（原 ChannelHealthService 为假监控，
+    // 统计无消费方、cron 恒置可用；此处改为可验证的真实配置状态）
+    const result: { code: string; name: string; enabled: boolean; type?: string }[] = []
+    for (const code of this.channelRegistry.getAllChannelCodes()) {
+      try {
+        const cfg = await this.channelRegistry.getEnabledConfig(code)
+        result.push({ code: cfg.code, name: cfg.name, enabled: true, type: cfg.type })
+      } catch {
+        result.push({ code, name: code, enabled: false })
+      }
+    }
+    return result
   }
 
   @Get('channels/summary')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth('user-auth')
-  @ApiOperation({ summary: '支付渠道健康摘要（管理员）' })
-  getChannelHealthSummary() {
-    return this.channelHealthService.getHealthSummary()
+  @ApiOperation({ summary: '支付渠道状态摘要（管理员）' })
+  async getChannelHealthSummary() {
+    const channels = await this.getChannelHealth()
+    const enabled = channels.filter(c => c.enabled)
+    return {
+      totalChannels: channels.length,
+      enabledChannels: enabled.length,
+      disabledChannels: channels.filter(c => !c.enabled).map(c => c.code),
+    }
   }
 }

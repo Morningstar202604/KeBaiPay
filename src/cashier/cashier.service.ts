@@ -32,6 +32,7 @@ import { fenToYuan, generateOrderNo, generatePaymentNo, isCallbackUrlSafe, postJ
 import { escapeCsvField } from '../common/csv'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
+  buildLockKey,
   CALLBACK_TIMEOUT_MS,
   DASHBOARD_MONTH_DAYS,
   DASHBOARD_WEEK_DAYS,
@@ -218,8 +219,7 @@ export class CashierService {
     const actualAmount = amount - fee
     const dateStr = businessDayKey()
 
-    const paidOrder = await this.redis.withLock(
-      `cashier:pay:${dto.orderNo}:${payerId}`,
+    const paidOrder = await this.redis.withLock(buildLockKey('cashier:pay', `${dto.orderNo}:${payerId}`),
       REDIS_LOCK_TTL_SECONDS,
       async () => this.prisma.$transaction(async (tx) => {
       const payerAccount = await tx.account.findUnique({
@@ -491,8 +491,7 @@ export class CashierService {
     // H4: 同一订单的回调通知加分布式锁，防止支付后异步通知与商户手动重试并发执行，
     // 导致重复回调商户 / notifyStatus 与 notifyCount 互相覆盖。锁内重新读取订单状态，
     // 已通知成功的直接幂等返回，避免重复发货。
-    return this.redis.withLock(
-      `cashier:notify:${order.id}`,
+    return this.redis.withLock(buildLockKey('cashier:notify', order.id),
       REDIS_LOCK_TTL_SECONDS,
       async () => {
         // 锁内重新读取订单，已通知成功则幂等返回，避免重复通知商户

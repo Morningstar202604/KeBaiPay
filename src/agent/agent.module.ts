@@ -14,7 +14,6 @@ import { LlmModule } from './llm/llm.module'
 import { MessagesModule } from '../messages/messages.module'
 import { CouponsModule } from '../coupons/coupons.module'
 import { TransfersModule } from '../transfers/transfers.module'
-import { AgentMcpServer } from './mcp/agent-mcp.server'
 import { AgentSchedule } from './agent.schedule'
 
 /**
@@ -29,7 +28,7 @@ import { AgentSchedule } from './agent.schedule'
  *  - 工具调用走 ToolRegistry
  *  - 资金操作强制二次确认（写入 AgentOperationLog PENDING_CONFIRM）
  *  - AgentSchedule 注册到 ScheduleHealthService 被 AI 巡检自身监控
- *  - AgentMcpServer 把 KeBaiPay 能力暴露给外部 AI Agent
+ *  - MCP 外部接入已移除（外部 AI Agent 直连支付能力风险大于收益，见重构方案 L4）
  */
 @Module({
   imports: [
@@ -57,7 +56,6 @@ import { AgentSchedule } from './agent.schedule'
     AgentAdminAuthGuard,
     AgentAuditLogService,
     ToolRegistry,
-    AgentMcpServer,
     AgentSchedule,
   ],
   controllers: [AgentController, AgentAuthController, AgentAdminController],

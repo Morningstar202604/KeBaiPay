@@ -5,6 +5,7 @@ import { BatchTransferStatus } from '../common/enums'
 import { RedisService } from '../redis/redis.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 import { BatchTransfersService } from './batch-transfers.service'
+import { buildLockKey } from '../common/constants'
 
 /** 批量转账崩溃恢复：超过该时长的 PROCESSING 批次视为可能中断 */
 const RECOVERY_DELAY_MS = 5 * 60 * 1000
@@ -39,7 +40,7 @@ export class BatchTransfersSchedule {
       for (const batch of stuck) {
         // 不再跳过无 PENDING 明细的批次：明细全部终态但收尾未提交（崩溃窗口）的
         // 批次也要进入 resumeProcessing 收尾，否则冻结资金永久滞留（详见 service 内注释）
-        await this.redis.withLock(`batch:recover:${batch.id}`, 60, () =>
+        await this.redis.withLock(buildLockKey('batch:recover', batch.id), 60, () =>
           this.batchTransfersService.resumeProcessing(batch.id),
         )
         this.logger.log(`批量转账恢复完成: ${batch.batchNo}`)

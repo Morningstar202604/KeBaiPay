@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import { RedisService } from '../redis/redis.service'
 import { FinanceService } from './finance.service'
-import { DAY_MS } from '../common/constants'
+import {buildLockKey, DAY_MS} from '../common/constants'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 
 // 调度互斥锁 TTL：5 分钟，保证多实例部署时同一时刻仅一个实例生成快照
@@ -36,8 +36,7 @@ export class FinanceSchedule {
       return
     }
     try {
-      await this.redis.withLock(
-        `sched:snapshot:${yesterday}`,
+      await this.redis.withLock(buildLockKey('sched:snapshot', yesterday),
         SCHED_LOCK_TTL_SECONDS,
         async () => {
           await this.executeSnapshot(yesterday, start)

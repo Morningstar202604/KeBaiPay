@@ -64,6 +64,11 @@ export class PaymentChannelRegistry {
     this.logger.log(`注册支付渠道: ${channel.code} (${channel.name})`)
   }
 
+  /** 列出全部已注册渠道 code（供健康检查/配置管理查询真实渠道集合） */
+  getAllChannelCodes(): string[] {
+    return Array.from(this.channels.keys())
+  }
+
   getChannel(code: string): PaymentChannel {
     if (this.isProduction && code === 'mock') {
       this.logger.error('生产环境禁止使用 mock 渠道')

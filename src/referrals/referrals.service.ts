@@ -24,6 +24,7 @@ import { RedisService } from '../redis/redis.service'
 import { generateOrderNo } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
+  buildLockKey,
   REDIS_LOCK_TTL_SECONDS,
   DEFAULT_REFERRAL_REWARD_CENTS,
   MAX_REFERRAL_REWARD_CENTS,
@@ -67,8 +68,7 @@ export class ReferralsService {
     })
     if (existing) return existing
 
-    return this.redis.withLock(
-      `referral:code:create:${userId}`,
+    return this.redis.withLock(buildLockKey('referral:code:create', userId),
       REDIS_LOCK_TTL_SECONDS,
       async () => {
         // 双重检查
@@ -126,8 +126,7 @@ export class ReferralsService {
       }
     }
 
-    return this.redis.withLock(
-      `referral:bind:${inviteeId}`,
+    return this.redis.withLock(buildLockKey('referral:bind', inviteeId),
       REDIS_LOCK_TTL_SECONDS,
       async () =>
         this.prisma.$transaction(async (tx) => {
@@ -198,13 +197,17 @@ export class ReferralsService {
     }
   }
 
-  /** 查询邀请关系详情 */
-  async findByReferralNo(referralNo: string) {
+  /** 查询邀请关系详情（仅邀请人或被邀请人可查看） */
+  async findByReferralNo(referralNo: string, viewerId?: string) {
     const referral = await this.prisma.referral.findUnique({
       where: { referralNo },
     })
     if (!referral) {
       throw new NotFoundException(kbError(KBErrorCodes.REFERRAL_NOT_FOUND))
+    }
+    // 归属校验：防止任意登录用户遍历查询他人邀请关系（此前为 IDOR）
+    if (viewerId && referral.referrerId !== viewerId && referral.inviteeId !== viewerId) {
+      throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权查看该邀请关系'))
     }
     return referral
   }
@@ -216,8 +219,7 @@ export class ReferralsService {
    * @param txAmountFen 交易金额（分），不传则从订单查询
    */
   async triggerReward(inviteeId: string, dto: TriggerRewardDto) {
-    return this.redis.withLock(
-      `referral:reward:${inviteeId}`,
+    return this.redis.withLock(buildLockKey('referral:reward', inviteeId),
       REDIS_LOCK_TTL_SECONDS,
       async () =>
         this.prisma.$transaction(async (tx) => {
@@ -245,23 +247,34 @@ export class ReferralsService {
               kbError(KBErrorCodes.REFERRAL_TRIGGER_INVALID, '触发交易未成功'),
             )
           }
-          // 必须是支持的交易类型（充值/支付/转账/红包），
-          // 且被邀请人是交易发起人或收款人
-          const supportedTypes: TransactionType[] = [
-            TransactionType.RECHARGE,
-            TransactionType.PAYMENT,
-            TransactionType.TRANSFER,
-            TransactionType.RED_PACKET,
-          ]
-          if (!supportedTypes.includes(order.type as TransactionType)) {
+          // 仅允许 RECHARGE（外部渠道充值）触发奖励：
+          // PAYMENT / TRANSFER / RED_PACKET 均为平台内部资金流转，资金从未离开平台，
+          // 邀请人可通过给自己小号转账/发红包零成本刷取平台奖励（此前为 P1 漏洞）。
+          // 充值订单 fromUserId 恒为 null（外部渠道入账），无需再校验对端归属。
+          if ((order.type as TransactionType) !== TransactionType.RECHARGE) {
             throw new BadRequestException(
-              kbError(KBErrorCodes.REFERRAL_TRIGGER_INVALID, '触发交易类型不支持'),
+              kbError(
+                KBErrorCodes.REFERRAL_TRIGGER_INVALID,
+                '仅外部渠道充值可触发邀请奖励',
+              ),
             )
           }
-          const isInvolved =
-            order.fromUserId === inviteeId || order.toUserId === inviteeId
-          if (!isInvolved) {
+          // 被邀请人必须是充值入账方
+          if (order.toUserId !== inviteeId) {
             throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '无权触发该邀请奖励'))
+          }
+          // 防递归套娃：奖励单自身 type=RECHARGE、toUserId=邀请人（referrerId），
+          // 若邀请人也作为他人被邀请人，可用自己的奖励单沿邀请链逐层再触发奖励
+          // （上一轮"仅 RECHARGE"修复的绕过）。奖励单恒带 relatedOrderNo（指向邀请单），
+          // 而外部渠道充值单创建时不写 relatedOrderNo，此处以该字段隔离奖励单：
+          // 奖励单不再具备触发资格，套娃链在下一层即被截断。
+          if (order.relatedOrderNo) {
+            throw new BadRequestException(
+              kbError(
+                KBErrorCodes.REFERRAL_TRIGGER_INVALID,
+                '奖励单不能作为邀请奖励触发交易',
+              ),
+            )
           }
 
           // 交易金额一律以订单实际金额为准：dto.amount 可由客户端自报，

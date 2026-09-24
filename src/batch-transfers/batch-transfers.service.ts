@@ -29,6 +29,7 @@ import { RedisService } from '../redis/redis.service'
 import { createFrozenLegLedgerEntry, fenToYuan, generateOrderNo, yuanToFen } from '../common/helpers'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
+  buildLockKey,
   DEFAULT_BATCH_TRANSFER_DAILY_LIMIT_CENTS,
   LARGE_BATCH_TRANSFER_THRESHOLD_CENTS,
   MAX_BATCH_TRANSFER_ITEMS,
@@ -135,8 +136,8 @@ export class BatchTransfersService {
     }
 
     const lockKey = dto.idempotencyKey
-      ? `batch-transfer:idem:${dto.idempotencyKey}`
-      : `batch-transfer:user:${senderId}`
+      ? buildLockKey('batch-transfer:idem', dto.idempotencyKey)
+      : buildLockKey('batch-transfer:user', senderId)
 
     return this.redis.withLock(lockKey, REDIS_LOCK_TTL_SECONDS, async () => {
       // 1. 落批次记录 + 扣款冻结（事务）
@@ -768,7 +769,7 @@ export class BatchTransfersService {
    */
   async cancel(userId: string, batchNo: string) {
     return this.redis.withLock(
-      `batch-transfer:cancel:${batchNo}`,
+      buildLockKey('batch-transfer:cancel', batchNo),
       REDIS_LOCK_TTL_SECONDS,
       () =>
         this.prisma.$transaction(async (tx) => {
