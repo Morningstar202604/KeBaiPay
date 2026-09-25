@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KeBaiPay 科佰支付 · 自托管开源支付中台</title>
-<meta name="description" content="能自己跑起来的一套支付中台：钱包、收单、开放 API、对账、AI 智能体，五层打通。NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7 + Vue 3 + MCP。">
+<meta name="description" content="能自己跑起来的一套支付中台：钱包、收单、开放 API、对账、AI 智能体。NestJS 12 + Prisma 7 + PostgreSQL 16 + Redis 7 + Vue 3。">
 <style>
 :root{
   --bg0:#070B14; --bg1:#0B1220; --card:rgba(255,255,255,.035); --line:rgba(255,255,255,.09);
@@ -123,8 +123,8 @@ footer .sep{color:#3A4759}
   <h1>能自己跑起来的一套支付中台</h1>
   <p class="tag"><b>钱包 · 收单 · 开放 API · 对账 · AI 智能体</b>，五层打通。<br>微信/支付宝 SDK 直连、复式记账、分布式锁、幂等键、审计哈希链——工业级该有的都在。</p>
   <div class="stack">
-    <span>NestJS 11</span><span>TypeScript</span><span>Prisma 7</span><span>PostgreSQL 16</span>
-    <span>Redis 7</span><span>Vue 3</span><span>MCP</span>
+    <span>NestJS 12</span><span>TypeScript</span><span>Prisma 7</span><span>PostgreSQL 16</span>
+    <span>Redis 7</span><span>Vue 3</span>
   </div>
   <div class="badges">
     <img src="https://img.shields.io/badge/version-0.3.2-0FA968" alt="version">
@@ -177,8 +177,8 @@ footer .sep{color:#3A4759}
     <div class="feat"><div class="em">👛</div><h3>个人钱包</h3><p>复式记账、充值/提现、红包、账单流水，余额变动全程留痕可审计。</p></div>
     <div class="feat"><div class="em">🏪</div><h3>商户收款</h3><p>商户门户 + 收银台 + 收款码，H5 收单全流程，默认 mock 渠道开箱即跑。</p></div>
     <div class="feat"><div class="em">🔌</div><h3>开放 API</h3><p>192 个 OpenAPI 端点，HMAC-SHA256 签名、幂等键、回调验签优先。</p></div>
-    <div class="feat"><div class="em">🧾</div><h3>多渠道对账</h3><p>对账聚合与差错处理，管理端一键审查提现，风险规则可配置。</p></div>
-    <div class="feat"><div class="em">🤖</div><h3>AI 智能体 · MCP</h3><p>内置 MCP Server，让 Claude / 任意 Agent 直接帮你查账、对账、管钱。</p></div>
+    <div class="feat"><div class="em">🧾</div><h3>财务对账</h3><p>渠道交易流水核对与差异处理，管理端一键审查提现，内置风控规则引擎。</p></div>
+    <div class="feat"><div class="em">🤖</div><h3>AI 智能体</h3><p>内置 Agent 工具集，自然语言查账、风控事件、商户数据，一站式管理。</p></div>
     <div class="feat"><div class="em">🛡</div><h3>资金安全工程</h3><p>分布式锁防并发、审计哈希链防篡改、风险控制与提现复审闭环。</p></div>
   </div>
 </div></section>

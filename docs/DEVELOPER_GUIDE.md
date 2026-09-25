@@ -96,9 +96,6 @@ src/
 ├── referrals/                  # 邀请返现（邀请码、绑定关系、奖励触发）
 ├── messages/                   # 消息中心（广播 + 定向，已读跟踪）
 ├── invoices/                   # 发票（普通/专用，商户申请、管理员开具）
-├── channel-reconciliation/     # 多平台对账聚合 S5（渠道对账单 + 差异处理工作流）
-├── risk-audit/                 # AI 风控审计 S3（会话式多轮对话）
-├── custom-rules/               # 自定义风控规则模板（DSL 编排、动作 BLOCK/WARN/REVIEW）
 ├── metrics/                    # Prometheus /metrics（HTTP 计数器、延迟直方图）
 ├── merchants/                  # 商户管理（入驻、应用、收款码）
 ├── cashier/                    # 收银台（创建订单、支付、对账）
@@ -151,9 +148,6 @@ v2.0.0 在原有用户钱包 + 商户收款能力之上扩展了 12 个业务模
 | referrals | `/referrals` | 用户 JWT | 邀请返现：一人一码、被邀请人绑定、首笔交易触发奖励 | `referral_codes`、`referrals` |
 | messages | `/messages` | 用户 JWT | 消息中心：广播（userId=null）+ 定向，多通道（IN_APP/SMS/EMAIL），已读跟踪 | `messages`、`message_reads` |
 | invoices | `/invoices`、`/admin/invoices` | 用户 JWT / Admin JWT | 商户发票：普通/专用，商户申请、管理员开具/作废 | `invoices` |
-| channel-reconciliation | `/admin/channel-reconciliation` | Admin JWT + PermissionsGuard | 多平台对账聚合 S5：渠道对账单拉取、交叉匹配、差异处理工作流（指派 → 解决） | `channel_statements`、`channel_statement_items`、`reconciliation_difference_items` |
-| risk-audit | `/risk-audit`、`/admin/risk-audit` | 用户 JWT / Admin JWT | AI 风控审计 S3：用户与 AI 助手多轮对话，识别意图、命中规则、生成摘要 | `risk_audit_sessions`、`risk_audit_messages` |
-| custom-rules | `/admin/risk-rules/custom`、`/risk-rules/custom` | Admin JWT + PermissionsGuard / 用户 JWT | 自定义风控规则模板：DSL 编排多条件（AND/OR），动作 BLOCK/WARN/REVIEW，支持启用/禁用/测试 | `custom_risk_rules` |
 
 > 各模块的完整端点列表（请求体、响应、错误码）见 [API_REFERENCE.md](./API_REFERENCE.md)。
 
@@ -357,8 +351,7 @@ Prisma schema 中通过 `@@index` 声明索引，遵循以下原则：
 |--------|------|
 | `account:adjust` | 人工调账（`POST /admin/accounts/:userId/adjust`） |
 | `withdrawal:audit` | 提现审核（通过/拒绝提现申请） |
-| `reconciliation:run` | 执行对账、拉取渠道对账单、触发匹配 |
-| `reconciliation:diff:handle` | 对账差异处理（指派处理人、标记解决） |
+| `reconciliation:run` | 执行对账、拉取对账单、触发匹配 |
 | `finance:view` | 财务数据查看（概览、日报、结算、快照、对账报告） |
 | `identity:audit` | 实名认证审核（通过/拒绝） |
 | `merchant:audit` | 商户审核、发票开具/作废 |
@@ -375,7 +368,7 @@ Prisma schema 中通过 `@@index` 声明索引，遵循以下原则：
 | 角色 | 权限集合 |
 |------|----------|
 | `SUPER_ADMIN` | `'*'`（自动拥有所有权限） |
-| `FINANCE` | `account:adjust`、`withdrawal:audit`、`reconciliation:run`、`reconciliation:diff:handle`、`finance:view`、`admin:view` |
+| `FINANCE` | `account:adjust`、`withdrawal:audit`、`reconciliation:run`、`finance:view`、`admin:view` |
 | `CUSTOMER_SERVICE` | `identity:audit`、`merchant:audit`、`user:status`、`admin:view` |
 | `RISK_OFFICER` | `risk:config`、`risk:event:handle`、`admin:view` |
 
@@ -383,7 +376,7 @@ Prisma schema 中通过 `@@index` 声明索引，遵循以下原则：
 export const ROLE_PERMISSIONS: Record<AdminRole, Permission[] | '*'> = {
   SUPER_ADMIN: '*',
   FINANCE: ['account:adjust', 'withdrawal:audit', 'reconciliation:run',
-            'reconciliation:diff:handle', 'finance:view', 'admin:view'],
+            'finance:view', 'admin:view'],
   CUSTOMER_SERVICE: ['identity:audit', 'merchant:audit', 'user:status', 'admin:view'],
   RISK_OFFICER: ['risk:config', 'risk:event:handle', 'admin:view'],
 }
@@ -393,16 +386,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Permission[] | '*'> = {
 
 在 Controller 方法上声明所需权限，**多个权限为 OR 关系**（拥有其中任一即可通过）：
 
-```typescript
-import { RequirePermissions } from '../admin/permissions.decorator'
-import { AdminJwtAuthGuard } from '../admin/admin-jwt-auth.guard'
-import { PermissionsGuard } from '../admin/permissions.guard'
 
-@UseGuards(AdminJwtAuthGuard, PermissionsGuard)
-@RequirePermissions('reconciliation:run', 'reconciliation:diff:handle')
-@Post('admin/channel-reconciliation/differences/:id/resolve')
-async resolveDifference(...) { ... }
-```
 
 `@RequirePermissions` 通过 `SetMetadata(PERMISSIONS_KEY, permissions)` 把权限码挂到路由元数据上，供 Guard 读取。
 
@@ -613,11 +597,11 @@ KeBaiPay v2.0.0 共暴露 **204 个端点，覆盖 35 个模块**。完整端点
 | 模块分类 | 路由前缀 | 端点数 | 认证 |
 |----------|----------|--------|------|
 | 用户侧基础 | `/auth`、`/users`、`/accounts`、`/transactions`、`/transfers`、`/withdrawals`、`/bills`、`/qr-codes` | ~30 | 用户 JWT |
-| 用户侧 v2.0 新增 | `/bank-cards`、`/escrow`、`/batch-transfers`、`/subscriptions`、`/splits`、`/coupons`、`/referrals`、`/messages`、`/invoices`、`/risk-audit`、`/risk-rules/custom` | ~80 | 用户 JWT |
+| 用户侧 v2.0 新增 | `/bank-cards`、`/escrow`、`/batch-transfers`、`/subscriptions`、`/splits`、`/coupons`、`/referrals`、`/messages`、`/invoices` | ~80 | 用户 JWT |
 | 社交 | `/red-packets` | 4 | 用户 JWT |
 | 商户 | `/merchants`、`/cashier` | ~25 | 用户 JWT |
 | 商户开放 API | `/open-api/v1/*` | 5 | HMAC 签名 |
-| 管理后台 | `/admin/*`、`/admin/finance/*`、`/admin/reconciliation/*`、`/admin/channel-reconciliation/*`、`/admin/risk-rules/custom/*`、`/admin/risk-audit/*`、`/admin/invoices/*` | ~60 | Admin JWT + PermissionsGuard |
+| 管理后台 | `/admin/*`、`/admin/finance/*`、`/admin/reconciliation/*`、`/admin/invoices/*` | ~60 | Admin JWT + PermissionsGuard |
 | 系统接口 | `/health`、`/metrics`、`/webhooks/:channel`、`/sms/*` | ~10 | 无 / 内部 |
 
 ### 健康检查与监控端点

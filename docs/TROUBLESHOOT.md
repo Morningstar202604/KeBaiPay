@@ -636,16 +636,12 @@ KB941: 已存在该日期的对账单，状态为 FETCHED，拒绝重复拉取
    - `daily_count` / `daily_amount` 按业务真实高峰配置。
    - `ip_frequency` 给办公网出口 IP 加白名单。
 
-2. **DISMISSED 状态：** 对已确认的误报，调用人工复核接口标记为 `DISMISSED`，不计入风险统计：
-
-   ```bash
-   curl -X POST http://localhost:3001/admin/risk-audit/events/<eventId>/review \
-     -H "Authorization: Bearer <admin-token>" \
-     -H "Content-Type: application/json" \
-     -d '{"decision": "DISMISSED", "reason": "误报：办公网出口 IP"}'
-   ```
+2. **DISMISSED 状态：** 对已确认的误报，在风控事件详情中标记为已忽略，不计入风险统计。
 
 3. 状态机：`DETECTED → REVIEWING → CONFIRMED / DISMISSED`。
+
+> 注：早期版本的 AI 风控审计接口（`/admin/risk-audit`，会话式复核）已随假功能清理下线，
+> 人工复核通过风控事件管理接口完成。
 
 ---
 

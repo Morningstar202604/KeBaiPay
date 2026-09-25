@@ -125,7 +125,7 @@ timeline
 
 | 能力 | 说明 |
 |---|---|
-| 11 种细粒度权限码 | `account:adjust` / `withdrawal:audit` / `reconciliation:run` / `reconciliation:diff:handle` / `finance:view` / `identity:audit` / `merchant:audit` / `user:status` / `risk:config` / `risk:event:handle` / `admin:view` |
+| 10 种细粒度权限码 | `account:adjust` / `withdrawal:audit` / `reconciliation:run` / `finance:view` / `identity:audit` / `merchant:audit` / `user:status` / `risk:config` / `risk:event:handle` / `admin:view` |
 | 角色体系 | `SUPER_ADMIN`（全权限） / `FINANCE` / `CUSTOMER_SERVICE` / `RISK_OFFICER` / `AUDITOR` |
 | 自定义规则模板 | 5 个端点，CRUD 风控规则模板 |
 

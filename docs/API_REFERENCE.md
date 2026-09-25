@@ -35,9 +35,6 @@
   - [22. 管理后台接口 (admin)](#22-管理后台接口-admin)
   - [23. 财务接口 (admin/finance)](#23-财务接口-adminfinance)
   - [24. 对账接口 (admin/reconciliation)](#24-对账接口-adminreconciliation)
-  - [25. 多平台对账聚合接口 (admin/channel-reconciliation) [S5]](#25-多平台对账聚合接口-adminchannel-reconciliation-s5)
-  - [26. AI 风控审计接口 (risk-audit / admin/risk-audit) [S3]](#26-ai-风控审计接口-risk-audit--adminrisk-audit-s3)
-  - [27. 自定义规则接口 (admin/risk-rules/custom) [新增]](#27-自定义规则接口-adminrisk-rulescustom-新增)
   - [28. 健康检查 (health)](#28-健康检查-health)
   - [29. 监控指标 (metrics)](#29-监控指标-metrics)
   - [30. 短信接口 (sms)](#30-短信接口-sms)
@@ -164,7 +161,6 @@ appSecret 明文仅在「创建应用」与「重新生成密钥」两个接口�
 | `account:adjust` | 人工调账 | SUPER_ADMIN, FINANCE |
 | `withdrawal:audit` | 提现审核 | SUPER_ADMIN, FINANCE |
 | `reconciliation:run` | 执行对账/快照/结算 | SUPER_ADMIN, FINANCE |
-| `reconciliation:diff:handle` | 处理对账差异 | SUPER_ADMIN, FINANCE |
 | `finance:view` | 财务数据查看 | SUPER_ADMIN, FINANCE |
 | `identity:audit` | 实名审核 | SUPER_ADMIN, CUSTOMER_SERVICE |
 | `merchant:audit` | 商户审核/发票开具 | SUPER_ADMIN, CUSTOMER_SERVICE |
@@ -1071,130 +1067,9 @@ sequenceDiagram
 
 ---
 
-### 25. 多平台对账聚合接口 (admin/channel-reconciliation) [S5]
-
-聚合多个支付渠道对账单，与平台订单交叉匹配，生成差异项并走指派/解决工作流。
-
-| Method | Path | 说明 | 认证 | 权限 |
-|--------|------|------|------|------|
-| POST | `/admin/channel-reconciliation/statements/fetch` | 拉取渠道对账单 | 🔒 Admin JWT | `reconciliation:run` |
-| GET | `/admin/channel-reconciliation/statements` | 渠道对账单列表 | 🔒 Admin JWT | `finance:view` |
-| GET | `/admin/channel-reconciliation/statements/:id` | 对账单详情（含前 50 条 items） | 🔒 Admin JWT | `finance:view` |
-| GET | `/admin/channel-reconciliation/statements/:id/items` | 对账单条目分页查询 | 🔒 Admin JWT | `finance:view` |
-| POST | `/admin/channel-reconciliation/statements/:id/match` | 执行匹配（生成差异项） | 🔒 Admin JWT | `reconciliation:run` |
-| GET | `/admin/channel-reconciliation/differences` | 差异项列表 | 🔒 Admin JWT | `finance:view` |
-| GET | `/admin/channel-reconciliation/differences/:id` | 差异项详情 | 🔒 Admin JWT | `finance:view` |
-| POST | `/admin/channel-reconciliation/differences/:id/assign` | 指派差异处理人（PENDING→INVESTIGATING） | 🔒 Admin JWT | `reconciliation:diff:handle` |
-| POST | `/admin/channel-reconciliation/differences/:id/resolve` | 标记差异已解决（INVESTIGATING→RESOLVED/IGNORED） | 🔒 Admin JWT | `reconciliation:diff:handle` |
-
-**POST /admin/channel-reconciliation/statements/fetch 请求体：**
-```json
-{
-  "channel": "alipay",
-  "date": "2025-01-01"
-}
-```
-
-**POST /admin/channel-reconciliation/differences/:id/resolve 请求体：**
-```json
-{
-  "resolution": "RESOLVED",
-  "note": "渠道延迟到账，已补单"
-}
-```
-
-错误码：`KB940 渠道对账单不存在`、`KB941 已拉取不可重复拉取`、`KB942 拉取失败`、`KB943 对账单未拉取`、`KB944 对账差异项不存在`、`KB945 差异项状态不允许该操作`。
-
----
-
-### 26. AI 风控审计接口 (risk-audit / admin/risk-audit) [S3]
-
-用户与 AI 对话式风控审计会话。用户端创建/查询/对话/关闭；管理端查看所有会话与统计。
-
-#### 26.1 用户端 (risk-audit)
-
-| Method | Path | 说明 | 认证 | 权限 |
-|--------|------|------|------|------|
-| POST | `/risk-audit/sessions` | 创建风控审计会话 | 🔒 User JWT | - |
-| GET | `/risk-audit/sessions` | 查询我的会话列表 | 🔒 User JWT | - |
-| GET | `/risk-audit/sessions/:sessionNo` | 查询会话详情（含消息） | 🔒 User JWT | - |
-| POST | `/risk-audit/sessions/:sessionNo/messages` | 发送消息并获取 AI 回复 | 🔒 User JWT | - |
-| POST | `/risk-audit/sessions/:sessionNo/close` | 关闭会话 | 🔒 User JWT | - |
-
-#### 26.2 管理端 (admin/risk-audit)
-
-| Method | Path | 说明 | 认证 | 权限 |
-|--------|------|------|------|------|
-| GET | `/admin/risk-audit/sessions` | 管理员查询所有会话 | 🔒 Admin JWT | `admin:view` |
-| GET | `/admin/risk-audit/sessions/:sessionNo` | 管理员查询任意会话详情 | 🔒 Admin JWT | `admin:view` |
-| GET | `/admin/risk-audit/stats` | 管理员查询会话统计 | 🔒 Admin JWT | `admin:view` |
-
-**POST /risk-audit/sessions 请求体：**
-```json
-{
-  "title": "查询我的转账被拦截原因",
-  "context": { "transactionNo": "TX-xxxxxx" }
-}
-```
-
-**POST /risk-audit/sessions/:sessionNo/messages 请求体：**
-```json
-{ "content": "为什么我的转账会被风控拦截？" }
-```
-
-错误码：`KB920 风控审计会话不存在`、`KB921 会话已关闭`、`KB922 消息内容不能为空`、`KB923 无权访问该会话`。
-
----
-
-### 27. 自定义规则接口 (admin/risk-rules/custom) [新增]
-
-管理端创建/更新/删除/测试自定义风控规则；用户端只读查看当前生效规则。
-
-#### 27.1 管理端 (admin/risk-rules/custom)
-
-| Method | Path | 说明 | 认证 | 权限 |
-|--------|------|------|------|------|
-| POST | `/admin/risk-rules/custom` | 创建自定义规则 | 🔒 Admin JWT | `risk:config` |
-| GET | `/admin/risk-rules/custom` | 查询自定义规则列表 | 🔒 Admin JWT | `admin:view` |
-| GET | `/admin/risk-rules/custom/:ruleNo` | 查询自定义规则详情 | 🔒 Admin JWT | `admin:view` |
-| PUT | `/admin/risk-rules/custom/:ruleNo` | 更新自定义规则 | 🔒 Admin JWT | `risk:config` |
-| DELETE | `/admin/risk-rules/custom/:ruleNo` | 删除自定义规则 | 🔒 Admin JWT | `risk:config` |
-| POST | `/admin/risk-rules/custom/:ruleNo/toggle` | 启用/禁用规则 | 🔒 Admin JWT | `risk:config` |
-| POST | `/admin/risk-rules/custom/test` | 测试规则（不持久化） | 🔒 Admin JWT | `risk:config` |
-
-#### 27.2 用户端 (risk-rules/custom)
-
-| Method | Path | 说明 | 认证 | 权限 |
-|--------|------|------|------|------|
-| GET | `/risk-rules/custom` | 用户查询当前生效的自定义规则（仅返回名称/描述/动作/优先级） | 🔒 User JWT | - |
-
-**POST /admin/risk-rules/custom 请求体：**
-```json
-{
-  "name": "大额转账二次校验",
-  "description": "转账金额超过 5000 元触发人工审核",
-  "priority": 100,
-  "action": "REVIEW",
-  "conditions": [
-    { "field": "amount", "operator": "GTE", "value": 5000 },
-    { "field": "type", "operator": "EQ", "value": "TRANSFER" }
-  ]
-}
-```
-
-**POST /admin/risk-rules/custom/test 请求体：**
-```json
-{
-  "conditions": [
-    { "field": "amount", "operator": "GTE", "value": 5000 }
-  ],
-  "payload": { "amount": 6000, "type": "TRANSFER" }
-}
-```
-
-错误码：`KB930 自定义规则不存在`、`KB931 规则名称已存在`、`KB932 规则条件格式无效`、`KB933 条件字段无效`、`KB934 条件算子无效`。
-
----
+> 已移除（v0.3.x 精简）：多平台对账聚合（channel-reconciliation）、AI 风控审计（risk-audit）、
+> 自定义风控规则（custom-rules）三组接口及后台模块，因属于"有接口无消费方"的假功能，
+> 与真实资金/风控链路脱节，已连同数据表一并下线。对账以第 24 章 admin/reconciliation 为准。
 
 ### 28. 健康检查 (health)
 
