@@ -943,7 +943,6 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
     let freshModule3: TestingModule
     let localRouter: ConnectorRouter
     let localRegistry: ConnectorRegistry
-    let localMockConnector: MockConnector
 
     beforeAll(async () => {
       const freshPrisma3 = new MockPrismaClient()
@@ -994,68 +993,38 @@ describe('KeBaiPay E2E — 用户场景集成测试', () => {
 
       localRouter = freshModule3.get(ConnectorRouter)
       localRegistry = freshModule3.get(ConnectorRegistry)
-      localMockConnector = freshModule3.get(MockConnector)
-
-      // 手动注册连接器（ConnectorRegistry 构造时已自动注册；此处按测试场景覆盖注册，重复注册仅告警）
-      localRegistry.register(localMockConnector)
-      localRegistry.register(freshModule3.get(AlipayConnector))
-      localRegistry.register(freshModule3.get(WechatPayConnector))
     })
 
-    it('MockConnector 失败时降级并最终成功', async () => {
-      // 设置 MockConnector 模拟失败
-      localMockConnector.setSimulateFailure(true)
-
-      // 让 router 认为 mock 是健康的（默认是健康的）
-      localRouter.updateHealth('mock', true)
-
-      // 清空 router 的健康缓存，强制重新检查
-      // 注册两个连接器以保证降级路径（mock + alipay）
-      const alipayConnector3 = freshModule3.get(AlipayConnector)
-      const wechatConnector3 = freshModule3.get(WechatPayConnector)
-
-      // MockConnector 失败 → 尝试 fallback（但我们的 alipay/wechat 没配置凭据）
-      // ConnectorRouter 会遍历所有 candidates，如果都失败，抛出 All connectors failed 错误
+    it('候选全部失败时抛错、恢复后成功降级路由', async () => {
+      // Connector 业务方法已随 Connector 层精简移除（createPayment 等不再存在），
+      // 渠道调用由调用方注入的 requestFn 完成；此处用 requestFn 模拟失败/成功，
+      // 验证 ConnectorRouter 的候选遍历、降级链与最终路由行为。
       const candidates = localRegistry.getByCapability('RECHARGE')
       expect(candidates.length).toBeGreaterThanOrEqual(1)
 
-      // 测试 route 失败后会抛异常
-      let routeError: Error | null = null
-      try {
-        await localRouter.route(
+      // 所有候选的 requestFn 都失败 → 遍历降级链后抛 All connectors failed
+      const failing = async (_request: any): Promise<never> => {
+        throw new Error('Simulated connector failure')
+      }
+      await expect(
+        localRouter.route(
           'RECHARGE' as any,
           { amount: 100, userId: 'test' },
-          async (connector: any, config: any, request: any) => {
-            return connector.createPayment(request)
-          },
+          failing,
           { maxRetries: 0, baseDelayMs: 10, maxDelayMs: 50 },
-        )
-      } catch (err: any) {
-        routeError = err
-      }
+        ),
+      ).rejects.toThrow('All connectors failed')
 
-      // 因为在健康检查通过的情况下，ConnectorRouter 会调用 connector.createPayment
-      // MockConnector.setSimulateFailure(true) 会让它抛出 'Simulated connector failure'
-      // 然后 Router 尝试 fallback 到 alipay/wechat，但它们也不是真正配置好的
-      // 最终所有连接器失败
-      expect(routeError).toBeTruthy()
-      expect(routeError!.message).toContain('All connectors failed')
-
-      // 恢复 MockConnector
-      localMockConnector.setSimulateFailure(false)
-
-      // 测试恢复后成功
-      localRouter.updateHealth('mock', true)
+      // requestFn 恢复成功 → 路由到第一个可用候选，成功者不在 fallbackChain 中
+      const ok = async (_request: any) => ({ ok: true })
       const result = await localRouter.route(
         'RECHARGE' as any,
         { amount: 100, userId: 'test' },
-        async (connector: any, config: any, request: any) => {
-          return connector.createPayment(request)
-        },
+        ok,
+        { maxRetries: 0, baseDelayMs: 10, maxDelayMs: 50 },
       )
-      expect(result.connectorName).toBe('mock')
-      // fallbackChain 只包含尝试失败的连接器，成功的连接器不在其中
-      expect(result.fallbackChain).not.toContain('mock')
+      expect(['wechat_pay', 'alipay', 'mock']).toContain(result.connectorName)
+      expect(result.fallbackChain).not.toContain(result.connectorName)
     })
 
     afterAll(async () => {
