@@ -32,7 +32,9 @@
     "version:sync": "node scripts/version-sync.mjs",
     "version:check": "node scripts/version-sync.mjs --check",
     "clean": "node -e \"const fs=require('fs');for(const p of ['dist','node_modules/.cache'])fs.rmSync(p,{recursive:true,force:true})\"",
-    "check:external": "node scripts/check-external.mjs"
+    "check:external": "node scripts/check-external.mjs",
+    "verify": "bash scripts/verify-all.sh",
+    "verify:fast": "bash scripts/verify-all.sh --fast"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.71",
