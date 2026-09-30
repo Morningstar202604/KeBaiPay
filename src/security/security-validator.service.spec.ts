@@ -29,7 +29,7 @@ describe('SecurityValidatorService', () => {
     ENCRYPTION_KEY: secret32,
     REDIS_URL: 'redis://redis:6379',
     CORS_ORIGINS: 'https://pay.example.com',
-    RECHARGE_NOTIFY_URL: 'https://api.example.com/callback',
+    CHANNEL_NOTIFY_URL: 'https://api.example.com/callback',
     METRICS_TOKEN: 'm'.repeat(24),
   }
 
@@ -105,15 +105,15 @@ describe('SecurityValidatorService', () => {
     expect(() => build(env).validate()).not.toThrow()
   })
 
-  it('生产环境 RECHARGE_NOTIFY_URL 缺失/非 URL/指向 localhost 均拒绝启动', () => {
-    expect(() => build({ ...prodEnv, RECHARGE_NOTIFY_URL: undefined }).validate()).toThrow(
-      /RECHARGE_NOTIFY_URL/,
+  it('生产环境 CHANNEL_NOTIFY_URL 缺失/非 URL/指向 localhost 均拒绝启动', () => {
+    expect(() => build({ ...prodEnv, CHANNEL_NOTIFY_URL: undefined }).validate()).toThrow(
+      /CHANNEL_NOTIFY_URL/,
     )
-    expect(() => build({ ...prodEnv, RECHARGE_NOTIFY_URL: '/api/callback' }).validate()).toThrow(
+    expect(() => build({ ...prodEnv, CHANNEL_NOTIFY_URL: '/api/callback' }).validate()).toThrow(
       /http\(s\)/,
     )
     expect(() =>
-      build({ ...prodEnv, RECHARGE_NOTIFY_URL: 'http://localhost:3000/notify' }).validate(),
+      build({ ...prodEnv, CHANNEL_NOTIFY_URL: 'http://localhost:3000/notify' }).validate(),
     ).toThrow(/localhost/)
   })
 

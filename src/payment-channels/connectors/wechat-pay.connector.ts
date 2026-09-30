@@ -19,7 +19,7 @@ export class WechatPayConnector implements Connector {
   readonly metadata: ConnectorMetadata = {
     name: 'wechat_pay',
     displayName: '微信支付',
-    capabilities: ['RECHARGE', 'PAYOUT', 'REFUND', 'BALANCE_QUERY'],
+    capabilities: ['RECHARGE', 'REFUND'],
     supportedCurrencies: ['CNY'],
     supportedMethods: ['native', 'jsapi', 'h5', 'app', 'miniapp'],
     version: '3.0.0',
@@ -29,7 +29,7 @@ export class WechatPayConnector implements Connector {
   private config: ConnectorConfig = {
     name: 'wechat_pay',
     displayName: '微信支付',
-    capabilities: ['RECHARGE', 'PAYOUT', 'REFUND', 'BALANCE_QUERY'],
+    capabilities: ['RECHARGE', 'REFUND'],
     priority: 100,
     timeout: 30_000,
     retryConfig: {

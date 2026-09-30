@@ -5,7 +5,7 @@
       <div class="setup-head">
         <div class="setup-icon"><el-icon :size="26"><MagicStick /></el-icon></div>
         <h3>AI 智能助手</h3>
-        <p>选择智能体，授权后即可通过对话管理钱包、查账单等</p>
+        <p>选择智能体，授权后即可通过对话查询收单订单与账单、协助处理退款等</p>
       </div>
       <div v-if="agents.length === 0" class="empty">暂无可用智能体
 ① 管理后台「智能体管理」创建 ② 本页选择并授权 ③ 开始对话</div>
@@ -39,7 +39,7 @@
       <div ref="chatBox" class="chat-body">
         <div v-if="messages.length === 0" class="chat-welcome">
           <el-icon :size="30"><MagicStick /></el-icon>
-          <p>您好，我是{{ agentName }}，可以帮您查余额、查账单、转账、发红包等。请直接说您的需求。</p>
+          <p>您好，我是{{ agentName }}，可以帮您查询收单订单与账单、处理退款咨询等。请直接说您的需求。</p>
         </div>
         <div v-for="(m, i) in messages" :key="i" :class="['msg', m.role]">
           <div class="bubble">{{ m.content }}</div>
@@ -88,7 +88,7 @@ const sending = ref(false)
 const chatBox = ref<HTMLDivElement>()
 
 function scenarioText(s: string) {
-  const m: Record<string, string> = { wallet: '钱包管家', merchant: '店长助理', risk: '风控审计官', support: '客服坐席' }
+  const m: Record<string, string> = { wallet: '收单助手', merchant: '店长助理', risk: '风控审计官', support: '客服坐席' }
   return m[s] || s
 }
 function scrollBottom() {
@@ -106,13 +106,14 @@ async function connect() {
   try {
     let authId = agent.authorization?.id
     if (!authId) {
-      const scopes = agent.scopes.length ? agent.scopes : ['wallet:read']
+      // 后端要求申请 scopes 必须是 Agent 自身 scopes 的子集，直接取 Agent 已声明的 scopes
+      const scopes = agent.scopes
       const auth = await authorizeAgent(agent.id, scopes)
       authId = auth.id
     }
     const login = await agentLogin(agent.id, authId!)
     agentToken.value = login.token
-    const conv = await agentRequest<{ id: string }>(login.token, 'post', '/agent/conversations', { scenario: agent.scenario, title: '钱包助手会话' })
+    const conv = await agentRequest<{ id: string }>(login.token, 'post', '/agent/conversations', { scenario: agent.scenario, title: '收单助手会话' })
     convId.value = conv.id
     connected.value = true
     agentName.value = agent.name

@@ -12,13 +12,14 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard.js'
  * 覆盖点：
  * - 各方法透传 user.id 和 dto 到 service
  * - HTTP 层 DTO 参数校验
+ *
+ * 注：POST /qr-codes/pay（扫码付款）已下线，付款一律走收银台渠道支付。
  */
 describe('QrCodesController', () => {
   let controller: QrCodesController
   const mockService = {
     getPersonalCode: jest.fn().mockResolvedValue({ code: 'KB-xxx' }),
     createFixedCode: jest.fn().mockResolvedValue({ id: 'q1' }),
-    pay: jest.fn().mockResolvedValue({ id: 't1' }),
   }
 
   beforeAll(async () => {
@@ -54,14 +55,6 @@ describe('QrCodesController', () => {
 
     expect(mockService.createFixedCode).toHaveBeenCalledWith('u1', dto)
   })
-
-  it('pay 透传 user.id 和 dto 到 service', async () => {
-    const user = { id: 'u1' }
-    const dto = { code: 'KB-xxx', amount: 10, payPassword: '123456', remark: '测试' }
-    await controller.pay(user as any, dto as any)
-
-    expect(mockService.pay).toHaveBeenCalledWith('u1', dto)
-  })
 })
 
 /**
@@ -72,7 +65,6 @@ describe('QrCodesController (HTTP)', () => {
   const mockService = {
     getPersonalCode: jest.fn().mockResolvedValue({ code: 'KB-xxx' }),
     createFixedCode: jest.fn().mockResolvedValue({ id: 'q1' }),
-    pay: jest.fn().mockResolvedValue({ id: 't1' }),
   }
 
   beforeAll(async () => {
@@ -126,34 +118,6 @@ describe('QrCodesController (HTTP)', () => {
     return request(app.getHttpServer())
       .post('/qr-codes/fixed')
       .send({ amount: 10.5, remark: '咖啡' })
-      .expect(201)
-  })
-
-  it('pay 缺 code 返回 400', () => {
-    return request(app.getHttpServer())
-      .post('/qr-codes/pay')
-      .send({ payPassword: '123456' })
-      .expect(400)
-  })
-
-  it('pay 缺 payPassword 返回 400', () => {
-    return request(app.getHttpServer())
-      .post('/qr-codes/pay')
-      .send({ code: 'KB-xxx' })
-      .expect(400)
-  })
-
-  it('pay payPassword 超过 6 位返回 400', () => {
-    return request(app.getHttpServer())
-      .post('/qr-codes/pay')
-      .send({ code: 'KB-xxx', payPassword: '1234567' })
-      .expect(400)
-  })
-
-  it('pay 参数合法返回 201', () => {
-    return request(app.getHttpServer())
-      .post('/qr-codes/pay')
-      .send({ code: 'KB-xxx', amount: 10, payPassword: '123456' })
       .expect(201)
   })
 })

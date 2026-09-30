@@ -1,26 +1,19 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
+import { BadRequestException } from '@nestjs/common'
 import { ReconciliationService } from './reconciliation.service.js'
 import { FinanceService } from './finance.service.js'
 import { PrismaService } from '../prisma/prisma.service.js'
-import { LedgerType, ReconciliationStatus } from '../common/enums.js'
+import { ReconciliationStatus } from '../common/enums.js'
 
 type PrismaMock = {
-  account: Record<string, jest.Mock>
-  accountLedger: Record<string, jest.Mock>
-  transactionOrder: Record<string, jest.Mock>
   paymentOrder: Record<string, jest.Mock>
-  withdrawalOrder: Record<string, jest.Mock>
   dailySnapshot: Record<string, jest.Mock>
+  channelBillCheck: Record<string, jest.Mock>
   reconciliationReport: Record<string, jest.Mock>
-}
+} & Record<string, unknown>
 
 type FinanceServiceMock = { generateDailySnapshot: jest.Mock }
-
-// groupBy 查询参数：仅当 where.type 存在表示是管理员调账查询
-type GroupByArgs = {
-  where?: { type?: unknown }
-}
 
 describe('ReconciliationService', () => {
   let service: ReconciliationService
@@ -29,12 +22,13 @@ describe('ReconciliationService', () => {
 
   beforeEach(async () => {
     prisma = {
-      account: { aggregate: jest.fn() },
-      accountLedger: { groupBy: jest.fn(), findMany: jest.fn() },
-      transactionOrder: { findMany: jest.fn(), aggregate: jest.fn() },
-      paymentOrder: { aggregate: jest.fn() },
-      withdrawalOrder: { aggregate: jest.fn() },
+      paymentOrder: {
+        aggregate: jest.fn(),
+        count: jest.fn(),
+        findMany: jest.fn(),
+      },
       dailySnapshot: { findUnique: jest.fn() },
+      channelBillCheck: { findFirst: jest.fn(), upsert: jest.fn() },
       reconciliationReport: { upsert: jest.fn() },
     }
 
@@ -53,205 +47,190 @@ describe('ReconciliationService', () => {
     service = module.get(ReconciliationService)
   })
 
-  describe('runReconciliation 日终对账', () => {
-    it('无昨日快照时只校验账簿净变动与交易完整性', async () => {
-      // groupBy 第一次返回全部账本，第二次（带 type=ADJUSTMENT）返回空数组表示无调账
-      prisma.accountLedger.groupBy.mockImplementation((args: GroupByArgs) => {
-        if (args.where?.type === LedgerType.ADJUSTMENT) {
-          return Promise.resolve([])
-        }
-        return Promise.resolve([
-          { direction: 'DEBIT', _sum: { amount: 100000 } },
-          { direction: 'CREDIT', _sum: { amount: 0 } },
-        ])
-      })
-      prisma.account.aggregate.mockResolvedValue({ _sum: { totalBalance: 100000 } })
-      prisma.transactionOrder.findMany.mockResolvedValue([])
-      prisma.transactionOrder.aggregate.mockResolvedValue({ _sum: { amount: 0 } })
-      prisma.paymentOrder.aggregate.mockResolvedValue({ _sum: { fee: 0, amount: 0 } })
-      prisma.withdrawalOrder.aggregate.mockResolvedValue({ _sum: { amount: 0, fee: 0 } })
-      prisma.accountLedger.findMany.mockResolvedValue([])
-      prisma.dailySnapshot.findUnique.mockResolvedValue(null)
-      prisma.reconciliationReport.upsert.mockImplementation((args: unknown) => {
-        const query = args as { create: Record<string, unknown> }
-        return Promise.resolve({ ...query.create, id: 'r1' })
-      })
+  const stubOrderAggregates = () => {
+    // 第一次 aggregate：当日收单订单（PAID+REFUNDED）合计
+    prisma.paymentOrder.aggregate
+      .mockResolvedValueOnce({ _sum: { amount: 10000, fee: 100 }, _count: { id: 5 } })
+      // 第二次 aggregate：当日退款订单
+      .mockResolvedValueOnce({ _sum: { refundAmount: 2000 } })
+    prisma.paymentOrder.count.mockResolvedValue(3)
+  }
 
-      const result = await service.runReconciliation('2024-01-01')
-
-      expect(result.status).toBe(ReconciliationStatus.SUCCESS)
-      expect(result.summary.actualAssetsChange).toBe(100000)
-      expect(result.summary.ledgerNetChange).toBe(100000)
-      // 前一日快照缺失时会尝试调用 financeService 补生成
-      expect(financeService.generateDailySnapshot).toHaveBeenCalledWith('2023-12-31')
+  const reportUpsert = () =>
+    prisma.reconciliationReport.upsert.mockImplementation((args: unknown) => {
+      const query = args as { create: Record<string, unknown> }
+      return Promise.resolve({ ...query.create, id: 'r1' })
     })
 
-    it('资产变动与期望一致时对账成功', async () => {
-      prisma.accountLedger.groupBy.mockImplementation((args: GroupByArgs) => {
-        if (args.where?.type === LedgerType.ADJUSTMENT) {
-          return Promise.resolve([])
-        }
-        return Promise.resolve([
-          { direction: 'DEBIT', _sum: { amount: 20000 } },
-          { direction: 'CREDIT', _sum: { amount: 10000 } },
-        ])
+  describe('runReconciliation 日终对账（收单订单口径）', () => {
+    it('快照一致且通道账单 MATCHED → 对账成功', async () => {
+      stubOrderAggregates()
+      prisma.dailySnapshot.findUnique.mockResolvedValue({
+        totalIncome: 10000,
+        totalFee: 100,
+        transactionCount: 5,
       })
-      prisma.account.aggregate.mockResolvedValue({ _sum: { totalBalance: 110000 } })
-      prisma.transactionOrder.findMany.mockResolvedValue([])
-      prisma.transactionOrder.aggregate.mockResolvedValue({ _sum: { amount: 10000 } })
-      prisma.paymentOrder.aggregate.mockResolvedValue({ _sum: { fee: 0, amount: 0 } })
-      prisma.withdrawalOrder.aggregate.mockResolvedValue({ _sum: { amount: 0, fee: 0 } })
-      prisma.accountLedger.findMany.mockResolvedValue([])
-      prisma.dailySnapshot.findUnique.mockResolvedValue({ totalAssets: 100000 })
-      prisma.reconciliationReport.upsert.mockImplementation((args: unknown) => {
-        const query = args as { create: Record<string, unknown> }
-        return Promise.resolve({ ...query.create, id: 'r1' })
+      prisma.channelBillCheck.findFirst.mockResolvedValue({
+        channel: 'mock',
+        status: 'MATCHED',
+        matchedCount: 5,
+        mismatchCount: 0,
+        billSource: 'MOCK',
       })
+      reportUpsert()
 
-      const result = await service.runReconciliation('2024-01-02')
+      const result = await service.runReconciliation('2026-06-01')
 
       expect(result.status).toBe(ReconciliationStatus.SUCCESS)
-      expect(result.summary.actualAssetsChange).toBe(10000)
-      expect(result.summary.expectedAssetsChange).toBe(10000)
-      expect(result.summary.ledgerNetChange).toBe(10000)
-      // 前一日快照存在时不应触发补生成
-      expect(financeService.generateDailySnapshot).not.toHaveBeenCalled()
+      expect(result.summary.totalRecharge).toBe(10000)
+      expect(result.summary.totalFee).toBe(100)
+      expect(result.summary.transactionCount).toBe(5)
+      expect(result.summary.totalRefund).toBe(2000)
     })
 
-    it('账簿净变动与资产变动不一致时标记失败', async () => {
-      prisma.accountLedger.groupBy.mockImplementation((args: GroupByArgs) => {
-        if (args.where?.type === LedgerType.ADJUSTMENT) {
-          return Promise.resolve([])
-        }
-        return Promise.resolve([
-          { direction: 'DEBIT', _sum: { amount: 0 } },
-          { direction: 'CREDIT', _sum: { amount: 0 } },
-        ])
+    it('日报收入与订单统计不一致 → 标记 FAILED', async () => {
+      stubOrderAggregates()
+      prisma.dailySnapshot.findUnique.mockResolvedValue({
+        totalIncome: 9999, // 与 10000 不符
+        totalFee: 100,
+        transactionCount: 5,
       })
-      prisma.account.aggregate.mockResolvedValue({ _sum: { totalBalance: 100000 } })
-      prisma.transactionOrder.findMany.mockResolvedValue([])
-      prisma.transactionOrder.aggregate.mockResolvedValue({ _sum: { amount: 0 } })
-      prisma.paymentOrder.aggregate.mockResolvedValue({ _sum: { fee: 0, amount: 0 } })
-      prisma.withdrawalOrder.aggregate.mockResolvedValue({ _sum: { amount: 0, fee: 0 } })
-      prisma.accountLedger.findMany.mockResolvedValue([])
-      prisma.dailySnapshot.findUnique.mockResolvedValue(null)
-      prisma.reconciliationReport.upsert.mockImplementation((args: unknown) => {
-        const query = args as { create: Record<string, unknown> }
-        return Promise.resolve({ ...query.create, id: 'r1' })
+      prisma.channelBillCheck.findFirst.mockResolvedValue({
+        channel: 'mock',
+        status: 'MATCHED',
+        matchedCount: 5,
+        mismatchCount: 0,
+        billSource: 'MOCK',
       })
+      reportUpsert()
 
-      const result = await service.runReconciliation('2024-01-01')
+      const result = await service.runReconciliation('2026-06-01')
 
       expect(result.status).toBe(ReconciliationStatus.FAILED)
       const diffs = JSON.parse(result.differences as string)
-      expect(diffs).toContainEqual(
-        expect.objectContaining({ check: 'ledger_balance' }),
-      )
+      expect(diffs).toContainEqual(expect.objectContaining({ check: 'snapshot_income_mismatch' }))
     })
 
-    it('管理员调账净额计入期望资产变动，避免误报差异', async () => {
-      // 场景：充值 10000，管理员调账 DEBIT 4000（加款），提现/手续费为 0
-      // 全部账本：DEBIT 14000（充值+调账），CREDIT 0 → ledgerNetChange = 14000
-      // 调账账本：DEBIT 4000，CREDIT 0 → adjustmentNet = 4000
-      // totalAssets = 114000, prev = 100000 → actualAssetsChange = 14000
-      // expectedAssetsChange = 10000 - 0 - 0 + 4000 = 14000（与实际一致，避免误报）
-      prisma.accountLedger.groupBy.mockImplementation((args: GroupByArgs) => {
-        if (args.where?.type === LedgerType.ADJUSTMENT) {
-          return Promise.resolve([
-            { direction: 'DEBIT', _sum: { amount: 4000 } },
-            { direction: 'CREDIT', _sum: { amount: 0 } },
-          ])
-        }
-        return Promise.resolve([
-          { direction: 'DEBIT', _sum: { amount: 14000 } },
-          { direction: 'CREDIT', _sum: { amount: 0 } },
-        ])
-      })
-      prisma.account.aggregate.mockResolvedValue({ _sum: { totalBalance: 114000 } })
-      prisma.transactionOrder.findMany.mockResolvedValue([])
-      prisma.transactionOrder.aggregate.mockResolvedValue({ _sum: { amount: 10000 } })
-      prisma.paymentOrder.aggregate.mockResolvedValue({ _sum: { fee: 0, amount: 0 } })
-      prisma.withdrawalOrder.aggregate.mockResolvedValue({ _sum: { amount: 0, fee: 0 } })
-      prisma.accountLedger.findMany.mockResolvedValue([])
-      prisma.dailySnapshot.findUnique.mockResolvedValue({ totalAssets: 100000 })
-      prisma.reconciliationReport.upsert.mockImplementation((args: unknown) => {
-        const query = args as { create: Record<string, unknown> }
-        return Promise.resolve({ ...query.create, id: 'r1' })
-      })
-
-      const result = await service.runReconciliation('2024-01-03')
-
-      // 期望变动包含调账净额后，与实际资产变动一致 → 对账成功，避免误报
-      expect(result.summary.adjustmentNet).toBe(4000)
-      expect(result.summary.expectedAssetsChange).toBe(14000)
-      expect(result.summary.actualAssetsChange).toBe(14000)
-      expect(result.status).toBe(ReconciliationStatus.SUCCESS)
-    })
-
-    it('存在 REFUND 交易时期望资产变动扣减退款，避免差异告警', async () => {
-      // 场景：充值 10000，其中 3000 的退款单已入账（totalRefund=3000）
-      // expectedAssetsChange = 10000 - 0 - 0 + 0 - 3000 = 7000
-      prisma.accountLedger.groupBy.mockImplementation((args: GroupByArgs) => {
-        if (args.where?.type === LedgerType.ADJUSTMENT) {
-          return Promise.resolve([
-            { direction: 'DEBIT', _sum: { amount: 0 } },
-            { direction: 'CREDIT', _sum: { amount: 0 } },
-          ])
-        }
-        return Promise.resolve([
-          { direction: 'DEBIT', _sum: { amount: 7000 } },
-          { direction: 'CREDIT', _sum: { amount: 0 } },
-        ])
-      })
-      prisma.account.aggregate.mockResolvedValue({ _sum: { totalBalance: 107000 } })
-      // txOrders 含一笔 REFUND 3000：此前用例恒 []，退款扣减从未被断言
-      prisma.transactionOrder.findMany.mockResolvedValue([
-        { id: 'tx-refund', orderNo: 'T1', type: 'REFUND', amount: 3000 },
-      ])
-      // 该退款单已有对应账本记录，避免 missing_ledger 差异
-      prisma.accountLedger.findMany.mockResolvedValue([{ transactionId: 'tx-refund' }])
-      prisma.transactionOrder.aggregate.mockResolvedValue({ _sum: { amount: 10000 } })
-      prisma.paymentOrder.aggregate.mockResolvedValue({ _sum: { fee: 0, amount: 0 } })
-      prisma.withdrawalOrder.aggregate.mockResolvedValue({ _sum: { amount: 0, fee: 0 } })
-      prisma.dailySnapshot.findUnique.mockResolvedValue({ totalAssets: 100000 })
-      prisma.reconciliationReport.upsert.mockImplementation((args: unknown) => {
-        const query = args as { create: Record<string, unknown> }
-        return Promise.resolve({ ...query.create, id: 'r1' })
-      })
-
-      const result = await service.runReconciliation('2024-01-04')
-
-      expect(result.summary.totalRefund).toBe(3000)
-      expect(result.summary.expectedAssetsChange).toBe(7000)
-      expect(result.summary.actualAssetsChange).toBe(7000)
-      expect(result.status).toBe(ReconciliationStatus.SUCCESS)
-    })
-
-    it('快照补生成失败时标记为 SNAPSHOT_MISSING', async () => {
-      prisma.accountLedger.groupBy.mockResolvedValue([
-        { direction: 'DEBIT', _sum: { amount: 0 } },
-        { direction: 'CREDIT', _sum: { amount: 0 } },
-      ])
-      prisma.account.aggregate.mockResolvedValue({ _sum: { totalBalance: 0 } })
-      prisma.transactionOrder.findMany.mockResolvedValue([])
-      prisma.transactionOrder.aggregate.mockResolvedValue({ _sum: { amount: 0 } })
-      prisma.paymentOrder.aggregate.mockResolvedValue({ _sum: { fee: 0, amount: 0 } })
-      prisma.withdrawalOrder.aggregate.mockResolvedValue({ _sum: { amount: 0, fee: 0 } })
-      prisma.accountLedger.findMany.mockResolvedValue([])
+    it('快照缺失且补生成成功、通道账单待执行（pending 忽略）→ 仍 SUCCESS', async () => {
+      stubOrderAggregates()
       prisma.dailySnapshot.findUnique.mockResolvedValue(null)
-      financeService.generateDailySnapshot.mockRejectedValue(new Error('db error'))
-      prisma.reconciliationReport.upsert.mockImplementation((args: unknown) => {
-        const query = args as { create: Record<string, unknown> }
-        return Promise.resolve({ ...query.create, id: 'r1' })
+      prisma.channelBillCheck.findFirst.mockResolvedValue(null)
+      reportUpsert()
+
+      const result = await service.runReconciliation('2026-06-01')
+
+      expect(financeService.generateDailySnapshot).toHaveBeenCalledWith('2026-06-01')
+      expect(result.status).toBe(ReconciliationStatus.SUCCESS)
+    })
+
+    it('快照缺失且补生成失败 → snapshot_missing 差异 → FAILED', async () => {
+      stubOrderAggregates()
+      prisma.dailySnapshot.findUnique.mockResolvedValue(null)
+      financeService.generateDailySnapshot.mockRejectedValueOnce(new Error('db down'))
+      prisma.channelBillCheck.findFirst.mockResolvedValue(null)
+      reportUpsert()
+
+      const result = await service.runReconciliation('2026-06-01')
+
+      expect(result.status).toBe(ReconciliationStatus.FAILED)
+      const diffs = JSON.parse(result.differences as string)
+      expect(diffs).toContainEqual(expect.objectContaining({ check: 'snapshot_missing' }))
+    })
+
+    it('通道账单存在但未 MATCHED → FAILED', async () => {
+      stubOrderAggregates()
+      prisma.dailySnapshot.findUnique.mockResolvedValue({
+        totalIncome: 10000,
+        totalFee: 100,
+        transactionCount: 5,
+      })
+      prisma.channelBillCheck.findFirst.mockResolvedValue({
+        channel: 'mock',
+        status: 'MISMATCH',
+        matchedCount: 4,
+        mismatchCount: 1,
+        billSource: 'MOCK',
+      })
+      reportUpsert()
+
+      const result = await service.runReconciliation('2026-06-01')
+
+      expect(result.status).toBe(ReconciliationStatus.FAILED)
+    })
+  })
+
+  describe('runChannelReconciliation 通道账单逐笔核对', () => {
+    const platformOrders = [
+      {
+        orderNo: 'O1',
+        channelOrderNo: 'C1',
+        amount: 1000,
+        fee: 10,
+        status: 'PAID',
+        paidAt: new Date('2026-06-01T04:00:00.000Z'),
+      },
+      {
+        orderNo: 'O2',
+        channelOrderNo: 'C2',
+        amount: 2000,
+        fee: 20,
+        status: 'PAID',
+        paidAt: new Date('2026-06-01T05:00:00.000Z'),
+      },
+    ]
+
+    it('mock 账单与平台订单逐笔一致 → MATCHED', async () => {
+      prisma.paymentOrder.findMany.mockResolvedValue(platformOrders)
+      prisma.channelBillCheck.upsert.mockResolvedValue({})
+
+      const result = await service.runChannelReconciliation('2026-06-01', 'mock', {})
+
+      expect(result.status).toBe('MATCHED')
+      expect(result.matchedCount).toBe(2)
+      expect(result.mismatchCount).toBe(0)
+      expect(prisma.channelBillCheck.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            date: '2026-06-01',
+            channel: 'mock',
+            status: 'MATCHED',
+            matchedCount: 2,
+            mismatchCount: 0,
+          }),
+        }),
+      )
+    })
+
+    it('注入金额不一致 → amount_mismatch 差异 → MISMATCH', async () => {
+      prisma.paymentOrder.findMany.mockResolvedValue(platformOrders)
+      prisma.channelBillCheck.upsert.mockResolvedValue({})
+
+      const result = await service.runChannelReconciliation('2026-06-01', 'mock', {
+        amountMismatchOrders: 1,
       })
 
-      const result = await service.runReconciliation('2024-01-01')
+      expect(result.status).toBe('MISMATCH')
+      expect(result.mismatchCount).toBe(1)
+      expect(result.differences[0].type).toBe('amount_mismatch')
+    })
 
-      expect(result.status).toBe(ReconciliationStatus.SNAPSHOT_MISSING)
-      const diffs = JSON.parse(result.differences as string)
-      expect(diffs).toContainEqual(
-        expect.objectContaining({ check: 'snapshot_missing' }),
-      )
+    it('注入平台多记（账单缺单）→ platform_only 差异 → MISMATCH', async () => {
+      prisma.paymentOrder.findMany.mockResolvedValue(platformOrders)
+      prisma.channelBillCheck.upsert.mockResolvedValue({})
+
+      const result = await service.runChannelReconciliation('2026-06-01', 'mock', {
+        missingPlatformOrders: 1,
+      })
+
+      expect(result.status).toBe('MISMATCH')
+      expect(result.differences.some((d) => d.type === 'platform_only')).toBe(true)
+    })
+
+    it('official 模式未传 billText → BadRequest', async () => {
+      prisma.paymentOrder.findMany.mockResolvedValue(platformOrders)
+      await expect(
+        service.runChannelReconciliation('2026-06-01', 'alipay', { billSource: 'official' }),
+      ).rejects.toBeInstanceOf(BadRequestException)
     })
   })
 })

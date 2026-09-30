@@ -11,7 +11,7 @@ import { Prisma } from '@prisma/client'
  * - 任何对历史日志的修改都会导致后续所有日志的 previousHash 不匹配
  * - 提供 verifyChain 方法校验日志链完整性
  *
- * 适用于敏感操作归档：调账、用户状态变更、风控等级变更、实名审核等
+ * 适用于敏感操作归档：用户状态变更、风控等级变更、实名审核等
  */
 @Injectable()
 export class AuditLogService {
@@ -64,7 +64,7 @@ export class AuditLogService {
       })
       const hash = createHash('sha256').update(content).digest('hex')
 
-      // 写入失败必须抛出异常：资金类操作（调账、提现审核、用户状态变更）的审计日志
+      // 写入失败必须抛出异常：敏感操作（用户状态变更、风控处理）的审计日志
       // 是合规与追责的最后一道凭证，丢失会让资金操作无法追溯。
       // 业务事务会因异常回滚，保证不会出现"资金已动但审计日志丢失"的不一致状态。
       await client.adminOperationLog.create({

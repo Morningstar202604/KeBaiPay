@@ -96,7 +96,6 @@ describe('MerchantsService', () => {
     reviewedBy: null,
     reviewedAt: null,
     payRate: 60,
-    withdrawRate: 60,
     dailyLimit: 10000000,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -136,7 +135,6 @@ describe('MerchantsService', () => {
       const result = await service.register('u1', { merchantName: '测试商户' })
       expect(result.status).toBe('PENDING')
       expect(result.payRate).toBe(60)
-      expect(result.withdrawRate).toBe(60)
       expect(result.dailyLimit).toBe(10000000)
       expect(result.dailyLimitYuan).toBe('100000.00')
       expect(prisma.merchant.create).toHaveBeenCalledWith(
@@ -147,7 +145,6 @@ describe('MerchantsService', () => {
             merchantType: 'PERSONAL',
             status: 'PENDING',
             payRate: 60,
-            withdrawRate: 60,
             dailyLimit: 10000000,
           }),
         }),
@@ -323,7 +320,7 @@ describe('MerchantsService', () => {
       )
     })
 
-    it('成功调整收款费率、提现费率和日限额', async () => {
+    it('成功调整收款费率和日限额', async () => {
       prisma.merchant.findUnique.mockResolvedValue(baseMerchant())
       prisma.merchant.update.mockImplementation((args: unknown) =>
         Promise.resolve({ ...baseMerchant(), ...(args as CreateArgs).data }),
@@ -331,17 +328,15 @@ describe('MerchantsService', () => {
 
       const result = await service.updateMerchantConfig('m1', {
         payRate: 30,
-        withdrawRate: 50,
         dailyLimit: 50000,
       })
       expect(result.payRate).toBe(30)
-      expect(result.withdrawRate).toBe(50)
       expect(result.dailyLimit).toBe(5000000)
       expect(result.dailyLimitYuan).toBe('50000.00')
       expect(prisma.merchant.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'm1' },
-          data: { payRate: 30, withdrawRate: 50, dailyLimit: 5000000 },
+          data: { payRate: 30, dailyLimit: 5000000 },
         }),
       )
     })

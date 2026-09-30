@@ -1,8 +1,12 @@
 import { Module } from '@nestjs/common'
+import { APP_INTERCEPTOR } from '@nestjs/core'
 import { JwtModule, type JwtModuleOptions } from '@nestjs/jwt'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { HealthController } from './health.controller'
 import { HealthService } from './health.service'
+import { MetricsController } from './metrics.controller'
+import { MetricsService } from './metrics.service'
+import { MetricsInterceptor } from './metrics.interceptor'
 import { PaymentChannelsModule } from '../payment-channels/payment-channels.module'
 
 @Module({
@@ -21,7 +25,13 @@ import { PaymentChannelsModule } from '../payment-channels/payment-channels.modu
       inject: [ConfigService],
     }),
   ],
-  controllers: [HealthController],
-  providers: [HealthService],
+  controllers: [HealthController, MetricsController],
+  providers: [
+    HealthService,
+    MetricsService,
+    // 全局拦截器：所有 HTTP 请求自动采集指标（原 metrics 模块合并于此）
+    { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
+  ],
+  exports: [MetricsService],
 })
 export class HealthModule {}

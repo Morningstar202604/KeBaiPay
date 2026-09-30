@@ -14,7 +14,7 @@
             <el-input v-model="form.idCard" placeholder="18 位身份证号码" maxlength="18" style="max-width: 360px" />
           </el-form-item>
           <el-form-item label="设置支付密码" prop="payPassword">
-            <el-input v-model="form.payPassword" type="password" maxlength="6" placeholder="6 位纯数字，提现/退款时使用"
+            <el-input v-model="form.payPassword" type="password" maxlength="6" placeholder="6 位纯数字，退款安全验证时使用"
               show-password style="max-width: 360px" />
           </el-form-item>
           <el-form-item label="确认支付密码" prop="confirm">

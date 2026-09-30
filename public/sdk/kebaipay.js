@@ -184,26 +184,7 @@ class KeBaiPay {
     return this._request('POST', '/open-api/v1/refunds', params);
   }
 
-  /**
-   * 转账
-   * @param {Object} params
-   * @param {string} params.toUserId
-   * @param {number} params.amount
-   * @param {string} [params.remark]
-   * @param {string} [params.idempotencyKey]
-   * @returns {Promise<Object>}
-   */
-  transfer(params) {
-    return this._request('POST', '/open-api/v1/transfers', params);
-  }
-
-  /**
-   * 查询商户余额
-   * @returns {Promise<Object>}
-   */
-  getBalance() {
-    return this._request('GET', '/open-api/v1/balance');
-  }
+  // v0.3.x 起已下线：transfer()/getBalance()（转账/查余额）端点已移除，请勿调用
 }
 
 module.exports = { KeBaiPay };

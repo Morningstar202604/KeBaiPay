@@ -45,7 +45,7 @@
 
 1. Fork 仓库并创建分支：`feat/your-feature` 或 `fix/your-bugfix`
 2. 遵循现有代码风格（NestJS 模块化 + TypeScript 严格模式）
-3. 资金相关代码（transfers / withdrawals / red-packets / escrow / agent 工具）必须包含单元测试
+3. 收单核心代码（cashier / channels / webhooks / reconciliation / agent 工具）必须包含单元测试
 4. 新增 API 端点必须更新 `docs/API_REFERENCE.md`
 5. 新增 Prisma 模型必须创建 migration：`npx prisma migrate dev --name xxx`
 6. PR 标题遵循约定式提交：`feat:` / `fix:` / `refactor:` / `docs:` / `test:` / `chore:`
@@ -67,12 +67,12 @@
 ```
 
 - `type`: feat / fix / refactor / docs / test / chore / perf
-- `scope`: 模块名（auth / transfers / agent / llm 等，可选）
+- `scope`: 模块名（auth / cashier / agent / llm 等，可选）
 - `subject`: 简明描述
 
 示例：
 ```
-feat(agent): 支持 kbpay_query_merchant_balance 工具
+feat(agent): 支持 kbpay_query_merchant_stats 工具
 fix(llm): dotenv 环境变量显式转 number，修复 AbortSignal.timeout 报错
 docs(readme): 更新 AI 智能体层介绍
 ```
@@ -85,7 +85,7 @@ docs(readme): 更新 AI 智能体层介绍
 
 ## 代码审查规则
 
-1. 资金相关代码（转账/提现/红包/担保/Agent 工具）必须至少 1 名维护者 review
+1. 收单核心代码（cashier / channels / webhooks / reconciliation / Agent 工具）必须至少 1 名维护者 review
 2. 安全相关代码（认证/加密/风控）必须由项目负责人 review
 3. AI 智能体工具新增/修改必须更新 [tool.registry.ts](src/agent/tools/tool.registry.ts) 的权限矩阵
 

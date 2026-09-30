@@ -9,7 +9,6 @@
       </el-descriptions-item>
       <el-descriptions-item label="商户名称">{{ merchant.merchantName }}</el-descriptions-item>
       <el-descriptions-item label="收款费率">{{ rateText(merchant.payRate) }}</el-descriptions-item>
-      <el-descriptions-item label="提现费率">{{ rateText(merchant.withdrawRate) }}</el-descriptions-item>
       <el-descriptions-item label="每日收款限额">¥ {{ merchant.dailyLimitYuan }}</el-descriptions-item>
       <el-descriptions-item label="联系人">{{ merchant.contactName || '-' }}</el-descriptions-item>
       <el-descriptions-item label="联系电话">{{ merchant.contactPhone || '-' }}</el-descriptions-item>

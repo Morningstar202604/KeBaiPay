@@ -1,4 +1,4 @@
-import { IsNumber, IsString, IsOptional, IsPositive, Min, Max } from 'class-validator'
+import { IsNumber, IsOptional, IsPositive, Min, Max } from 'class-validator'
 import { Type } from 'class-transformer'
 import { IsSafeText } from '../../common/validators/safe-text'
 

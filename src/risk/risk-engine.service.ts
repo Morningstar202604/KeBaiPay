@@ -2,7 +2,7 @@ import { businessDayKey } from '../common/date-helpers'
 import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
-import { RiskLevel, RiskEventType, TransactionType } from '../common/enums'
+import { RiskLevel, RiskEventType, TransactionType, PaymentOrderStatus } from '../common/enums'
 import { DEFAULT_TRANSFER_DAILY_LIMIT_CENTS } from '../common/constants'
 import { randomUUID } from 'crypto'
 
@@ -39,7 +39,7 @@ export interface RiskRule {
 
 export interface RiskCheckContext {
   userId: string
-  type: 'TRANSFER' | 'WITHDRAW' | 'RECHARGE' | 'PAYMENT' | 'REFUND' | 'RED_PACKET'
+  type: 'PAYMENT' | 'REFUND'
   amount: number // 分
   ip?: string
   userAgent?: string
@@ -257,16 +257,10 @@ export class RiskEngineService {
    */
   private mapEventTypeByCtx(type: RiskCheckContext['type']): RiskEventType {
     switch (type) {
-      case 'TRANSFER':
-        return RiskEventType.LARGE_TRANSFER
-      case 'WITHDRAW':
-        return RiskEventType.LARGE_WITHDRAWAL
       case 'PAYMENT':
         return RiskEventType.LARGE_PAYMENT
-      case 'RED_PACKET':
-        return RiskEventType.SUSPICIOUS_RED_PACKET
       default:
-        return RiskEventType.LARGE_TRANSFER
+        return RiskEventType.LARGE_PAYMENT
     }
   }
 
@@ -436,47 +430,34 @@ export class RiskEngineService {
   }
 
   private async getDailyCount(userId: string, type: TransactionType): Promise<number> {
-    // [口径核对] 不能改读 DailyLimitUsage：
-    //   1) DailyLimitUsage 只存预占金额（usedAmount），无「笔数」字段，count 无从取得；
-    //   2) 其 limitType 是业务维度（'TRANSFER'/'MERCHANT_PAYMENT'），与本方法入参
-    //      TransactionType（'TRANSFER'/'WITHDRAW'/...）不是一一对应，且本方法无 limitType 入参；
-    //   3) 本方法统计的是 SUCCESS 交易笔数（OR from/to + 当日 + status=SUCCESS），
-    //      而 DailyLimitUsage 在校验时即预占累加（含未落账 / 最终失败的交易），口径不一致。
-    //   正确性优先：保留 transactionOrder.count，性能由新增的复合索引
-    //   @@index([fromUserId, createdAt, status]) / @@index([toUserId, createdAt, status])
-    //   （migration 20260922000000）承接——OR 两侧各走一条「等值用户 + createdAt 当日范围
-    //   + status 等值」的索引扫描，替代原「两条单列索引 UNION + 回表全列过滤」。
+    // 按付款方当日收单订单统计笔数（paymentOrder.payerId + paidAt 当日 + status 已支付/已退款）
     const today = businessDayKey()
     const startDate = new Date(`${today}T00:00:00.000Z`)
 
-    const count = await this.prisma.transactionOrder.count({
+    const count = await this.prisma.paymentOrder.count({
       where: {
-        OR: [{ fromUserId: userId }, { toUserId: userId }],
-        type: type,
-        createdAt: { gte: startDate },
-        status: 'SUCCESS',
+        payerId: userId,
+        status: type === TransactionType.REFUND
+          ? PaymentOrderStatus.REFUNDED
+          : PaymentOrderStatus.PAID,
+        paidAt: { gte: startDate },
       },
     })
     return count
   }
 
   private async getDailyAmount(userId: string, type: TransactionType): Promise<number> {
-    // [口径核对] 不能改读 DailyLimitUsage：
-    //   本方法统计的是当日 SUCCESS 交易实际金额合计（OR from/to + 当日 + status=SUCCESS +
-    //   _sum(amount)），而 DailyLimitUsage.usedAmount 是「校验时预占」的金额累计——
-    //   会把最终失败/取消交易的预占也算进当日额度，与风控统计口径不一致。
-    //   正确性优先：保留 transactionOrder.aggregate，性能由新增复合索引
-    //   @@index([fromUserId, createdAt, status]) / @@index([toUserId, createdAt, status])
-    //   （migration 20260922000000）承接，避免 OR 全量扫。
+    // 按付款方当日收单订单统计金额合计（paymentOrder.payerId + paidAt 当日 + status 已支付/已退款）
     const today = businessDayKey()
     const startDate = new Date(`${today}T00:00:00.000Z`)
 
-    const result = await this.prisma.transactionOrder.aggregate({
+    const result = await this.prisma.paymentOrder.aggregate({
       where: {
-        OR: [{ fromUserId: userId }, { toUserId: userId }],
-        type: type,
-        createdAt: { gte: startDate },
-        status: 'SUCCESS',
+        payerId: userId,
+        status: type === TransactionType.REFUND
+          ? PaymentOrderStatus.REFUNDED
+          : PaymentOrderStatus.PAID,
+        paidAt: { gte: startDate },
       },
       _sum: { amount: true },
     })
@@ -504,12 +485,13 @@ export class RiskEngineService {
     }
     // Redis 不可用时查询数据库
     const since = new Date(Date.now() - windowSeconds * 1000)
-    const count = await this.prisma.transactionOrder.count({
+    const count = await this.prisma.paymentOrder.count({
       where: {
-        OR: [{ fromUserId: userId }, { toUserId: userId }],
-        type: type,
-        createdAt: { gte: since },
-        status: 'SUCCESS',
+        payerId: userId,
+        status: type === TransactionType.REFUND
+          ? PaymentOrderStatus.REFUNDED
+          : PaymentOrderStatus.PAID,
+        paidAt: { gte: since },
       },
     })
     return count

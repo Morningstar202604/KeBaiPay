@@ -33,16 +33,16 @@ KeBaiPay 已内置以下安全措施：
 - Agent JWT 独立 `JWT_AGENT_SECRET`，与用户/管理员密钥隔离
 - AgentAuthGuard 校验 scope 子集（`authScopes ⊆ agent.scopes`）
 
-### 资金安全
-- 复式记账三表联动（AccountLedger + Bill + TransactionOrder）
-- Redis 分布式锁防并发（转账/提现/红包领取）
+### 收单安全
+- 订单级对账与日报快照交叉核对，单边/错账 fail-closed 拒绝确认
+- Redis 分布式锁防并发（收单回调/掉单补单共用同一把锁）
 - Prisma 事务保证 ACID
-- 幂等键防重放（转账 `idempotencyKey`）
-- Human-in-the-Loop：Agent 资金类工具 `requireConfirm=true`，强制用户二次确认
+- 幂等键防重放（收单回调 `idempotencyKey`）
+- Human-in-the-Loop：Agent 收单类工具 `requireConfirm=true`，强制用户二次确认
 - Agent 限额：`AGENT_MAX_AMOUNT_PER_OP` / `AGENT_MAX_AMOUNT_PER_DAY`
 
 ### 敏感数据
-- AES-256-GCM 加密身份证、银行卡号
+- AES-256-GCM 加密身份证号
 - 身份证 hash 索引（支持模糊查询不泄露原文）
 - 手机号/邮箱脱敏输出
 
@@ -54,7 +54,7 @@ KeBaiPay 已内置以下安全措施：
 ### 风控
 - 滑动窗口限流（Redis Lua 脚本）
 - 规则引擎 + AI 审计双引擎
-- 大额转账/异地登录/频繁操作自动触发风控事件
+- 异常订单/异地登录/频繁操作自动触发风控事件
 
 ## 安全配置检查清单（生产部署前）
 

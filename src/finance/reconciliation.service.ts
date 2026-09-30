@@ -1,22 +1,26 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import {
-  Direction,
-  LedgerType,
   PaymentOrderStatus,
   ReconciliationStatus,
-  TransactionStatus,
-  TransactionType,
-  WithdrawalStatus,
 } from '../common/enums'
 import { PrismaService } from '../prisma/prisma.service'
 import { FinanceService } from './finance.service'
-import { businessDayRange, businessDayKey } from '../common/date-helpers'
-import { DAY_MS } from '../common/constants'
+import { businessDayRange } from '../common/date-helpers'
 import { fenToYuan } from '../common/helpers'
+import { randomUUID } from 'crypto'
+import { parseChannelBill, type BillRow } from './bill-parser'
 import { escapeCsvField } from '../common/csv'
 
-// 对账摘要结构，便于持久化与接口返回
+/**
+ * 对账摘要结构（合规聚合模式）：
+ * 平台不持有资金（totalAssets 恒为 0），对账口径为「收单订单 vs 持牌通道账单」：
+ *  - totalRecharge  = 当日成功收单金额（原充值口径，语义改为收单收入）
+ *  - totalPaymentFee = 当日收单手续费
+ *  - totalRefund    = 当日退款金额
+ *  - transactionCount = 当日成功订单笔数
+ * 字段名保留兼容既有前端；通道账单文件核对为人工/离线步骤（见 PAYMENT_CHANNEL_CONFIG.md）。
+ */
 export interface ReconciliationSummary {
   totalAssets: number
   totalDebit: number
@@ -56,249 +60,132 @@ export class ReconciliationService {
     private readonly financeService: FinanceService,
   ) {}
 
+  /**
+   * 运行当日对账（订单维度）
+   *
+   * 聚合模式下对账两步：
+   * 1) 系统内核对：PaymentOrder 当日成功订单金额/手续费/退款与 DailySnapshot 快照一致
+   * 2) 通道账单核对（离线/人工或后续接入）：下载持牌通道（微信/支付宝）官方账单，
+   *    与当日成功订单逐笔匹配 —— 部署后需配置商户号后接入（见 docs/PAYMENT_CHANNEL_CONFIG.md）
+   */
   async runReconciliation(date: string, checkedBy?: string) {
     const { start, end } = this.getDateRange(date)
 
-    const [
-      accountsAgg,
-      ledgerGroups,
-      txOrders,
-      rechargeAgg,
-      paymentAgg,
-      withdrawalAgg,
-      adjustmentGroups,
-    ] = await Promise.all([
-      this.prisma.account.aggregate({ _sum: { totalBalance: true } }),
-      this.prisma.accountLedger.groupBy({
-        by: ['direction'],
-        where: { createdAt: { gte: start, lte: end } },
-        _sum: { amount: true },
-      }),
-      this.prisma.transactionOrder.findMany({
+    const [paidAgg, refundAgg, closedCount] = await Promise.all([
+      this.prisma.paymentOrder.aggregate({
         where: {
-          status: TransactionStatus.SUCCESS,
-          completedAt: { gte: start, lte: end },
+          status: { in: [PaymentOrderStatus.PAID, PaymentOrderStatus.REFUNDED] },
+          paidAt: { gte: start, lte: end, not: null },
         },
-        select: { id: true, orderNo: true, type: true, amount: true },
-      }),
-      this.prisma.transactionOrder.aggregate({
-        where: {
-          status: TransactionStatus.SUCCESS,
-          completedAt: { gte: start, lte: end },
-          type: TransactionType.RECHARGE,
-        },
-        _sum: { amount: true },
+        _sum: { amount: true, fee: true },
+        _count: { id: true },
       }),
       this.prisma.paymentOrder.aggregate({
         where: {
-          // 手续费统计含 REFUNDED 订单：退款只退本金不退手续费，
-          // 全额退款后订单 status 变为 REFUNDED 但手续费仍是平台收入，
-          // 若仅统计 PAID 会漏算已全额退款订单的手续费，导致对账期望资产变动偏大
-          status: { in: [PaymentOrderStatus.PAID, PaymentOrderStatus.REFUNDED] },
-          paidAt: { gte: start, lte: end },
+          status: PaymentOrderStatus.REFUNDED,
+          paidAt: { gte: start, lte: end, not: null },
         },
-        _sum: { fee: true, amount: true },
+        _sum: { refundAmount: true },
       }),
-      this.prisma.withdrawalOrder.aggregate({
+      this.prisma.paymentOrder.count({
         where: {
-          status: WithdrawalStatus.SUCCESS,
-          reviewedAt: { gte: start, lte: end },
+          status: PaymentOrderStatus.CLOSED,
+          updatedAt: { gte: start, lte: end },
         },
-        _sum: { amount: true, fee: true },
-      }),
-      this.prisma.accountLedger.groupBy({
-        by: ['direction'],
-        where: {
-          type: LedgerType.ADJUSTMENT,
-          createdAt: { gte: start, lte: end },
-        },
-        _sum: { amount: true },
       }),
     ])
 
-    const totalAssets = accountsAgg._sum.totalBalance || 0
-    const totalDebit =
-      ledgerGroups.find((g) => g.direction === Direction.DEBIT)?._sum.amount ||
-      0
-    const totalCredit =
-      ledgerGroups.find((g) => g.direction === Direction.CREDIT)?._sum.amount ||
-      0
-    const ledgerNetChange = totalDebit - totalCredit
+    const totalAssets = 0 // 资金池下线：平台不持有资金
+    const totalDebit = 0
+    const totalCredit = 0
+    const ledgerNetChange = 0
 
-    const totalRecharge = rechargeAgg._sum.amount || 0
-    const totalPaymentFee = paymentAgg._sum.fee || 0
-    const totalWithdrawal = withdrawalAgg._sum.amount || 0
-    const totalWithdrawalFee = withdrawalAgg._sum.fee || 0
+    // 收单收入（成功订单金额）
+    const totalRecharge = paidAgg._sum.amount || 0
+    const totalPaymentFee = paidAgg._sum.fee || 0
+    const totalWithdrawal = 0
+    const totalWithdrawalFee = 0
     const totalFee = totalPaymentFee + totalWithdrawalFee
-    const transactionCount = txOrders.length
+    const transactionCount = paidAgg._count.id || 0
+    const totalRefund = refundAgg._sum.refundAmount || 0
+    const adjustmentNet = 0
 
-    // 退款 -：商户余额扣回退款额、等额资金由渠道原路退回付款方（平台外流出），
-    // 此前公式漏计退款导致每笔退款必然触发 assets_balance 差异告警。
-    // 退款总额直接从已取回的 txOrders 过滤（select 已含 type/amount）
-    // 注意：totalWithdrawal 为提现总额（含手续费），approve 已从 totalBalance 扣除全额，
-    // 因此不应再单独减去 totalWithdrawalFee，否则会重复扣减手续费
-    const totalRefund = txOrders
-      .filter((o) => o.type === TransactionType.REFUND)
-      .reduce((s, o) => s + o.amount, 0)
+    // 系统内核对：快照（finance 日报）与订单统计一致
+    const differences: ReconciliationDifference[] = []
 
-    // 管理员调账净额：DEBIT（加款）增加平台总资产，CREDIT（扣款）减少平台总资产
-    const adjustmentDebit =
-      adjustmentGroups.find((g) => g.direction === Direction.DEBIT)?._sum
-        .amount || 0
-    const adjustmentCredit =
-      adjustmentGroups.find((g) => g.direction === Direction.CREDIT)?._sum
-        .amount || 0
-    const adjustmentNet = adjustmentDebit - adjustmentCredit
-
-    const previousDay = this.getPreviousDate(date)
-
-    // 任务4：对账执行前检查前一日 DailySnapshot 是否存在；
-    // 不存在则尝试生成，生成失败则标记对账为「快照缺失」状态
-    let previousSnapshot = previousDay
-      ? await this.prisma.dailySnapshot.findUnique({
-          where: { date: previousDay },
+    const snapshot = await this.prisma.dailySnapshot.findUnique({
+      where: { date },
+    })
+    if (snapshot) {
+      if (snapshot.totalIncome !== totalRecharge) {
+        differences.push({
+          check: 'snapshot_income_mismatch',
+          message: `日报收入 ${snapshot.totalIncome} 与订单统计 ${totalRecharge} 不一致`,
+          snapshot: snapshot.totalIncome,
+          orders: totalRecharge,
         })
-      : null
-
-    if (!previousSnapshot && previousDay) {
+      }
+      if (snapshot.totalFee !== totalFee) {
+        differences.push({
+          check: 'snapshot_fee_mismatch',
+          message: `日报手续费 ${snapshot.totalFee} 与订单统计 ${totalFee} 不一致`,
+          snapshot: snapshot.totalFee,
+          orders: totalFee,
+        })
+      }
+      if (snapshot.transactionCount !== transactionCount) {
+        differences.push({
+          check: 'snapshot_count_mismatch',
+          message: `日报笔数 ${snapshot.transactionCount} 与订单统计 ${transactionCount} 不一致`,
+          snapshot: snapshot.transactionCount,
+          orders: transactionCount,
+        })
+      }
+    } else {
+      // 快照缺失：尝试补生成
       try {
-        this.logger.log(
-          `前一日 ${previousDay} 快照缺失，尝试补生成快照`,
-        )
-        await this.financeService.generateDailySnapshot(previousDay)
-        previousSnapshot = await this.prisma.dailySnapshot.findUnique({
-          where: { date: previousDay },
-        })
+        await this.financeService.generateDailySnapshot(date)
+        this.logger.log(`对账前补生成 ${date} 日报快照成功`)
       } catch (err) {
-        this.logger.error(`生成 ${previousDay} 快照失败，对账标记为快照缺失`, err)
-        const snapshotMissingReport = await this.prisma.reconciliationReport.upsert(
-          {
-            where: { date },
-            create: {
-              date,
-              status: ReconciliationStatus.SNAPSHOT_MISSING,
-              differences: JSON.stringify([
-                {
-                  check: 'snapshot_missing',
-                  message: `前一日 ${previousDay} 快照缺失且生成失败，无法完成对账`,
-                  previousDay,
-                },
-              ]),
-              summary: JSON.stringify({
-                date,
-                previousDay,
-                totalAssets,
-                error: 'SNAPSHOT_MISSING',
-              }),
-              checkedBy,
-              checkedAt: new Date(),
-            },
-            update: {
-              status: ReconciliationStatus.SNAPSHOT_MISSING,
-              differences: JSON.stringify([
-                {
-                  check: 'snapshot_missing',
-                  message: `前一日 ${previousDay} 快照缺失且生成失败，无法完成对账`,
-                  previousDay,
-                },
-              ]),
-              summary: JSON.stringify({
-                date,
-                previousDay,
-                totalAssets,
-                error: 'SNAPSHOT_MISSING',
-              }),
-              checkedBy,
-              checkedAt: new Date(),
-            },
-          },
-        )
-        // 剥离 Prisma 返回的 Json 类型 summary，避免与本地对象形成联合类型
-        const { summary: _smStored, ...smRest } = snapshotMissingReport
-        // 快照缺失时无法计算前后对比，但仍返回完整 ReconciliationSummary 结构，
-        // 保证返回类型一致（summary 始终为 ReconciliationSummary，不形成联合类型）
-        const snapshotMissingSummary: ReconciliationSummary = {
-          totalAssets,
-          totalDebit,
-          totalCredit,
-          ledgerNetChange,
-          totalRecharge,
-          totalWithdrawal,
-          totalPaymentFee,
-          totalWithdrawalFee,
-          totalFee,
-          transactionCount,
-          previousTotalAssets: 0,
-          actualAssetsChange: totalAssets,
-          expectedAssetsChange: 0,
-          adjustmentNet,
-          totalRefund,
-          totalAssetsYuan: fenToYuan(totalAssets),
-          totalRechargeYuan: fenToYuan(totalRecharge),
-          totalWithdrawalYuan: fenToYuan(totalWithdrawal),
-          totalPaymentFeeYuan: fenToYuan(totalPaymentFee),
-          totalFeeYuan: fenToYuan(totalFee),
-        }
-        return {
-          ...smRest,
-          summary: snapshotMissingSummary,
-        }
+        this.logger.error(`补生成 ${date} 快照失败`, err)
+        differences.push({
+          check: 'snapshot_missing',
+          message: `日报快照缺失且生成失败，无法完成系统内核对`,
+        })
       }
     }
 
-    const previousTotalAssets = previousSnapshot?.totalAssets || 0
-    const actualAssetsChange = totalAssets - previousTotalAssets
-
-    // 仅资金流入/流出会影响平台总资产：
-    // 充值 +，提现 -，手续费 -（用户/商户支付的手续费从账户体系中扣除，未单独入账平台账户）
-    // 管理员调账 +adjustmentNet（加款增加、扣款减少总资产）
-    // 转账、红包、支付在用户/商户账户间流转，净影响为 0
-    // 退款 -：商户余额扣回退款额、等额资金由渠道原路退回付款方（平台外流出），
-    // totalRefund 已在函数前部统一计算（见上）
-    const expectedAssetsChange =
-      totalRecharge - totalWithdrawal - totalPaymentFee + adjustmentNet - totalRefund
-
-    const differences: ReconciliationDifference[] = []
-
-    if (actualAssetsChange !== ledgerNetChange) {
+    // 通道账单核对：优先引用当日已生成的账单核对记录（模拟演练或真实接入后均可）；
+    // 未核对则该日为 pending，提示在 admin 对账页执行「通道账单模拟对账」或接入官方账单。
+    const billCheck = await this.prisma.channelBillCheck.findFirst({
+      where: { date },
+      orderBy: { updatedAt: 'desc' },
+    })
+    if (billCheck) {
       differences.push({
-        check: 'ledger_balance',
-        message: `账簿净变动与实际资产变动不一致：账本净变动 = ${ledgerNetChange}，资产变动 = ${actualAssetsChange}`,
-        debit: totalDebit,
-        credit: totalCredit,
-        ledgerNetChange,
-        actualAssetsChange,
+        check: 'channel_bill',
+        message: `通道账单核对(${billCheck.channel}): ${billCheck.status}，匹配 ${billCheck.matchedCount} 笔 / 差异 ${billCheck.mismatchCount} 笔`,
+        billStatus: billCheck.status,
+        billMatched: billCheck.matchedCount,
+        billMismatch: billCheck.mismatchCount,
+        billSource: billCheck.billSource,
+      })
+    } else {
+      differences.push({
+        check: 'channel_bill_pending',
+        message: '通道账单核对待执行：可在 admin 对账页运行「通道账单模拟对账」演练，或接入持牌通道官方账单（详见 PAYMENT_CHANNEL_CONFIG.md）',
+        closedCount,
       })
     }
 
-    const ledgerTxIds = new Set(
-      (
-        await this.prisma.accountLedger.findMany({
-          where: { transactionId: { in: txOrders.map((o) => o.id) } },
-          select: { transactionId: true },
-        })
-      ).map((l) => l.transactionId),
-    )
-    const missingLedgers = txOrders.filter((o) => !ledgerTxIds.has(o.id))
-    if (missingLedgers.length > 0) {
-      differences.push({
-        check: 'missing_ledger',
-        message: `发现 ${missingLedgers.length} 笔成功交易缺少账本记录`,
-        orders: missingLedgers.map((o) => o.orderNo),
-      })
-    }
-
-    if (previousSnapshot && actualAssetsChange !== expectedAssetsChange) {
-      differences.push({
-        check: 'assets_balance',
-        message: `资产变动校验失败：实际变动 ${actualAssetsChange} != 期望变动 ${expectedAssetsChange}`,
-        actual: actualAssetsChange,
-        expected: expectedAssetsChange,
-      })
-    }
+    const previousTotalAssets = 0
+    const actualAssetsChange = 0
+    const expectedAssetsChange = 0
 
     const status =
-      differences.length === 0
+      differences.filter(
+        (d) => d.check !== 'channel_bill_pending' && !(d.check === 'channel_bill' && d.billStatus === 'MATCHED'),
+      ).length === 0
         ? ReconciliationStatus.SUCCESS
         : ReconciliationStatus.FAILED
 
@@ -379,6 +266,240 @@ export class ReconciliationService {
     })
   }
 
+  /**
+   * 生成模拟通道账单（mock 通道账单文件）
+   *
+   * 从收单订单（当日该通道已支付/已退款）生成一份模拟账单文本，
+   * 字段结构对齐主流持牌通道官方账单（订单号/流水号/金额/手续费/状态/时间）。
+   * 真实通道商户号落地后，以官方账单文件替换本模拟来源即可。
+   */
+  async generateMockChannelBill(date: string, channel = 'mock') {
+    const { start, end } = this.getDateRange(date)
+    const orders = await this.prisma.paymentOrder.findMany({
+      where: {
+        channel,
+        status: { in: [PaymentOrderStatus.PAID, PaymentOrderStatus.REFUNDED] },
+        paidAt: { gte: start, lte: end, not: null },
+      },
+      orderBy: { paidAt: 'asc' },
+    })
+
+    const header = '账单日期,商户订单号,通道流水号,交易金额(元),手续费(元),交易状态,交易时间'
+    const rows = orders.map((o) => {
+      const status = o.status === PaymentOrderStatus.REFUNDED ? 'REFUNDED' : 'PAID'
+      return [
+        date,
+        o.orderNo,
+        o.channelOrderNo || '',
+        fenToYuan(o.amount),
+        fenToYuan(o.fee || 0),
+        status,
+        o.paidAt ? o.paidAt.toISOString() : '',
+      ].join(',')
+    })
+    const csv = '\uFEFF' + [header, ...rows].join('\n')
+
+    return {
+      date,
+      channel,
+      source: 'mock',
+      billCount: orders.length,
+      totalAmountFen: orders.reduce((sum, o) => sum + o.amount, 0),
+      totalFeeFen: orders.reduce((sum, o) => sum + (o.fee || 0), 0),
+      bill: csv,
+      note: '模拟账单：基于当日收单订单生成，真实通道商户号接入后由官方账单替换',
+    }
+  }
+
+  /**
+   * 通道账单核对（模拟演练 / 真实账单通用入口）
+   *
+   * @param date 业务日
+   * @param channel 通道编码（alipay | wechat | mock）
+   * @param diff 差异注入（仅模拟场景，用于演示差异检出能力）：
+   *   - missingPlatformOrders: 平台有、通道账单缺的笔数（模拟通道漏记）
+   *   - extraChannelOrders: 通道有、平台无的笔数（模拟通道多记/盗刷）
+   *   - amountMismatchOrders: 金额不一致笔数（模拟金额篡改）
+   */
+  async runChannelReconciliation(
+    date: string,
+    channel = 'mock',
+    diff: {
+      missingPlatformOrders?: number
+      extraChannelOrders?: number
+      amountMismatchOrders?: number
+      /** 账单来源：mock（服务端基于订单生成模拟账单）| official（解析官方账单文件） */
+      billSource?: 'mock' | 'official'
+      /** official 模式必传：官方账单文件文本（微信/支付宝 CSV） */
+      billText?: string
+    } = {},
+  ) {
+    const { start, end } = this.getDateRange(date)
+    const platformOrders = await this.prisma.paymentOrder.findMany({
+      where: {
+        channel,
+        status: { in: [PaymentOrderStatus.PAID, PaymentOrderStatus.REFUNDED] },
+        paidAt: { gte: start, lte: end, not: null },
+      },
+      orderBy: { paidAt: 'asc' },
+    })
+
+    // —— 构造账单行 ——
+    // official：解析官方账单文件（微信/支付宝 CSV），与订单逐笔核对
+    // mock：基于当日订单生成模拟账单（字段对齐官方结构）
+    let billRows: BillRow[]
+    let parseWarnings: string[] = []
+    if (diff.billSource === 'official') {
+      if (!diff.billText) {
+        throw new BadRequestException('official 模式必须提供 billText（官方账单文件内容）')
+      }
+      const parsed = parseChannelBill(diff.billText, channel as 'alipay' | 'wechat')
+      billRows = parsed.rows
+      parseWarnings = parsed.warnings
+      this.logger.log(`解析官方账单(${channel}): ${parsed.rows.length} 行 / 跳过 ${parsed.skipped} 行 / 警告 ${parsed.warnings.length} 条`)
+    } else {
+      billRows = platformOrders.map((o) => ({
+        orderNo: o.orderNo,
+        channelOrderNo: o.channelOrderNo || '',
+        amountFen: o.amount,
+        feeFen: o.fee || 0,
+        status: o.status as 'PAID' | 'REFUNDED',
+        paidAt: o.paidAt || undefined,
+      }))
+    }
+
+    // 差异注入（仅 mock 演练用，缺省不注入；official 真实账单不扰动）
+    let platformOnly: typeof platformOrders = []
+    if (diff.billSource !== 'official' && (diff.missingPlatformOrders || 0) > 0) {
+      platformOnly = platformOrders.slice(0, diff.missingPlatformOrders)
+      billRows.splice(0, diff.missingPlatformOrders!)
+    }
+    // 通道多记账：额外行（仅 mock 演练）
+    const extraRows: typeof billRows = []
+    for (let i = 0; i < (diff.billSource !== 'official' ? diff.extraChannelOrders || 0 : 0); i++) {
+      extraRows.push({
+        orderNo: 'MOCK-EXTRA-' + randomUUID().slice(0, 8),
+        channelOrderNo: 'MOCK-CH-' + randomUUID().slice(0, 10),
+        amountFen: 100 + Math.floor(Math.random() * 90000),
+        feeFen: 0,
+        status: PaymentOrderStatus.PAID,
+        paidAt: new Date(start.getTime() + 1000 * i),
+      })
+    }
+    // 金额不一致：改账单侧金额（仅 mock 演练）
+    for (let i = 0; i < (diff.billSource !== 'official' ? diff.amountMismatchOrders || 0 : 0); i++) {
+      if (billRows[i]) billRows[i].amountFen += 1
+    }
+
+    // —— 逐笔核对 ——
+    const platformMap = new Map(platformOrders.map((o) => [o.orderNo, o]))
+    const differences: Array<{
+      type: string
+      orderNo: string
+      platformAmountFen?: number
+      billAmountFen?: number
+      message: string
+    }> = []
+    let matched = 0
+
+    for (const row of billRows) {
+      const p = platformMap.get(row.orderNo)
+      if (!p) {
+        differences.push({
+          type: 'channel_only',
+          orderNo: row.orderNo,
+          billAmountFen: row.amountFen,
+          message: '通道账单存在、平台无此订单（疑似通道多记）',
+        })
+        continue
+      }
+      if (p.amount !== row.amountFen) {
+        differences.push({
+          type: 'amount_mismatch',
+          orderNo: row.orderNo,
+          platformAmountFen: p.amount,
+          billAmountFen: row.amountFen,
+          message: '金额不一致：平台记录与通道账单不符',
+        })
+        continue
+      }
+      matched++
+    }
+    for (const o of platformOnly) {
+      differences.push({
+        type: 'platform_only',
+        orderNo: o.orderNo,
+        platformAmountFen: o.amount,
+        message: '平台有订单、通道账单缺失（疑似通道漏记/未结算）',
+      })
+    }
+
+    const status = differences.length === 0 ? 'MATCHED' : 'MISMATCH'
+    const totalAmountFen = billRows.reduce((s, r) => s + r.amountFen, 0)
+    const billCount = billRows.length + extraRows.length
+
+    await this.prisma.channelBillCheck.upsert({
+      where: { date_channel: { date, channel } },
+      create: {
+        date,
+        channel,
+        status,
+        billSource: diff.billSource || 'mock',
+        billCount: billCount,
+        matchedCount: matched,
+        mismatchCount: differences.length,
+        platformCount: platformOrders.length,
+        totalAmountFen,
+        differences: differences.length > 0 ? JSON.stringify(differences) : null,
+      },
+      update: {
+        status,
+        billSource: diff.billSource || 'mock',
+        billCount: billCount,
+        matchedCount: matched,
+        mismatchCount: differences.length,
+        platformCount: platformOrders.length,
+        totalAmountFen,
+        differences: differences.length > 0 ? JSON.stringify(differences) : null,
+      },
+    })
+
+    return {
+      date,
+      channel,
+      status,
+      billSource: diff.billSource || 'mock',
+      billCount: billCount,
+      platformCount: platformOrders.length,
+      matchedCount: matched,
+      mismatchCount: differences.length,
+      totalAmountFen,
+      differences,
+      parseWarnings,
+    }
+  }
+
+  /** 查询通道账单核对记录 */
+  async getChannelBillChecks(query: { startDate?: string; endDate?: string; channel?: string }) {
+    const where: Prisma.ChannelBillCheckWhereInput = {}
+    if (query.startDate || query.endDate) {
+      where.date = {}
+      if (query.startDate) where.date.gte = query.startDate
+      if (query.endDate) where.date.lte = query.endDate
+    }
+    if (query.channel) where.channel = query.channel
+    const data = await this.prisma.channelBillCheck.findMany({
+      where,
+      orderBy: { date: 'desc' },
+    })
+    return { data }
+  }
+
+  /**
+   * 导出对账报告 CSV
+   *
+   * 将指定日期范围内的对账报告导出为 CSV 字符串，包含日期、状态和差异摘要。
+   */
   async exportReports(query: {
     startDate?: string
     endDate?: string
@@ -409,14 +530,6 @@ export class ReconciliationService {
   private getDateRange(date: string) {
     // 业务日口径（北京时间）：与限额/风控/财务日报统一
     return businessDayRange(date)
-  }
-
-  private getPreviousDate(date: string): string | null {
-    // 无效日期输入时返回 null（与历史行为一致：跳过前日快照对比）
-    // 基于业务日键做日期递减，避免 UTC 日界造成"昨天"错位
-    const d = new Date(`${date}T12:00:00+08:00`)
-    if (Number.isNaN(d.getTime())) return null
-    return businessDayKey(new Date(d.getTime() - DAY_MS))
   }
 
 }

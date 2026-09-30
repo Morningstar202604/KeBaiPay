@@ -26,7 +26,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, Shop, List, Money, Warning, ArrowRight } from '@element-plus/icons-vue'
+import { User, Shop, List, Warning, ArrowRight } from '@element-plus/icons-vue'
 import type { DashboardStats } from '@/types'
 import { fetchDashboard } from '@/api/modules'
 import { extractError } from '@/api/http'
@@ -46,7 +46,6 @@ const cards = computed(() => {
     { label: '用户总数', value: s.totalUsers, icon: User, bg: '#e6f7f0', color: '#0c8a57', to: '/users' },
     { label: '商户总数', value: s.totalMerchants, icon: Shop, bg: '#e0f2fe', color: '#0369a1', to: '/merchants' },
     { label: '今日订单', value: s.todayOrders, icon: List, bg: '#fef3c7', color: '#b45309', to: '/orders' },
-    { label: '待处理提现', value: s.pendingWithdrawals, icon: Money, bg: '#ede9fe', color: '#6d28d9', to: '/withdrawals' },
     { label: '待审核商户', value: s.pendingMerchants, icon: Warning, bg: '#fee2e2', color: '#b91c1c', to: '/merchants' },
   ]
 })

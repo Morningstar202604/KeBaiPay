@@ -14,13 +14,6 @@
       <el-table :data="rows" v-loading="loading" stripe>
         <el-table-column prop="code" label="编码" width="110" />
         <el-table-column prop="name" label="名称" width="140" />
-        <el-table-column label="类型" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.type === 'PAYOUT' ? 'warning' : row.type === 'RECHARGE' ? 'success' : 'info'" effect="plain">
-              {{ row.type }}
-            </el-tag>
-          </template>
-        </el-table-column>
         <el-table-column label="启用" width="90">
           <template #default="{ row }">
             <el-switch :model-value="row.enabled" @change="(v: boolean) => toggleEnabled(row, v)" />
@@ -49,13 +42,6 @@
         </el-form-item>
         <el-form-item label="名称" required>
           <el-input v-model="dialog.form.name" placeholder="如 支付宝" />
-        </el-form-item>
-        <el-form-item label="类型" required>
-          <el-select v-model="dialog.form.type" style="width: 100%">
-            <el-option label="充值 RECHARGE" value="RECHARGE" />
-            <el-option label="代付 PAYOUT" value="PAYOUT" />
-            <el-option label="两者 BOTH" value="BOTH" />
-          </el-select>
         </el-form-item>
         <el-form-item label="优先级">
           <el-input-number v-model="dialog.form.priority" :min="0" :max="9999" />
@@ -131,7 +117,7 @@ async function load() {
 
 function openCreate() {
   dialog.mode = 'create'
-  Object.assign(dialog.form, { code: '', name: '', type: 'RECHARGE', enabled: true, priority: 10, config: '{}' })
+  Object.assign(dialog.form, { code: '', name: '', enabled: true, priority: 10, config: '{}' })
   dialog.visible = true
 }
 
@@ -140,7 +126,6 @@ function openEdit(row: ChannelConfigRow) {
   Object.assign(dialog.form, {
     code: row.code,
     name: row.name,
-    type: row.type,
     enabled: row.enabled,
     priority: row.priority,
     // 编辑时不回填真实凭据（列表返回的已是脱敏值），仅当用户显式输入新值才覆盖
@@ -168,7 +153,6 @@ async function save() {
     } else {
       await updateChannel(dialog.form.code, {
         name: dialog.form.name.trim(),
-        type: dialog.form.type,
         enabled: dialog.form.enabled,
         priority: dialog.form.priority,
         // 空对象 {} 表示不修改凭据字段

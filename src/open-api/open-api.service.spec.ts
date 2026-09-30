@@ -10,24 +10,16 @@ import { OpenApiService } from './open-api.service.js'
 import { PrismaService } from '../prisma/prisma.service.js'
 import { RedisService } from '../redis/redis.service.js'
 import { RiskEngineService } from '../risk/risk-engine.service.js'
+import { RefundService } from '../payment-channels/refund.service.js'
 
 type ConfigServiceMock = Record<'get', jest.Mock>
 type RedisMock = Record<'isEnabled' | 'withLock' | 'get' | 'set' | 'del' | 'acquireLock', jest.Mock>
-type RiskEngineMock = Record<'check' | 'recordTransaction' | 'recordTransactionFrequency', jest.Mock>
+type RiskEngineMock = Record<'check' | 'recordTransaction'>
+type RefundServiceMock = Record<'createRefund', jest.Mock>
 type PrismaMock = {
-  $transaction: jest.Mock
   merchant: Record<string, jest.Mock>
   paymentOrder: Record<string, jest.Mock>
-  transactionOrder: Record<string, jest.Mock>
-  account: Record<string, jest.Mock>
-  accountLedger: Record<string, jest.Mock>
-  bill: Record<string, jest.Mock>
-  user: Record<string, jest.Mock>
 } & Record<string, unknown>
-
-type FindUniqueArgs = { where: { id?: string; userId?: string } }
-type CreateArgs = { data: Record<string, unknown> }
-type UpdateArgs = { where: { id?: string }; data: Record<string, unknown> }
 
 describe('OpenApiService', () => {
   let service: OpenApiService
@@ -35,6 +27,7 @@ describe('OpenApiService', () => {
   let configService: ConfigServiceMock
   let redis: RedisMock
   let riskEngine: RiskEngineMock
+  let refundService: RefundServiceMock
 
   const app = {
     id: 'app1',
@@ -48,34 +41,31 @@ describe('OpenApiService', () => {
 
   beforeEach(async () => {
     prisma = {
-      $transaction: jest.fn(async (cb: (p: PrismaMock) => Promise<unknown>) => cb(prisma)),
       merchant: { findUnique: jest.fn() },
-      paymentOrder: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
-      transactionOrder: { findUnique: jest.fn(), create: jest.fn() },
-      account: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
-      accountLedger: { create: jest.fn() },
-      bill: { create: jest.fn() },
-      user: { findUnique: jest.fn() },
+      paymentOrder: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+        aggregate: jest.fn(),
+      },
     }
 
-    configService = {
-      get: jest.fn().mockReturnValue(undefined),
-    }
-
+    configService = { get: jest.fn().mockReturnValue(undefined) }
     redis = {
       isEnabled: jest.fn().mockReturnValue(false),
-      withLock: jest.fn(async (_key: string, _ttl: number, fn: () => Promise<unknown>) => fn()),
+      withLock: jest.fn(async (_k: string, _t: number, fn: () => Promise<unknown>) => fn()),
       get: jest.fn().mockResolvedValue(null),
       set: jest.fn().mockResolvedValue(undefined),
       del: jest.fn().mockResolvedValue(undefined),
       acquireLock: jest.fn().mockResolvedValue(true),
     }
-
     riskEngine = {
       check: jest.fn().mockResolvedValue({ passed: true, blocked: false, warnings: [], rules: [] }),
       recordTransaction: jest.fn().mockResolvedValue(undefined),
-      recordTransactionFrequency: jest.fn().mockResolvedValue(undefined),
     }
+    refundService = { createRefund: jest.fn() }
 
     const module = await Test.createTestingModule({
       providers: [
@@ -84,6 +74,7 @@ describe('OpenApiService', () => {
         { provide: ConfigService, useValue: configService },
         { provide: RedisService, useValue: redis },
         { provide: RiskEngineService, useValue: riskEngine },
+        { provide: RefundService, useValue: refundService },
       ],
     }).compile()
 
@@ -103,35 +94,21 @@ describe('OpenApiService', () => {
     it('商户不存在抛错', async () => {
       prisma.merchant.findUnique.mockResolvedValue(null)
       await expect(
-        service.createOrder(app, {
-          merchantOrderNo: 'MO1',
-          amount: 10,
-          subject: '商品',
-        }),
+        service.createOrder(app, { merchantOrderNo: 'MO1', amount: 10, subject: '商品' }),
       ).rejects.toThrow(NotFoundException)
     })
 
     it('商户未审核通过抛错', async () => {
-      prisma.merchant.findUnique.mockResolvedValue(
-        merchant({ status: 'PENDING' }),
-      )
+      prisma.merchant.findUnique.mockResolvedValue(merchant({ status: 'PENDING' }))
       await expect(
-        service.createOrder(app, {
-          merchantOrderNo: 'MO1',
-          amount: 10,
-          subject: '商品',
-        }),
+        service.createOrder(app, { merchantOrderNo: 'MO1', amount: 10, subject: '商品' }),
       ).rejects.toThrow(BadRequestException)
     })
 
     it('金额小于等于 0 抛错', async () => {
       prisma.merchant.findUnique.mockResolvedValue(merchant())
       await expect(
-        service.createOrder(app, {
-          merchantOrderNo: 'MO1',
-          amount: 0,
-          subject: '商品',
-        }),
+        service.createOrder(app, { merchantOrderNo: 'MO1', amount: 0, subject: '商品' }),
       ).rejects.toThrow(BadRequestException)
     })
 
@@ -143,11 +120,7 @@ describe('OpenApiService', () => {
         return Promise.resolve({ id: 'po1', status: 'PENDING', ...query.data })
       })
 
-      const result = await service.createOrder(app, {
-        merchantOrderNo: 'MO1',
-        amount: 10,
-        subject: '商品',
-      })
+      const result = await service.createOrder(app, { merchantOrderNo: 'MO1', amount: 10, subject: '商品' })
       expect(result.orderNo).toBeDefined()
       expect(result.amountYuan).toBe('10.00')
       expect(result.status).toBe('PENDING')
@@ -165,12 +138,7 @@ describe('OpenApiService', () => {
       prisma.merchant.findUnique.mockResolvedValue(merchant())
       prisma.paymentOrder.findFirst.mockResolvedValue(existing)
 
-      const result = await service.createOrder(app, {
-        merchantOrderNo: 'MO1',
-        amount: 10,
-        subject: '商品',
-      })
-      // 返回原订单，不抛错，不重复创建
+      const result = await service.createOrder(app, { merchantOrderNo: 'MO1', amount: 10, subject: '商品' })
       expect(result.orderNo).toBe('P1')
       expect(prisma.paymentOrder.create).not.toHaveBeenCalled()
     })
@@ -179,33 +147,19 @@ describe('OpenApiService', () => {
   describe('getOrder 查询订单', () => {
     it('订单不存在抛错', async () => {
       prisma.paymentOrder.findUnique.mockResolvedValue(null)
-      await expect(service.getOrder(app, 'NOPE')).rejects.toThrow(
-        NotFoundException,
-      )
+      await expect(service.getOrder(app, 'NOPE')).rejects.toThrow(NotFoundException)
     })
 
     it('跨商户查询抛错（app 归属校验）', async () => {
       prisma.paymentOrder.findUnique.mockResolvedValue({
-        id: 'po1',
-        orderNo: 'P1',
-        amount: 1000,
-        fee: 0,
-        refundAmount: 0,
-        appId: 'app_other',
+        id: 'po1', orderNo: 'P1', amount: 1000, fee: 0, refundAmount: 0, appId: 'app_other',
       })
-      await expect(service.getOrder(app, 'P1')).rejects.toThrow(
-        ForbiddenException,
-      )
+      await expect(service.getOrder(app, 'P1')).rejects.toThrow(ForbiddenException)
     })
 
     it('同 app 查询返回正确订单', async () => {
       prisma.paymentOrder.findUnique.mockResolvedValue({
-        id: 'po1',
-        orderNo: 'P1',
-        amount: 1000,
-        fee: 6,
-        refundAmount: 0,
-        appId: app.appId,
+        id: 'po1', orderNo: 'P1', amount: 1000, fee: 6, refundAmount: 0, appId: app.appId,
       })
       const result = await service.getOrder(app, 'P1')
       expect(result.orderNo).toBe('P1')
@@ -215,416 +169,75 @@ describe('OpenApiService', () => {
     })
   })
 
-  describe('refund 退款', () => {
-    const paidOrder = (overrides: Record<string, unknown> = {}) => ({
-      id: 'po1',
-      orderNo: 'P1',
-      merchantId: 'm1',
-      merchantOrderNo: 'MO1',
-      appId: app.appId,
-      amount: 1000,
-      fee: 6,
-      refundAmount: 0,
-      status: 'PAID',
-      payerId: 'u1',
-      merchant: merchant(),
-      ...overrides,
-    })
-
-    const setupRefundHappyPath = (orderOverrides: Record<string, unknown> = {}) => {
-      prisma.paymentOrder.findUnique.mockResolvedValue(
-        paidOrder(orderOverrides),
-      )
-      prisma.user.findUnique.mockImplementation((args: unknown) => {
-        const query = args as FindUniqueArgs
-        if (query.where.id === 'u2')
-          return Promise.resolve({ nickname: '商户老板' })
-        if (query.where.id === 'u1')
-          return Promise.resolve({ nickname: '张三' })
-        return Promise.resolve(null)
-      })
-      prisma.account.findUnique.mockImplementation((args: unknown) => {
-        const query = args as FindUniqueArgs
-        if (query.where.userId === 'u2' || query.where.id === 'a2')
-          return Promise.resolve({
-            id: 'a2',
-            userId: 'u2',
-            availableBalance: 10000,
-            totalBalance: 10000,
-          })
-        if (query.where.userId === 'u1' || query.where.id === 'a1')
-          return Promise.resolve({
-            id: 'a1',
-            userId: 'u1',
-            availableBalance: 5000,
-            totalBalance: 5000,
-          })
-        return Promise.resolve(null)
-      })
-      prisma.account.updateMany.mockResolvedValue({ count: 1 })
-      prisma.account.update.mockImplementation((args: unknown) => {
-        const query = args as UpdateArgs
-        if (query.where.id === 'a1')
-          return Promise.resolve({ availableBalance: 6000, totalBalance: 6000 })
-        return Promise.resolve({ availableBalance: 9000, totalBalance: 9000 })
-      })
-      prisma.transactionOrder.create.mockImplementation((args: unknown) => {
-        const query = args as CreateArgs
-        return Promise.resolve({ id: 't1', orderNo: 'R1', ...query.data })
-      })
-      prisma.paymentOrder.update.mockImplementation((args: unknown) => {
-        const query = args as CreateArgs
-        return Promise.resolve({ orderNo: 'P1', ...query.data })
-      })
-      // 乐观锁更新订单：updateMany 返回 count=1 表示成功
-      prisma.paymentOrder.updateMany.mockResolvedValue({ count: 1 })
-    }
-
+  describe('refund 退款（委托 RefundService）', () => {
     it('订单不存在抛错', async () => {
       prisma.paymentOrder.findUnique.mockResolvedValue(null)
-      await expect(
-        service.refund(app, { orderNo: 'NOPE' }),
-      ).rejects.toThrow(NotFoundException)
+      await expect(service.refund(app, { orderNo: 'NOPE' })).rejects.toThrow(NotFoundException)
     })
 
-    it('跨商户退款抛错', async () => {
-      prisma.paymentOrder.findUnique.mockResolvedValue(
-        paidOrder({ appId: 'app_other' }),
-      )
-      await expect(
-        service.refund(app, { orderNo: 'P1' }),
-      ).rejects.toThrow(ForbiddenException)
+    it('跨 app 退款抛错', async () => {
+      prisma.paymentOrder.findUnique.mockResolvedValue({ orderNo: 'P1', appId: 'app_other' })
+      await expect(service.refund(app, { orderNo: 'P1' })).rejects.toThrow(ForbiddenException)
     })
 
-    it('订单状态不可退款抛错', async () => {
-      prisma.paymentOrder.findUnique.mockResolvedValue(
-        paidOrder({ status: 'PENDING' }),
-      )
-      await expect(
-        service.refund(app, { orderNo: 'P1' }),
-      ).rejects.toThrow(BadRequestException)
-    })
+    it('全额退款：委托 refundService 并回查实际退款额', async () => {
+      prisma.paymentOrder.findUnique
+        .mockResolvedValueOnce({ orderNo: 'P1', appId: app.appId }) // 归属校验
+        .mockResolvedValueOnce({ refundAmount: 1000 }) // 回查实际退款额
+      refundService.createRefund.mockResolvedValue({
+        refundNo: 'RF1',
+        channelRefundNo: 'CH_RF',
+        status: 'SUCCESS',
+        message: undefined,
+      })
 
-    it('退款超额抛错（退款额>可退额）', async () => {
-      setupRefundHappyPath()
-      await expect(
-        service.refund(app, { orderNo: 'P1', amount: 20 }),
-      ).rejects.toThrow(BadRequestException)
-    })
+      const result = await service.refund(app, { orderNo: 'P1', reason: '缺货' })
 
-    it('退款成功：商户扣减+付款方加回+订单 refundAmount 累加+全额退置 REFUNDED', async () => {
-      setupRefundHappyPath()
-      const result = await service.refund(app, {
-        orderNo: 'P1',
-        reason: '商品缺货',
-      }) as {
-        refundAmountYuan: string
-        totalRefundAmountYuan: string
-        refundableYuan: string
-      }
-      // 全额退：1000 分
+      expect(refundService.createRefund).toHaveBeenCalledWith('P1', 0, '缺货', undefined)
+      expect(result.refundNo).toBe('RF1')
+      expect(result.status).toBe('SUCCESS')
       expect(result.refundAmountYuan).toBe('10.00')
-      expect(result.totalRefundAmountYuan).toBe('10.00')
-      expect(result.refundableYuan).toBe('0.00')
-
-      // 商户原子扣减 1000
-      expect(prisma.account.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            id: 'a2',
-            availableBalance: { gte: 1000 },
-          },
-          data: {
-            availableBalance: { decrement: 1000 },
-            totalBalance: { decrement: 1000 },
-          },
-        }),
-      )
-      // 付款方加回 1000
-      expect(prisma.account.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'a1' },
-          data: {
-            availableBalance: { increment: 1000 },
-            totalBalance: { increment: 1000 },
-          },
-        }),
-      )
-      // 退款交易订单
-      expect(prisma.transactionOrder.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            type: 'REFUND',
-            status: 'SUCCESS',
-            amount: 1000,
-            fromUserId: 'u2',
-            toUserId: 'u1',
-            relatedOrderNo: 'P1',
-          }),
-        }),
-      )
-      // 订单 refundAmount 累加 + 全额退置 REFUNDED（使用 updateMany 乐观锁）
-      expect(prisma.paymentOrder.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'po1', status: 'PAID', refundAmount: 0 },
-          data: expect.objectContaining({
-            refundAmount: 1000,
-            status: 'REFUNDED',
-            refundedBy: app.appId,
-            refundReason: '商品缺货',
-          }),
-        }),
-      )
-      // 双方流水 + 双方账单
-      expect(prisma.accountLedger.create).toHaveBeenCalledTimes(2)
-      expect(prisma.bill.create).toHaveBeenCalledTimes(2)
     })
 
-    it('商户余额不足时 updateMany 返回 count 0 抛错并回滚', async () => {
-      setupRefundHappyPath()
-      prisma.account.updateMany.mockResolvedValue({ count: 0 })
-      await expect(
-        service.refund(app, { orderNo: 'P1' }),
-      ).rejects.toThrow(BadRequestException)
-      // 付款方账户不应被加回，交易订单等不应创建
-      expect(prisma.account.update).not.toHaveBeenCalled()
-      expect(prisma.transactionOrder.create).not.toHaveBeenCalled()
-      expect(prisma.accountLedger.create).not.toHaveBeenCalled()
-      expect(prisma.bill.create).not.toHaveBeenCalled()
-    })
+    it('部分退款：指定金额（元转分）后不再回查订单', async () => {
+      prisma.paymentOrder.findUnique.mockResolvedValue({ orderNo: 'P1', appId: app.appId })
+      refundService.createRefund.mockResolvedValue({
+        refundNo: 'RF2',
+        channelRefundNo: 'CH_RF2',
+        status: 'PROCESSING',
+        message: undefined,
+      })
 
-    it('付款方账户不存在时抛错并回滚', async () => {
-      setupRefundHappyPath()
-      prisma.account.findUnique.mockImplementation((args: unknown) => {
-        const query = args as FindUniqueArgs
-        if (query.where.userId === 'u2')
-          return Promise.resolve({
-            id: 'a2',
-            userId: 'u2',
-            availableBalance: 10000,
-            totalBalance: 10000,
-          })
-        // payer 账户不存在
-        return Promise.resolve(null)
-      })
-      await expect(
-        service.refund(app, { orderNo: 'P1' }),
-      ).rejects.toThrow(BadRequestException)
-      expect(prisma.account.update).not.toHaveBeenCalled()
-      expect(prisma.transactionOrder.create).not.toHaveBeenCalled()
-      expect(prisma.accountLedger.create).not.toHaveBeenCalled()
-      expect(prisma.bill.create).not.toHaveBeenCalled()
-    })
+      const result = await service.refund(app, { orderNo: 'P1', amount: 5 })
 
-    it('幂等：相同 idempotencyKey 直接返回已有交易', async () => {
-      setupRefundHappyPath()
-      // 归属校验：退款单 relatedOrderNo 必须指向本收款单 P1、fromUserId 为本商户
-      const existed = { id: 't0', orderNo: 'R0', amount: 1000, relatedOrderNo: 'P1', fromUserId: merchant().userId }
-      prisma.transactionOrder.findUnique.mockResolvedValue(existed)
-      const result = await service.refund(app, {
-        orderNo: 'P1',
-        idempotencyKey: 'key-1',
-      })
-      expect(result).toBe(existed)
-      // 不重复扣款
-      expect(prisma.account.updateMany).not.toHaveBeenCalled()
-    })
-
-    it('幂等：他人幂等键（归属不符）不命中，继续正常处理', async () => {
-      setupRefundHappyPath()
-      // 攻击者用他人退款单的幂等键：relatedOrderNo 指向别的收款单 → 不返回，走正常退款
-      prisma.transactionOrder.findUnique.mockResolvedValue({
-        id: 't0', orderNo: 'R0', amount: 1000, relatedOrderNo: 'OTHER', fromUserId: merchant().userId,
-      })
-      const result = await service.refund(app, {
-        orderNo: 'P1',
-        idempotencyKey: 'key-1',
-      })
-      expect(result).not.toEqual({ id: 't0' })
+      // 5 元 = 500 分
+      expect(refundService.createRefund).toHaveBeenCalledWith('P1', 500, undefined, undefined)
+      expect(result.refundAmountYuan).toBe('5.00')
     })
   })
 
-  describe('transfer 商户转账', () => {
-    const setupTransferHappyPath = () => {
-      prisma.merchant.findUnique.mockResolvedValue(merchant())
-      prisma.user.findUnique.mockImplementation((args: unknown) => {
-        const query = args as FindUniqueArgs
-        if (query.where.id === 'u3')
-          return Promise.resolve({
-            id: 'u3',
-            nickname: '王五',
-            realNameStatus: 'VERIFIED',
-            status: 'ACTIVE',
-          })
-        if (query.where.id === 'u2')
-          return Promise.resolve({
-            id: 'u2',
-            nickname: '商户老板',
-            realNameStatus: 'VERIFIED',
-            status: 'ACTIVE',
-          })
-        return Promise.resolve(null)
-      })
-      prisma.account.findUnique.mockImplementation((args: unknown) => {
-        const query = args as FindUniqueArgs
-        if (query.where.userId === 'u2' || query.where.id === 'a2')
-          return Promise.resolve({
-            id: 'a2',
-            userId: 'u2',
-            availableBalance: 10000,
-            totalBalance: 10000,
-            status: 'ACTIVE',
-          })
-        if (query.where.userId === 'u3' || query.where.id === 'a3')
-          return Promise.resolve({
-            id: 'a3',
-            userId: 'u3',
-            availableBalance: 0,
-            totalBalance: 0,
-            status: 'ACTIVE',
-          })
-        return Promise.resolve(null)
-      })
-      prisma.account.updateMany.mockResolvedValue({ count: 1 })
-      prisma.account.update.mockImplementation((args: unknown) => {
-        const query = args as UpdateArgs
-        if (query.where.id === 'a3')
-          return Promise.resolve({ availableBalance: 1000, totalBalance: 1000 })
-        return Promise.resolve({ availableBalance: 9000, totalBalance: 9000 })
-      })
-      prisma.transactionOrder.create.mockImplementation((args: unknown) => {
-        const query = args as CreateArgs
-        return Promise.resolve({ id: 't1', orderNo: 'T1', ...query.data })
-      })
-    }
-
-    it('金额小于等于 0 抛错', async () => {
-      prisma.merchant.findUnique.mockResolvedValue(merchant())
-      await expect(
-        service.transfer(app, { toUserId: 'u3', amount: 0 }),
-      ).rejects.toThrow(BadRequestException)
-    })
-
-    it('不能转账给自己抛错', async () => {
-      prisma.merchant.findUnique.mockResolvedValue(merchant())
-      await expect(
-        service.transfer(app, { toUserId: 'u2', amount: 10 }),
-      ).rejects.toThrow(BadRequestException)
-    })
-
-    it('收款用户不存在抛错', async () => {
-      prisma.merchant.findUnique.mockResolvedValue(merchant())
-      prisma.user.findUnique.mockResolvedValue(null)
-      await expect(
-        service.transfer(app, { toUserId: 'uX', amount: 10 }),
-      ).rejects.toThrow(NotFoundException)
-    })
-
-    it('转账成功：商户扣减+对方加回', async () => {
-      setupTransferHappyPath()
-      const order = await service.transfer(app, {
-        toUserId: 'u3',
-        amount: 10,
-        remark: '佣金',
-      })
-      expect(order.status).toBe('SUCCESS')
-      expect(order.amount).toBe(1000)
-      expect(order.type).toBe('TRANSFER')
-      expect(order.fromUserId).toBe('u2')
-      expect(order.toUserId).toBe('u3')
-
-      // 商户原子扣减
-      expect(prisma.account.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            id: 'a2',
-            availableBalance: { gte: 1000 },
-          },
-          data: {
-            availableBalance: { decrement: 1000 },
-            totalBalance: { decrement: 1000 },
-          },
-        }),
-      )
-      // 对方加回
-      expect(prisma.account.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'a3' },
-          data: {
-            availableBalance: { increment: 1000 },
-            totalBalance: { increment: 1000 },
-          },
-        }),
-      )
-      // 双方流水 + 双方账单
-      expect(prisma.accountLedger.create).toHaveBeenCalledTimes(2)
-      expect(prisma.bill.create).toHaveBeenCalledTimes(2)
-    })
-
-    it('商户余额不足时 updateMany 返回 count 0 抛错并回滚', async () => {
-      setupTransferHappyPath()
-      prisma.account.updateMany.mockResolvedValue({ count: 0 })
-      await expect(
-        service.transfer(app, { toUserId: 'u3', amount: 10 }),
-      ).rejects.toThrow(BadRequestException)
-      expect(prisma.account.update).not.toHaveBeenCalled()
-      expect(prisma.transactionOrder.create).not.toHaveBeenCalled()
-      expect(prisma.accountLedger.create).not.toHaveBeenCalled()
-      expect(prisma.bill.create).not.toHaveBeenCalled()
-    })
-
-    it('幂等：相同 idempotencyKey 直接返回已有交易', async () => {
-      setupTransferHappyPath()
-      const existed = { id: 't0', orderNo: 'T0', amount: 1000, fromUserId: merchant().userId }
-      prisma.transactionOrder.findUnique.mockResolvedValue(existed)
-      const result = await service.transfer(app, {
-        toUserId: 'u3',
-        amount: 10,
-        idempotencyKey: 'key-2',
-      })
-      expect(result).toBe(existed)
-      expect(prisma.account.updateMany).not.toHaveBeenCalled()
-    })
-
-    it('幂等：他人转账单的幂等键（fromUserId 不符）不命中，继续正常转账', async () => {
-      setupTransferHappyPath()
-      prisma.transactionOrder.findUnique.mockResolvedValue({
-        id: 't0', orderNo: 'T0', amount: 1000, fromUserId: 'u-other-merchant',
-      })
-      const result = await service.transfer(app, {
-        toUserId: 'u3',
-        amount: 10,
-        idempotencyKey: 'key-2',
-      })
-      expect(result).not.toEqual({ id: 't0' })
-    })
-  })
-
-  describe('balance 余额查询', () => {
+  describe('balance 收单统计', () => {
     it('商户不存在抛错', async () => {
       prisma.merchant.findUnique.mockResolvedValue(null)
       await expect(service.balance(app)).rejects.toThrow(NotFoundException)
     })
 
-    it('账户不存在抛错', async () => {
+    it('返回收单统计（交易额/手续费/退款/结算额）', async () => {
       prisma.merchant.findUnique.mockResolvedValue(merchant())
-      prisma.account.findUnique.mockResolvedValue(null)
-      await expect(service.balance(app)).rejects.toThrow(NotFoundException)
-    })
+      // 第一次 aggregate：已支付订单合计；第二次：退款合计
+      prisma.paymentOrder.aggregate
+        .mockResolvedValueOnce({ _sum: { amount: 10000, fee: 100 }, _count: { id: 5 } })
+        .mockResolvedValueOnce({ _sum: { refundAmount: 2000 } })
 
-    it('返回正确余额', async () => {
-      prisma.merchant.findUnique.mockResolvedValue(merchant())
-      prisma.account.findUnique.mockResolvedValue({
-        id: 'a2',
-        userId: 'u2',
-        availableBalance: 12345,
-        frozenBalance: 100,
-        totalBalance: 12445,
-      })
       const result = await service.balance(app)
-      expect(result.availableYuan).toBe('123.45')
-      expect(result.frozenYuan).toBe('1.00')
-      expect(result.totalYuan).toBe('124.45')
+
+      expect(result.merchantNo).toBe('M1')
+      expect(result.totalAmountYuan).toBe('100.00')
+      expect(result.totalFeeYuan).toBe('1.00')
+      expect(result.totalRefundYuan).toBe('20.00')
+      // 结算额 = 交易额 - 手续费 - 退款 = 10000 - 100 - 2000 = 7900 分
+      expect(result.settledAmountYuan).toBe('79.00')
+      expect(result.paidCount).toBe(5)
     })
   })
 })

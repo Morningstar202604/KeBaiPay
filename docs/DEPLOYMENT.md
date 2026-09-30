@@ -150,20 +150,13 @@ REDIS_PASSWORD="your-redis-password-2026"
 ```bash
 NODE_ENV="production"
 CORS_ORIGINS="https://your-domain.com,https://pay.your-domain.com"
-RECHARGE_NOTIFY_URL="https://api.your-domain.com/webhooks/recharge"
+CHANNEL_NOTIFY_URL="https://api.your-domain.com/webhooks/recharge"
 CASHIER_BASE_URL="https://pay.your-domain.com"
 
 # 支付渠道（生产必须配置真实渠道，禁止 mock）
-ALIPAY_APP_ID="2021000xxxxxxxxx"
-ALIPAY_APP_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
-ALIPAY_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
-ALIPAY_NOTIFY_URL="https://api.your-domain.com/webhooks/alipay"
-
-WECHAT_PAY_MCH_ID="16xxxxx"
-WECHAT_PAY_API_V3_KEY="32-char-api-v3-key"
-WECHAT_PAY_PRIVATE_KEY="<apiclient_key.pem 内容>"
-WECHAT_PAY_CERT_SERIAL_NO="<证书序列号>"
-WECHAT_PAY_NOTIFY_URL="https://api.your-domain.com/webhooks/wechat"
+# 注意：微信/支付宝凭据（appid/mchid/私钥/证书/apiV3Key 等）不通过环境变量配置，
+# 而是登录管理后台 → 渠道配置中心录入，AES-256-GCM 加密落库（payment_channel_configs 表），保存后热同步。
+# 详见 docs/PAYMENT_CHANNEL_CONFIG.md。
 
 # 短信（生产禁止 mock）
 SMS_PROVIDER="aliyun"   # 或 tencent / huawei
@@ -556,7 +549,7 @@ REDIS_PASSWORD="your-redis-password-2026"
 NODE_ENV="production"
 PORT=3001
 CORS_ORIGINS="https://your-domain.com"
-RECHARGE_NOTIFY_URL="https://api.your-domain.com/webhooks/recharge"
+CHANNEL_NOTIFY_URL="https://api.your-domain.com/webhooks/recharge"
 CASHIER_BASE_URL="https://pay.your-domain.com"
 ```
 
@@ -803,7 +796,7 @@ data:
   DATABASE_URL: 'postgresql://kebaipay@kebaipay-pg:5432/kebaipay?schema=public'
   REDIS_URL: 'redis://kebaipay-redis:6379'
   CORS_ORIGINS: 'https://your-domain.com'
-  RECHARGE_NOTIFY_URL: 'https://api.your-domain.com/webhooks/recharge'
+  CHANNEL_NOTIFY_URL: 'https://api.your-domain.com/webhooks/recharge'
   CASHIER_BASE_URL: 'https://pay.your-domain.com'
   SMS_PROVIDER: 'aliyun'
   OTEL_SERVICE_NAME: 'kebaipay'
@@ -899,7 +892,7 @@ gunzip -c /data/backups/kebaipay-YYYYMMDD_HHMMSS.sql.gz | \
 | **强制新增** | `DATABASE_STATEMENT_TIMEOUT_MS` | 默认 30010 |
 | **强制新增** | `DATABASE_POOL_TIMEOUT_SEC` | 默认 10 |
 | **变更** | `SMS_PROVIDER` | 生产环境禁止 `mock`，启动校验会拒绝 |
-| **变更** | `RECHARGE_NOTIFY_URL` | 生产环境必须 https + 非 localhost |
+| **变更** | `CHANNEL_NOTIFY_URL` | 生产环境必须 https + 非 localhost |
 | **新增** | `MOCK_CHANNEL_SECRET` | 仅开发环境 |
 
 #### 升级步骤
@@ -1146,7 +1139,7 @@ resources:
 
 - [ ] **6 个 secret 全部改成强密钥**（`POSTGRES_PASSWORD` / `JWT_USER_SECRET` / `JWT_ADMIN_SECRET` / `ADMIN_DEFAULT_PASSWORD` / `ENCRYPTION_KEY` / `REDIS_PASSWORD`）
 - [ ] `CORS_ORIGINS` 改成生产域名（不含 localhost）
-- [ ] `RECHARGE_NOTIFY_URL` 改成 `https://` 开头且外网可访问
+- [ ] `CHANNEL_NOTIFY_URL` 改成 `https://` 开头且外网可访问
 - [ ] Nginx 启用 HSTS、TLS 1.2+（禁用 TLS 1.0/1.1、SSLv3）
 - [ ] **mock 渠道禁用**（生产环境 `PaymentChannelRegistry` 会拒绝降级到 mock）
 - [ ] `SMS_PROVIDER` 改成 `aliyun` / `tencent` / `huawei`（生产环境禁止 `mock`）
@@ -1159,7 +1152,7 @@ resources:
 - [ ] 启用 fail2ban 防 SSH 暴力破解
 - [ ] 管理员账号启用 2FA（如已实现）
 - [ ] 定期轮换 JWT 密钥（建议每季度）
-- [ ] 监控异常登录、大额提现等风控事件
+- [ ] 监控异常登录、大额收单等风控事件
 
 ---
 
@@ -1215,7 +1208,7 @@ docker compose up -d redis
 docker compose logs -f app | grep -i redis
 ```
 
-> 资金操作必须依赖 Redis 分布式锁，Redis 故障期间应**暂停提现/转账接口**或降级到只读模式。
+> 收单并发安全依赖 Redis 分布式锁，Redis 故障期间应**暂停收单入口**或降级到只读模式（不接受新的收单订单）。
 
 ### 11.3 应用崩溃自动拉起
 
@@ -1403,11 +1396,11 @@ echo | openssl s_client -connect api.your-domain.com:443 -servername api.your-do
 
 | 现象 | 排查方向 |
 |------|---------|
-| 启动报 `生产环境安全校验失败` | 6 个 secret 未改 / `CORS_ORIGINS` 缺失 / `RECHARGE_NOTIFY_URL` 是 localhost |
+| 启动报 `生产环境安全校验失败` | 6 个 secret 未改 / `CORS_ORIGINS` 缺失 / `CHANNEL_NOTIFY_URL` 是 localhost |
 | 启动报 `DATABASE_URL 未配置` | `.env` 未加载 / 文件路径错误 / docker-compose 缺少环境变量 |
 | `/health/ready` 返回 503 | PostgreSQL 或 Redis 连接失败，查 `docker compose ps` |
 | 502 Bad Gateway | Nginx upstream 配置错 / app 未启动 / 端口被占用 |
-| 充值订单卡 PENDING | `RECHARGE_NOTIFY_URL` 指向 localhost / 渠道配置缺失 / 回调签名失败 |
+| 收单订单卡 PENDING | `CHANNEL_NOTIFY_URL` 指向 localhost / 渠道配置缺失 / 回调签名失败 / 渠道回调丢失（定时任务 15 分钟内自动补单） |
 | 跨域请求被拒 | `CORS_ORIGINS` 未包含前端域名 |
 | 生产环境看到 Swagger | `NODE_ENV` 未设为 `production` |
 | 限流 429 | 触发 Throttler，调整接口频率或扩展 `@Throttle` 装饰器 |

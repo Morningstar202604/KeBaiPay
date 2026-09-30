@@ -90,18 +90,7 @@ async function main() {
       data: { email: 'test@kebaipay.com' },
     })
 
-    // 3. 给测试用户建账户（余额 10000 元 = 1000000 分）
-    await prisma.account.create({
-      data: {
-        userId: user.id,
-        availableBalance: 1000000,
-        frozenBalance: 0,
-        totalBalance: 1000000,
-        status: 'ACTIVE',
-      },
-    })
-
-    // 4. 测试用户实名认证（idCard 必须加密入库 + 写入 idCardHash，
+    // 3. 测试用户实名认证（idCard 必须加密入库 + 写入 idCardHash，
     //    否则 resetPayPassword 调用 crypto.decrypt 会抛错；唯一约束也会被绕过）
     await prisma.identityVerification.create({
       data: {
@@ -113,7 +102,7 @@ async function main() {
       },
     })
 
-    console.log(`  测试用户已创建: ${testPhone} / Abc12345 (余额 10000 元)`)
+    console.log(`  测试用户已创建: ${testPhone} / Abc12345`)
   } else {
     await prisma.user.update({
       where: { id: existingUser.id },
@@ -122,12 +111,6 @@ async function main() {
         payPassword: await bcrypt.hash('123456', 10),
       },
     })
-    const account = await prisma.account.findUnique({ where: { userId: existingUser.id } })
-    if (!account) {
-      await prisma.account.create({
-        data: { userId: existingUser.id, availableBalance: 1000000, frozenBalance: 0, totalBalance: 1000000, status: 'ACTIVE' },
-      })
-    }
 
     // 修复历史数据：旧版 seed 把 idCard 以明文写入，导致 resetPayPassword 调用
     // crypto.decrypt 时崩溃，且 idCardHash 为 NULL 绕过唯一约束。这里幂等地修复。
@@ -148,12 +131,74 @@ async function main() {
     console.log(`  测试用户密码已重置: ${testPhone} / Abc12345`)
   }
 
-  // 5. Mock 支付渠道配置（幂等）：保证新环境开箱即用可发起充值/代付
+  // 4. 测试商户 + 商户应用 + 收单订单样本（幂等）
+  //    合规收单模式：平台不持有任何资金，商户仅登记自有结算账户（settleAccount），
+  //    不再为用户/商户建任何余额或资金账户；以下为开发联调用的收单订单维度样本。
+  const testUser = await prisma.user.findUnique({ where: { phone: testPhone } })
+  if (!testUser) {
+    throw new Error('测试用户未创建，终止 seed')
+  }
+
+  let merchant = await prisma.merchant.findUnique({ where: { userId: testUser.id } })
+  if (!merchant) {
+    merchant = await prisma.merchant.create({
+      data: {
+        userId: testUser.id,
+        merchantNo: 'M20260930000001',
+        merchantName: '测试商户',
+        merchantType: 'PERSONAL',
+        settleAccount: '622202020011223344',
+        status: 'APPROVED',
+        reviewedBy: 'SEED',
+        reviewedAt: new Date(),
+      },
+    })
+    console.log(`  测试商户已创建: ${merchant.merchantNo} (status=APPROVED)`)
+  }
+
+  const seedAppId = 'app_seed_demo'
+  const merchantApp = await prisma.merchantApp.findUnique({ where: { appId: seedAppId } })
+  if (!merchantApp) {
+    await prisma.merchantApp.create({
+      data: {
+        merchantId: merchant.id,
+        appId: seedAppId,
+        appSecret: createHash('sha256').update('seed-app-secret-demo').digest('hex'),
+        name: '测试应用',
+        status: 'ACTIVE',
+      },
+    })
+    console.log(`  测试商户应用已创建: ${seedAppId}`)
+  }
+
+  // 收单订单样本：一笔已支付、一笔待支付，供列表/对账联调
+  const sampleOrders = [
+    { orderNo: 'P20260930000001', merchantOrderNo: 'MO-SEED-001', amount: 10000, subject: '测试商品A', status: 'PAID' as const, paidAt: new Date() },
+    { orderNo: 'P20260930000002', merchantOrderNo: 'MO-SEED-002', amount: 5000, subject: '测试商品B', status: 'PENDING' as const, paidAt: null },
+  ]
+  for (const o of sampleOrders) {
+    await prisma.paymentOrder.upsert({
+      where: { orderNo: o.orderNo },
+      update: {},
+      create: {
+        orderNo: o.orderNo,
+        merchantId: merchant.id,
+        merchantOrderNo: o.merchantOrderNo,
+        amount: o.amount,
+        subject: o.subject,
+        status: o.status,
+        channel: 'mock',
+        paidAt: o.paidAt,
+      },
+    })
+  }
+  console.log(`  收单订单样本已就绪: ${sampleOrders.length} 笔`)
+
+  // 5. Mock 支付渠道配置（幂等）：保证新环境开箱即用可发起收单
   const mockChannel = await prisma.paymentChannelConfig.upsert({
     where: { code: 'mock' },
     update: {
       name: 'MockChannel',
-      type: 'BOTH',
       enabled: true,
       priority: 1,
       config: JSON.stringify({
@@ -163,7 +208,6 @@ async function main() {
     create: {
       code: 'mock',
       name: 'MockChannel',
-      type: 'BOTH',
       enabled: true,
       priority: 1,
       config: JSON.stringify({

@@ -5,9 +5,6 @@ import {
   RechargeRequest,
   RechargeResponse,
   RechargeCallbackResult,
-  PayoutRequest,
-  PayoutResponse,
-  PayoutQueryResult,
   RefundRequest,
   RefundResponse,
   RefundQueryResult,
@@ -23,8 +20,6 @@ import { KBErrorCodes, kbError } from '../../common/error-codes'
  * 模拟真实渠道的异步支付流程：
  * - createRecharge 返回 PENDING 状态和支付链接
  * - 回调通过 HMAC-SHA256 签名校验
- * - createPayout 返回 PROCESSING 状态
- * - queryPayout 根据金额决定成功/失败（金额尾数为 1 的模拟失败）
  * - refund 支持退款流程模拟
  */
 @Injectable()
@@ -73,18 +68,15 @@ export class MockChannel implements PaymentChannel, OnApplicationBootstrap {
     } catch {
       return false
     }
-    // 三类回调的签名原文格式不同（与 parseXxxCallback 保持一致）：
-    // - 充值: orderNo + channelOrderNo + amount
+    // 两类回调的签名原文格式不同（与 parseXxxCallback 保持一致）：
+    // - 收单: orderNo + channelOrderNo + amount
     // - 退款: orderNo + refundNo + amount
-    // - 代付: orderNo + channelOrderNo + status
     const orderNo = String(body.orderNo ?? '')
     let message: string
     if (body.refundNo !== undefined) {
       message = `${orderNo}${String(body.refundNo)}${String(body.amount)}`
-    } else if (body.amount !== undefined) {
-      message = `${orderNo}${String(body.channelOrderNo)}${String(body.amount)}`
     } else {
-      message = `${orderNo}${String(body.channelOrderNo)}${String(body.status)}`
+      message = `${orderNo}${String(body.channelOrderNo)}${String(body.amount)}`
     }
     const expectedSig = this.sign(message)
     return this.safeCompare(headers['x-signature'] || '', expectedSig)
@@ -187,58 +179,6 @@ export class MockChannel implements PaymentChannel, OnApplicationBootstrap {
   }
 
   buildRefundCallbackSuccess(): string {
-    return 'SUCCESS'
-  }
-
-  async createPayout(params: PayoutRequest): Promise<PayoutResponse> {
-    const channelOrderNo = `MOCK_P_${params.orderNo}`
-    return {
-      channelOrderNo,
-      status: 'PROCESSING',
-      message: '代付受理中',
-    }
-  }
-
-  async queryPayout(
-    channelOrderNo: string,
-    _channelConfig: ChannelConfig,
-  ): Promise<PayoutQueryResult> {
-    const lastChar = channelOrderNo.slice(-1)
-    if (lastChar === '1') {
-      return { channelOrderNo, status: 'FAILED', message: '模拟代付失败' }
-    }
-    return { channelOrderNo, status: 'SUCCESS', message: '代付成功' }
-  }
-
-  parsePayoutCallback(
-    rawBody: string,
-    headers: Record<string, string>,
-    _channelConfig: ChannelConfig,
-  ): {
-    channelOrderNo: string
-    orderNo: string
-    status: 'SUCCESS' | 'FAILED'
-    signature: string
-  } {
-    let body: { orderNo: string; channelOrderNo: string; status: string }
-    try {
-      body = JSON.parse(rawBody)
-    } catch {
-      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '代付回调 body 非 JSON 格式'))
-    }
-    const expectedSig = this.sign(`${body.orderNo}${body.channelOrderNo}${body.status}`)
-    if (!this.safeCompare(headers['x-signature'] || '', expectedSig)) {
-      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, 'Mock 渠道代付回调签名校验失败'))
-    }
-    return {
-      channelOrderNo: body.channelOrderNo,
-      orderNo: body.orderNo,
-      status: body.status === 'FAILED' ? 'FAILED' : 'SUCCESS',
-      signature: headers['x-signature'],
-    }
-  }
-
-  buildPayoutCallbackSuccess(): string {
     return 'SUCCESS'
   }
 }

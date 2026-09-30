@@ -3,7 +3,6 @@ import { lookup as dnsLookup, type LookupAddress } from 'dns'
 import { isIPv4, isIPv6 } from 'net'
 import { request as httpRequest, type RequestOptions } from 'http'
 import { request as httpsRequest } from 'https'
-import { Direction } from './enums'
 
 // ---------------------------------------------------------------------------
 // HTML 转义（全站唯一实现；notifications/messages 等邮件/消息 HTML 插值统一引用）
@@ -25,57 +24,6 @@ const HTML_ESCAPE_REGEX = /[&<>"']/g
  */
 export function escapeHtml(value: unknown): string {
   return String(value).replace(HTML_ESCAPE_REGEX, (ch) => HTML_ESCAPE_MAP[ch])
-}
-
-// ---------------------------------------------------------------------------
-// 复式记账：冻结腿对手方分录
-// ---------------------------------------------------------------------------
-
-/** accountLedger.create 的最小结构类型（兼容 Prisma.TransactionClient / PrismaService） */
-interface LedgerWriter {
-  accountLedger: {
-    create(args: { data: Record<string, unknown> }): Promise<unknown>
-  }
-}
-
-export interface FrozenLegEntryParams {
-  accountId: string
-  transactionId: string
-  type: string
-  amount: number
-  /** 冻结余额变动前值 */
-  frozenBefore: number
-  /** 冻结余额变动后值 */
-  frozenAfter: number
-  remark: string
-}
-
-/**
- * 写入"冻结腿"对手方账本分录（复式记账的另一半）。
- *
- * 背景：availableBalance ↔ frozenBalance 的内部划转若只记单边，
- * 平台账本净额会漂移，日终对账 ledger_balance 必然 FAILED。
- * 本助手按冻结余额增减自动推导方向：
- *   冻结增加 → DEBIT（与 available 侧的 CREDIT 配对）
- *   冻结减少 → CREDIT（与 available 侧的 DEBIT 配对）
- */
-export async function createFrozenLegLedgerEntry(
-  tx: LedgerWriter,
-  p: FrozenLegEntryParams,
-): Promise<void> {
-  await tx.accountLedger.create({
-    data: {
-      accountId: p.accountId,
-      transactionId: p.transactionId,
-      type: p.type,
-      amount: p.amount,
-      balanceBefore: p.frozenBefore,
-      balanceAfter: p.frozenAfter,
-      direction:
-        p.frozenAfter > p.frozenBefore ? Direction.DEBIT : Direction.CREDIT,
-      remark: p.remark,
-    },
-  })
 }
 
 export function yuanToFen(yuan: number): number {

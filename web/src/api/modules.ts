@@ -1,4 +1,4 @@
-import http, { extractError } from './http'
+import http from './http'
 import type {
   LoginResult,
   MerchantInfo,
@@ -126,5 +126,3 @@ export async function regenerateAppSecret(appId: string): Promise<{ appSecret: s
   )
   return data
 }
-
-export { extractError }

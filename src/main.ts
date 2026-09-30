@@ -146,7 +146,7 @@ async function bootstrap() {
     const config = new DocumentBuilder()
       .setTitle('科佰支付 KeBaiPay API')
       .setDescription(
-        '个人钱包 + 商户收款平台接口文档\n\n' +
+        '商户收单平台接口文档\n\n' +
         '## 认证方式\n' +
         '- **用户接口**：使用 JWT Bearer Token 认证\n' +
         '- **商户开放 API**：使用 HMAC-SHA256 签名认证\n' +
@@ -177,15 +177,15 @@ async function bootstrap() {
       )
       .addTag('认证', '用户注册、登录')
       .addTag('用户', '用户信息、实名认证')
-      .addTag('账户', '账户余额、资金流水')
-      .addTag('交易', '充值')
-      .addTag('转账', '用户间转账')
-      .addTag('提现', '提现申请')
-      .addTag('红包', '红包创建与领取')
+      .addTag('订单', '收单订单管理')
+      .addTag('退款', '退款申请与查询')
       .addTag('收款码', '个人/固定收款码')
       .addTag('账单', '交易账单查询')
       .addTag('商户', '商户入驻、应用管理')
       .addTag('收银台', '统一收银台订单')
+      .addTag('渠道', '支付渠道配置')
+      .addTag('对账', '日终对账与差异处理')
+      .addTag('风控', '风险事件与规则')
       .addTag('开放 API', '商户支付接口（HMAC 签名认证）')
       .addTag('健康检查', '系统探针')
       .addTag('管理后台', '管理员操作')

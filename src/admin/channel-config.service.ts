@@ -63,7 +63,7 @@ export class ChannelConfigService {
   }
 
   async createChannel(
-    dto: { code: string; name: string; type: string; enabled: boolean; priority: number; config?: string },
+    dto: { code: string; name: string; enabled: boolean; priority: number; config?: string },
     ctx: AuditContext,
   ) {
     // H1 安全修复：渠道凭据（apiV3Key/应用私钥等）落库前逐字段 AES-256-GCM 加密
@@ -73,7 +73,6 @@ export class ChannelConfigService {
         data: {
           code: dto.code,
           name: dto.name,
-          type: dto.type,
           enabled: dto.enabled,
           priority: dto.priority,
           config: encryptedConfig,
@@ -84,7 +83,7 @@ export class ChannelConfigService {
           adminId: ctx.admin.sub,
           action: 'CHANNEL_CONFIG_CREATE',
           target: dto.code,
-          detail: { name: dto.name, type: dto.type },
+          detail: { name: dto.name },
           ip: ctx.ip,
           userAgent: ctx.userAgent,
         },
@@ -101,7 +100,7 @@ export class ChannelConfigService {
 
   async updateChannel(
     code: string,
-    dto: { name?: string; type?: string; enabled?: boolean; priority?: number; config?: string },
+    dto: { name?: string; enabled?: boolean; priority?: number; config?: string },
     ctx: AuditContext,
   ) {
     const existing = await this.prisma.paymentChannelConfig.findUnique({ where: { code } })
@@ -138,7 +137,6 @@ export class ChannelConfigService {
         where: { code },
         data: {
           ...(dto.name !== undefined && { name: dto.name }),
-          ...(dto.type !== undefined && { type: dto.type }),
           ...(dto.enabled !== undefined && { enabled: dto.enabled }),
           ...(dto.priority !== undefined && { priority: dto.priority }),
           config: mergedConfig,
@@ -153,8 +151,7 @@ export class ChannelConfigService {
           // 审计日志无加密，原样入链等于把渠道凭据明文持久化给所有 admin:view 可读
           detail: {
             name: dto.name,
-            type: dto.type,
-            enabled: dto.enabled,
+              enabled: dto.enabled,
             priority: dto.priority,
             configUpdated: dto.config !== undefined,
           },
@@ -213,7 +210,7 @@ export class ChannelConfigService {
         code: channel.code,
         name: channel.name,
         available: true,
-        message: `${channel.name} 渠道已启用（${cfg.type}）`,
+        message: `${channel.name} 渠道已启用（${cfg.code}）`,
       }
     } catch {
       return {

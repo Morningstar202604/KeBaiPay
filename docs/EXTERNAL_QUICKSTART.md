@@ -111,9 +111,9 @@ SENTRY_DSN="https://xxx@sentry.io/1"               # 异常上报，不填则不
 | 服务 | 验证方式 |
 |------|---------|
 | 短信 | `npm run check:external` 短信项为 ✓；触发一次注册/改密，手机收到验证码 |
-| 邮件 | 触发一次通知（如提现审核），收件箱收到邮件 |
+| 邮件 | 触发一次通知（如商户审核结果），收件箱收到邮件 |
 | LLM | `curl -X POST /agent/chat` 传 message，看返回是否为真实模型回复（非模板） |
-| 支付渠道 | 管理后台渠道管理显示渠道可用；发起一笔小额充值走真实渠道 |
+| 支付渠道 | 管理后台渠道管理显示渠道可用；发起一笔小额收单走真实渠道 |
 | 全量 | `npm run check:external` 全部 ✓ + `NODE_ENV=production` 启动成功 |
 
 ---
@@ -122,7 +122,7 @@ SENTRY_DSN="https://xxx@sentry.io/1"               # 异常上报，不填则不
 
 - **为什么配置了短信还发不出去？** 检查 `SMS_SIGN_NAME` 是否为已审核签名、`SMS_TEMPLATE_CODE` 是否含 `${code}` 变量、AK/SK 权限是否开通短信服务。
 - **生产启动失败提示密钥过弱？** 这是安全校验（`security-validator`）在保护你，把 `JWT_*_SECRET` / `ENCRYPTION_KEY` 改成 ≥32 位随机值即可。
-- **回调收不到？** `RECHARGE_NOTIFY_URL` / `ALIPAY_NOTIFY_URL` / `WECHAT_PAY_NOTIFY_URL` 必须是公网 HTTPS 可达地址，不能是 localhost。
+- **回调收不到？** `CHANNEL_NOTIFY_URL` 必须是公网 HTTPS 可达地址，不能是 localhost；渠道侧异步通知地址在管理后台「渠道配置」内录入。
 - **支付渠道管理里没有真实渠道？** 需先按 `docs/PRODUCTION_READINESS.md` §2 申请资质并新增渠道；代码已内置对接实现。
 
 ---

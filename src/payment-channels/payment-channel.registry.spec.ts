@@ -63,24 +63,6 @@ describe('PaymentChannelRegistry 配置解密（H1 安全修复）', () => {
       expect(prisma.paymentChannelConfig.findUnique).toHaveBeenCalledTimes(1)
     })
 
-    it('getChannelByType TTL 内命中缓存不查 DB', async () => {
-      prisma.paymentChannelConfig.findMany.mockResolvedValue([
-        {
-          code: 'wechat',
-          name: '微信支付',
-          type: 'RECHARGE',
-          enabled: true,
-          priority: 20,
-          config: JSON.stringify(crypto.encryptConfigValues({ appId: 'wx-app-id' })),
-        },
-      ])
-
-      await registry.getChannelByType('RECHARGE')
-      await registry.getChannelByType('RECHARGE')
-      // 第二次调用命中缓存，findMany 只调 1 次
-      expect(prisma.paymentChannelConfig.findMany).toHaveBeenCalledTimes(1)
-    })
-
     it('clearChannelConfigCache 后重新查 DB', async () => {
       prisma.paymentChannelConfig.findUnique.mockResolvedValue({
         code: 'mock',
@@ -171,36 +153,6 @@ describe('PaymentChannelRegistry 配置解密（H1 安全修复）', () => {
     it('未启用渠道抛 NotFoundException', async () => {
       prisma.paymentChannelConfig.findUnique.mockResolvedValue(null)
       await expect(registry.getEnabledConfig('alipay')).rejects.toThrow('支付渠道未启用')
-    })
-  })
-
-  describe('getChannelByType', () => {
-    it('按类型返回解密后的配置与渠道实例', async () => {
-      const plaintext = { appId: 'wx-app-id', apiV3Key: 'wechat-v3-secret-key' }
-      prisma.paymentChannelConfig.findMany.mockResolvedValue([
-        {
-          code: 'wechat',
-          name: '微信支付',
-          type: 'RECHARGE',
-          enabled: true,
-          priority: 20,
-          config: JSON.stringify(crypto.encryptConfigValues(plaintext)),
-        },
-      ])
-
-      const result = await registry.getChannelByType('RECHARGE')
-      expect(result).not.toBeNull()
-      expect(result!.code).toBe('wechat')
-      expect(result!.config).toEqual(plaintext)
-      expect(result!.channel.code).toBe('wechat')
-    })
-
-    it('无可用渠道且开发环境降级 mock', async () => {
-      prisma.paymentChannelConfig.findMany.mockResolvedValue([])
-      const result = await registry.getChannelByType('PAYOUT')
-      expect(result).not.toBeNull()
-      expect(result!.code).toBe('mock')
-      expect(result!.config).toEqual({})
     })
   })
 })

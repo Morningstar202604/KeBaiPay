@@ -21,12 +21,10 @@ import { MockConnector } from './connectors/mock.connector'
 
 import { PrismaModule } from '../prisma/prisma.module'
 import { RedisModule } from '../redis/redis.module'
-import { FinanceModule } from '../finance/finance.module'
 
 @Global()
 @Module({
-  // FinanceModule 提供 JournalService：退款成功路径需要复式记账双腿分录（v0.2.2）
-  imports: [PrismaModule, RedisModule, HttpModule, FinanceModule],
+  imports: [PrismaModule, RedisModule, HttpModule],
   providers: [
     // 兼容层
     PaymentChannelRegistry,

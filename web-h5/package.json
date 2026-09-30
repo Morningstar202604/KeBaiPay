@@ -1,7 +1,7 @@
 {
   "name": "kebaipay-web-h5",
-  "version": "0.3.2",
-  "description": "KeBaiPay 科佰支付 - 用户端 H5（钱包/收银台/红包）",
+  "version": "0.3.5",
+  "description": "KeBaiPay 科佰收单 - 用户端 H5（收单/账单）",
   "private": true,
   "type": "module",
   "engines": {

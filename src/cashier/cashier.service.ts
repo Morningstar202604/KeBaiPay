@@ -1,4 +1,3 @@
-import { businessDayKey } from '../common/date-helpers'
 import {
   Injectable,
   Logger,
@@ -10,25 +9,19 @@ import { createHmac } from 'crypto'
 import { PaymentOrder, Prisma } from '@prisma/client'
 import {
   PaymentOrderStatus,
-  TransactionType,
-  TransactionStatus,
-  LedgerType,
-  Direction,
-  BillType,
-  BillDirection,
   MerchantStatus,
   QrCodeStatus,
   QrCodeType,
   RealNameStatus,
   NotifyStatus,
-  AccountStatus,
   UserStatus,
 } from '../common/enums'
 import { PrismaService } from '../prisma/prisma.service'
 import { UsersService } from '../users/users.service'
 import { RiskEngineService } from '../risk/risk-engine.service'
-import { JournalService } from '../finance/journal.service'
 import { RedisService } from '../redis/redis.service'
+import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry'
+import type { RechargeRequest } from '../payment-channels/payment-channel.interface'
 import { fenToYuan, generateOrderNo, generatePaymentNo, isCallbackUrlSafe, postJsonPinned, yuanToFen } from '../common/helpers'
 import { escapeCsvField } from '../common/csv'
 import { KBErrorCodes, kbError } from '../common/error-codes'
@@ -57,9 +50,133 @@ export class CashierService {
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly riskEngine: RiskEngineService,
-    private readonly journalService: JournalService,
     private readonly redis: RedisService,
+    private readonly channelRegistry: PaymentChannelRegistry,
   ) {}
+
+  /**
+   * 发起渠道支付（合规聚合模式：用户通过微信/支付宝直接付款，资金由持牌通道清算，
+   * 平台不经手资金，仅更新订单状态并在回调后通知商户）
+   */
+  async createChannelPay(
+    payerId: string,
+    orderNo: string,
+    channelCode: string,
+    options?: { payMethod?: string; clientIp?: string },
+  ) {
+    const order = await this.prisma.paymentOrder.findUnique({
+      where: { orderNo },
+      include: { merchant: true },
+    })
+    if (!order) throw new NotFoundException(kbError(KBErrorCodes.ORDER_NOT_FOUND))
+
+    if (order.status !== PaymentOrderStatus.PENDING) {
+      throw new BadRequestException(kbError(KBErrorCodes.ORDER_STATUS_CHANGED))
+    }
+    if (order.merchant.status !== MerchantStatus.APPROVED) {
+      throw new ForbiddenException(kbError(KBErrorCodes.MERCHANT_CANNOT_RECEIVE))
+    }
+
+    // 付款方校验：实名是聚合收单的强制要求（特约商户/支付合规）
+    const payer = await this.usersService.findById(payerId)
+    if (!payer) throw new NotFoundException(kbError(KBErrorCodes.USER_NOT_FOUND, '付款用户不存在'))
+    if (payer.realNameStatus !== RealNameStatus.VERIFIED) {
+      throw new ForbiddenException(kbError(KBErrorCodes.REAL_NAME_REQUIRED))
+    }
+    if (payer.status === UserStatus.FROZEN || payer.status === UserStatus.EXPENSE_RESTRICTED) {
+      throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '账户当前禁止支出'))
+    }
+
+    // 风控检查：拦截高风险交易
+    const riskResult = await this.riskEngine.check({
+      userId: payerId,
+      type: 'PAYMENT',
+      amount: order.amount,
+    })
+    if (riskResult.blocked) {
+      throw new ForbiddenException(
+        kbError(
+          KBErrorCodes.FORBIDDEN,
+          `支付被风控拦截：${riskResult.rules.filter(r => r.action === 'BLOCK').map(r => r.name).join('、')}`,
+        ),
+      )
+    }
+
+    // 渠道可用性：注册存在 + 已启用配置
+    const channel = this.channelRegistry.getChannel(channelCode)
+    let channelConfig
+    try {
+      channelConfig = await this.channelRegistry.getEnabledConfig(channelCode)
+    } catch {
+      channelConfig = null
+    }
+    if (!channel || !channelConfig) {
+      throw new BadRequestException(
+        kbError(KBErrorCodes.RECHARGE_CHANNEL_FAILED, `支付渠道不可用或未配置: ${channelCode}`),
+      )
+    }
+
+    // 订单绑定渠道（原子）：防止同一订单并发发起多个渠道
+    const claimed = await this.prisma.paymentOrder.updateMany({
+      where: { id: order.id, status: PaymentOrderStatus.PENDING, channel: null },
+      data: { channel: channelCode },
+    })
+    if (claimed.count === 0) {
+      const latest = await this.prisma.paymentOrder.findUnique({
+        where: { id: order.id },
+        select: { channel: true, channelOrderNo: true },
+      })
+      if (latest?.channel && latest.channel !== channelCode) {
+        throw new BadRequestException(kbError(KBErrorCodes.ORDER_STATUS_CHANGED, '订单已绑定其他支付渠道'))
+      }
+      // 同一渠道重复发起：幂等返回已生成支付链接
+      if (latest?.channelOrderNo) {
+        return {
+          orderNo: order.orderNo,
+          channel: channelCode,
+          payUrl: this.buildChannelPayUrl(latest.channelOrderNo),
+        }
+      }
+    }
+
+    // 组装渠道支付参数
+    const baseNotifyUrl =
+      process.env.CHANNEL_NOTIFY_URL || `${process.env.CASHIER_BASE_URL || 'http://localhost:3001'}/webhooks/recharge`
+    const notifyUrl = `${baseNotifyUrl}/${channelCode}`
+    const payMethod = options?.payMethod || (channelCode === 'wechat' ? 'h5' : 'wap')
+    const req: RechargeRequest = {
+      orderNo: order.orderNo,
+      amount: order.amount,
+      userId: payerId,
+      subject: order.subject || order.orderNo,
+      notifyUrl,
+      channelConfig: channelConfig.config,
+      payMethod,
+      ...(options?.clientIp ? { clientIp: options.clientIp } : {}),
+    }
+
+    const resp = await channel.createRecharge(req)
+    if (!resp.payUrl && !resp.payParams) {
+      throw new BadRequestException(kbError(KBErrorCodes.RECHARGE_CHANNEL_FAILED, '渠道未返回支付参数'))
+    }
+
+    // 持久化渠道单号
+    await this.prisma.paymentOrder.update({
+      where: { id: order.id },
+      data: { channelOrderNo: resp.channelOrderNo },
+    })
+
+    return {
+      orderNo: order.orderNo,
+      channel: channelCode,
+      payUrl: resp.payUrl || '',
+      payParams: resp.payParams || null,
+    }
+  }
+
+  private buildChannelPayUrl(channelOrderNo: string): string {
+    return `${process.env.CASHIER_BASE_URL || 'http://localhost:3001'}/#cashier?orderNo=${channelOrderNo}`
+  }
 
   async createOrder(
     userId: string,
@@ -161,259 +278,6 @@ export class CashierService {
     }
   }
 
-  async pay(
-    payerId: string,
-    dto: { orderNo: string; payPassword: string; idempotencyKey?: string },
-  ) {
-    const order = await this.prisma.paymentOrder.findUnique({
-      where: { orderNo: dto.orderNo },
-      include: { merchant: true },
-    })
-    if (!order) throw new NotFoundException(kbError(KBErrorCodes.ORDER_NOT_FOUND))
-
-    // 幂等返回：订单已支付且付款方一致时直接返回，避免网络超时重试时
-    // 第二次请求命中 status≠PENDING 抛 ORDER_STATUS_CHANGED，用户不知道其实已支付成功
-    if (
-      order.status === PaymentOrderStatus.PAID &&
-      order.payerId === payerId
-    ) {
-      return this.formatOrder(order)
-    }
-
-    // 重新校验商户状态：订单创建后商户可能被管理员关闭/拒绝，此时不应继续支付
-    if (order.merchant.status !== MerchantStatus.APPROVED) {
-      throw new ForbiddenException(kbError(KBErrorCodes.MERCHANT_CANNOT_RECEIVE))
-    }
-
-    const payer = await this.usersService.findById(payerId)
-    if (!payer) throw new NotFoundException(kbError(KBErrorCodes.USER_NOT_FOUND, '付款用户不存在'))
-    if (payer.realNameStatus !== RealNameStatus.VERIFIED) {
-      throw new ForbiddenException(kbError(KBErrorCodes.REAL_NAME_REQUIRED))
-    }
-    if (payer.status === UserStatus.FROZEN || payer.status === UserStatus.EXPENSE_RESTRICTED) {
-      throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '账户当前禁止支出'))
-    }
-    await this.usersService.verifyPayPassword(payerId, dto.payPassword)
-
-    const merchantUser = await this.usersService.findById(
-      order.merchant.userId,
-    )
-    if (!merchantUser) throw new NotFoundException(kbError(KBErrorCodes.MERCHANT_USER_NOT_FOUND))
-
-    // 风控检查：在事务前执行，拦截高风险交易
-    const riskResult = await this.riskEngine.check({
-      userId: payerId,
-      type: 'PAYMENT',
-      amount: order.amount,
-    })
-    if (riskResult.blocked) {
-      throw new ForbiddenException(
-        kbError(
-          KBErrorCodes.FORBIDDEN,
-          `支付被风控拦截：${riskResult.rules.filter(r => r.action === 'BLOCK').map(r => r.name).join('、')}`,
-        ),
-      )
-    }
-
-    const amount = order.amount
-    const fee = Math.round((amount * order.merchant.payRate) / RATE_DENOMINATOR)
-    const actualAmount = amount - fee
-    const dateStr = businessDayKey()
-
-    const paidOrder = await this.redis.withLock(buildLockKey('cashier:pay', `${dto.orderNo}:${payerId}`),
-      REDIS_LOCK_TTL_SECONDS,
-      async () => this.prisma.$transaction(async (tx) => {
-      const payerAccount = await tx.account.findUnique({
-        where: { userId: payerId },
-      })
-      const merchantAccount = await tx.account.findUnique({
-        where: { userId: order.merchant.userId },
-      })
-      if (!payerAccount || !merchantAccount) {
-        throw new NotFoundException(kbError(KBErrorCodes.ACCOUNT_NOT_FOUND))
-      }
-      if (payerAccount.status !== AccountStatus.ACTIVE) {
-        throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '付款方账户状态异常'))
-      }
-      if (merchantAccount.status !== AccountStatus.ACTIVE) {
-        throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '收款方账户状态异常'))
-      }
-
-      // 商户日限额校验：当日已支付订单金额累计 + 本次 ≤ merchant.dailyLimit
-      await this.checkMerchantDailyLimit(tx, order.merchant.id, order.merchant.dailyLimit, amount)
-
-      const config = await tx.systemConfig.findUnique({
-        where: { key: 'payment_daily_limit' },
-      })
-      const limit = config ? Math.round(Number(config.value) * 100) : DEFAULT_PAYMENT_DAILY_LIMIT_CENTS
-      // 付款方单日限额校验（原子递增）
-      await this.usersService.checkAndIncrementDailyLimit(
-        tx,
-        payerId,
-        'CASHIER',
-        dateStr,
-        amount,
-        limit,
-      )
-
-      // 幂等校验 + 订单状态原子确认/锁定
-      const orderUpdate = await tx.paymentOrder.updateMany({
-        where: {
-          id: order.id,
-          status: PaymentOrderStatus.PENDING,
-          expiredAt: { gt: new Date() },
-        },
-        data: {
-          status: PaymentOrderStatus.PAID,
-          paidAt: new Date(),
-          payerId,
-          fee,
-        },
-      })
-      if (orderUpdate.count === 0) {
-        throw new BadRequestException(kbError(KBErrorCodes.ORDER_STATUS_CHANGED))
-      }
-
-      // 付款方原子扣款
-      const payerDeduction = await tx.account.updateMany({
-        where: {
-          id: payerAccount.id,
-          availableBalance: { gte: amount },
-        },
-        data: {
-          availableBalance: { decrement: amount },
-          totalBalance: { decrement: amount },
-        },
-      })
-      if (payerDeduction.count === 0) {
-        throw new BadRequestException(kbError(KBErrorCodes.INSUFFICIENT_BALANCE))
-      }
-
-      const txOrder = await tx.transactionOrder.create({
-        data: {
-          orderNo: generateOrderNo('PAY'),
-          type: TransactionType.PAYMENT,
-          status: TransactionStatus.SUCCESS,
-          amount,
-          fee,
-          fromUserId: payerId,
-          toUserId: order.merchant.userId,
-          relatedOrderNo: order.orderNo,
-          completedAt: new Date(),
-        },
-      })
-
-      const updatedMerchantAccount = await tx.account.update({
-        where: { id: merchantAccount.id },
-        data: {
-          availableBalance: { increment: actualAmount },
-          totalBalance: { increment: actualAmount },
-        },
-      })
-
-      // H1: updateMany 不返回更新后的记录，重新读取真实余额，保证账本 balanceBefore/After 准确
-      const updatedPayerAccount = await tx.account.findUnique({
-        where: { id: payerAccount.id },
-      })
-
-      await tx.accountLedger.create({
-        data: {
-          accountId: payerAccount.id,
-          transactionId: txOrder.id,
-          type: LedgerType.PAYMENT,
-          amount,
-          // H1: balanceBefore = balanceAfter + amount（扣款前）
-          balanceBefore: updatedPayerAccount!.availableBalance + amount,
-          balanceAfter: updatedPayerAccount!.availableBalance,
-          direction: Direction.CREDIT,
-          remark: `支付订单 ${order.orderNo}`,
-        },
-      })
-
-      await tx.accountLedger.create({
-        data: {
-          accountId: merchantAccount.id,
-          transactionId: txOrder.id,
-          type: LedgerType.PAYMENT,
-          amount: actualAmount,
-          // H1: balanceAfter 取 update 返回的真实余额，balanceBefore = balanceAfter - actualAmount（加款前）
-          balanceBefore: updatedMerchantAccount.availableBalance - actualAmount,
-          balanceAfter: updatedMerchantAccount.availableBalance,
-          direction: Direction.DEBIT,
-          remark: `收款订单 ${order.orderNo}，手续费 ${fenToYuan(
-            fee,
-          )} 元`,
-        },
-      })
-
-      await tx.bill.create({
-        data: {
-          userId: payerId,
-          transactionId: txOrder.id,
-          type: BillType.PAYMENT,
-          direction: BillDirection.EXPENSE,
-          amount,
-          counterparty: merchantUser.nickname,
-          remark: `支付订单 ${order.orderNo}`,
-        },
-      })
-
-      await tx.bill.create({
-        data: {
-          userId: order.merchant.userId,
-          transactionId: txOrder.id,
-          type: BillType.RECEIPT,
-          direction: BillDirection.INCOME,
-          amount: actualAmount,
-          counterparty: payer.nickname,
-          remark: `收款订单 ${order.orderNo}，手续费 ${fenToYuan(
-            fee,
-          )} 元`,
-        },
-      })
-
-      // 复式记账：借付款方=amount，贷商户=actualAmount，贷手续费收入=fee
-      const journalId = generateOrderNo('J')
-      await this.journalService.createEntries(tx, [
-        { journalId, accountCode: `USER:${payerId}`, debit: amount, memo: `支付订单 ${order.orderNo}` },
-        { journalId, accountCode: `USER:${order.merchant.userId}`, credit: actualAmount, memo: `收款订单 ${order.orderNo}` },
-        { journalId, accountCode: 'REVENUE_FEE', credit: fee, memo: `手续费收入 ${order.orderNo}` },
-      ])
-
-      return {
-        ...order,
-        status: PaymentOrderStatus.PAID,
-        paidAt: new Date(),
-        payerId,
-        fee,
-      }
-      }),
-    )
-
-    // 事务提交后异步通知商户，不阻塞支付返回，失败不影响用户
-    if (paidOrder.callbackUrl) {
-      setImmediate(() => {
-        this.notifyMerchant(paidOrder).catch((err) => {
-          this.logger.error(
-            `订单 ${paidOrder.orderNo} 回调通知异常: ${err?.message || err}`,
-          )
-        })
-      })
-    }
-
-    // 交易成功后记录风控频率（失败不阻塞业务，仅告警）
-    this.riskEngine.recordTransaction({
-      userId: payerId,
-      type: 'PAYMENT',
-      amount,
-    }).catch((err) => {
-      this.logger.warn(`recordTransaction(PAYMENT) 失败: ${err?.message || err}`)
-    })
-
-    return this.formatOrder(paidOrder)
-  }
-
-  // 批量关闭过期未支付订单，并补偿已付款但通知失败的订单
   async closeExpiredOrders() {
     const now = new Date()
     const result = await this.prisma.paymentOrder.updateMany({
@@ -623,75 +487,6 @@ export class CashierService {
     }
 
     return this.notifyMerchant({ ...order, status: order.status as PaymentOrderStatus })
-  }
-
-  // 商户日限额：使用 DailyLimitUsage 原子递增，防止高并发突破限额
-  private async checkMerchantDailyLimit(
-    tx: Prisma.TransactionClient,
-    merchantId: string,
-    dailyLimit: number,
-    amount: number,
-  ) {
-    const dateStr = businessDayKey()
-
-    let usage = await tx.dailyLimitUsage.findFirst({
-      where: {
-        userId: merchantId,
-        limitType: 'MERCHANT_PAYMENT',
-        date: dateStr,
-      },
-    })
-    if (!usage) {
-      try {
-        usage = await tx.dailyLimitUsage.create({
-          data: {
-            userId: merchantId,
-            limitType: 'MERCHANT_PAYMENT',
-            date: dateStr,
-            usedAmount: 0,
-            version: 0,
-          },
-        })
-      } catch (e) {
-        // 首建竞态：两笔并发商户订单同时 create 撞 @@unique([userId, limitType, date])，
-        // 捕获 P2002 后重读，走下方 version 条件更新——限额守卫语义不变
-        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-          usage = await tx.dailyLimitUsage.findFirst({
-            where: {
-              userId: merchantId,
-              limitType: 'MERCHANT_PAYMENT',
-              date: dateStr,
-            },
-          })
-        } else {
-          throw e
-        }
-      }
-    }
-    if (!usage) {
-      throw new ForbiddenException(kbError(KBErrorCodes.FORBIDDEN, '超出商户日限额'))
-    }
-
-    const updated = await tx.dailyLimitUsage.updateMany({
-      where: {
-        id: usage.id,
-        version: usage.version,
-        usedAmount: { lte: dailyLimit - amount },
-      },
-      data: {
-        usedAmount: { increment: amount },
-        version: { increment: 1 },
-      },
-    })
-
-    if (updated.count === 0) {
-      throw new ForbiddenException(
-        kbError(
-          KBErrorCodes.FORBIDDEN,
-          `超出商户日限额，限额 ${fenToYuan(dailyLimit)} 元`,
-        ),
-      )
-    }
   }
 
   async listMyOrders(

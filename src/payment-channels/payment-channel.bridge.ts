@@ -6,9 +6,6 @@ import { ConnectorCapability } from './connector.interface'
 import {
   ChannelConfig,
   OrderQueryResult,
-  PayoutQueryResult,
-  PayoutRequest,
-  PayoutResponse,
   PaymentChannel,
   RechargeRequest,
   RechargeResponse,
@@ -27,7 +24,7 @@ export const CHANNEL_CONNECTOR_NAME: Record<string, string> = {
 /**
  * 支付渠道桥接层
  *
- * 将业务服务的外呼（充值/代付/退款/查询）统一改经 ConnectorRouter 路由，
+ * 将业务服务的外呼（收单/退款/查询）统一改经 ConnectorRouter 路由，
  * 同时保持"渠道实例与 DB 配置仍由 PaymentChannelRegistry 提供"：
  * - 渠道选择、配置加载、验签/回调解析等本地能力：走 PaymentChannelRegistry + 原始渠道
  * - 真正的外呼（网络调用）：经 ConnectorRouter 获得统一重试与健康感知
@@ -43,17 +40,10 @@ export class PaymentChannelBridge {
     private readonly connectorRouter: ConnectorRouter,
   ) {}
 
-  /** 发起充值（RECHARGE 外呼） */
+  /** 发起收单（RECHARGE 外呼） */
   createRecharge(code: string, request: RechargeRequest): Promise<RechargeResponse> {
     return this.routeToChannel('RECHARGE', code, request, (channel) =>
       channel.createRecharge(request),
-    )
-  }
-
-  /** 发起代付（PAYOUT 外呼） */
-  createPayout(code: string, request: PayoutRequest): Promise<PayoutResponse> {
-    return this.routeToChannel('PAYOUT', code, request, (channel) =>
-      channel.createPayout(request),
     )
   }
 
@@ -70,17 +60,6 @@ export class PaymentChannelBridge {
   ): Promise<RefundQueryResult> {
     return this.routeToChannel('REFUND', code, { channelRefundNo }, (channel) =>
       channel.queryRefund(channelRefundNo, channelConfig),
-    )
-  }
-
-  /** 查询代付状态（PAYOUT 外呼） */
-  queryPayout(
-    code: string,
-    channelOrderNo: string,
-    channelConfig: ChannelConfig,
-  ): Promise<PayoutQueryResult> {
-    return this.routeToChannel('PAYOUT', code, { channelOrderNo }, (channel) =>
-      channel.queryPayout(channelOrderNo, channelConfig),
     )
   }
 

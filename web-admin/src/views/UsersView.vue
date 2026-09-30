@@ -54,10 +54,8 @@
             <div class="detail-row"><span>注册时间</span><b>{{ fmt(detail.createdAt) }}</b></div>
           </div>
           <div class="detail-section" v-if="detail.account">
-            <div class="detail-title">账户余额</div>
-            <div class="detail-row"><span>可用余额</span><b class="num">¥{{ detail.account.availableBalanceYuan || '0.00' }}</b></div>
-            <div class="detail-row"><span>冻结余额</span><b class="num">¥{{ detail.account.frozenBalanceYuan || '0.00' }}</b></div>
-            <div class="detail-row"><span>总余额</span><b class="num">¥{{ detail.account.totalBalanceYuan || '0.00' }}</b></div>
+            <div class="detail-title">账户状态</div>
+            <div class="detail-row"><span>账户类型</span><b>聚合收单（平台不持有资金）</b></div>
           </div>
           <div class="detail-section" v-if="detail.identity">
             <div class="detail-title">实名信息</div>

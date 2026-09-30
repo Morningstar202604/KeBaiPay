@@ -15,7 +15,6 @@ export interface MerchantInfo {
   contactPhone: string | null
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED'
   payRate: number
-  withdrawRate: number
   dailyLimitYuan: string
   createdAt: string
 }

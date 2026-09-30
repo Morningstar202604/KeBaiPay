@@ -3,7 +3,7 @@
     <div class="toolbar">
       <div>
         <div class="page-title">智能体管理</div>
-        <div class="page-sub">创建并管理 AI 智能体（钱包管家 / 店长助理 / 风控审计官等），配置其可执行的作用域</div>
+        <div class="page-sub">创建并管理 AI 智能体（收单助手 / 店长助理 / 风控审计官等），配置其可执行的作用域</div>
       </div>
       <el-button type="primary" @click="openCreate">新建智能体</el-button>
     </div>
@@ -44,11 +44,11 @@
     <el-dialog v-model="dialogVisible" :title="editing ? '编辑智能体' : '新建智能体'" width="480px">
       <el-form label-width="80px">
         <el-form-item label="名称" required>
-          <el-input v-model="form.name" placeholder="如：钱包管家" />
+          <el-input v-model="form.name" placeholder="如：收单助手" />
         </el-form-item>
         <el-form-item label="场景" required>
           <el-select v-model="form.scenario" style="width: 100%" :disabled="!!editing">
-            <el-option label="钱包管家（C端）" value="wallet" />
+            <el-option label="收单助手（C端）" value="wallet" />
             <el-option label="店长助理（B端商户）" value="merchant" />
             <el-option label="风控审计官（A端）" value="risk" />
             <el-option label="客服坐席（support）" value="support" />
@@ -58,10 +58,10 @@
           <el-input v-model="form.description" type="textarea" :rows="2" placeholder="智能体职责描述" />
         </el-form-item>
         <el-form-item label="作用域">
-          <el-select v-model="form.scopes" multiple filterable allow-create default-first-option style="width: 100%" placeholder="输入并回车添加，如 wallet:read">
+          <el-select v-model="form.scopes" multiple filterable allow-create default-first-option style="width: 100%" placeholder="输入并回车添加，如 order:read">
             <el-option v-for="s in scopeOptions" :key="s" :label="s" :value="s" />
           </el-select>
-          <div class="tip">作用域格式：<code>域:动作</code>（如 wallet:read / wallet:write:transfer / merchant:read / risk:read）</div>
+          <div class="tip">作用域格式：<code>域:动作</code>（如 order:read / bill:read / merchant:read / risk:read）</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -86,13 +86,13 @@ const saving = ref(false)
 const dialogVisible = ref(false)
 const editing = ref<AgentItem | null>(null)
 const scopeOptions = [
-  'wallet:read', 'wallet:notify', 'wallet:write:coupon', 'wallet:write:transfer',
+  'order:read', 'order:notify', 'bill:read',
   'merchant:read', 'merchant:write', 'risk:read',
 ]
 const form = reactive({ name: '', scenario: 'wallet', description: '', scopes: [] as string[] })
 
 function scenarioText(s: string) {
-  const m: Record<string, string> = { wallet: '钱包管家', merchant: '店长助理', risk: '风控审计官', support: '客服坐席' }
+  const m: Record<string, string> = { wallet: '收单助手', merchant: '店长助理', risk: '风控审计官', support: '客服坐席' }
   return m[s] || s
 }
 function parseScopes(s: unknown): string[] {

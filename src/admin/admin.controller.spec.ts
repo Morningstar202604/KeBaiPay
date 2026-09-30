@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
+import { BadRequestException } from '@nestjs/common'
 import { AdminController } from './admin.controller.js'
 import { AdminService } from './admin.service.js'
-import { WithdrawalsService } from '../withdrawals/withdrawals.service.js'
 import { MerchantsService } from '../merchants/merchants.service.js'
 import { AdminJwtAuthGuard } from './admin-jwt-auth.guard.js'
 import { PermissionsGuard } from './permissions.guard.js'
@@ -12,29 +12,32 @@ describe('AdminController', () => {
   const mockAdminService = {
     getDashboardStats: jest.fn().mockResolvedValue({ totalUsers: 10 }),
     listUsers: jest.fn().mockResolvedValue({ data: [], total: 0 }),
+    getUserDetail: jest.fn().mockResolvedValue({ id: 'u1' }),
     updateUserStatus: jest.fn().mockResolvedValue({ id: 'u1' }),
     updateUserRiskLevel: jest.fn().mockResolvedValue({ id: 'u1' }),
+    listMerchants: jest.fn().mockResolvedValue({ data: [], total: 0 }),
+    listPaymentOrders: jest.fn().mockResolvedValue({ data: [], total: 0 }),
+    listRiskEvents: jest.fn().mockResolvedValue({ data: [], total: 0 }),
+    handleRiskEvent: jest.fn().mockResolvedValue({ id: 'e1' }),
+    listLoginLogs: jest.fn().mockResolvedValue({ data: [], total: 0 }),
+    getRiskRules: jest.fn().mockResolvedValue([]),
+    updateRiskRule: jest.fn().mockResolvedValue({ code: 'r1' }),
+    listPendingIdentities: jest.fn().mockResolvedValue({ data: [], total: 0 }),
     approveIdentity: jest.fn().mockResolvedValue({ id: 'i1' }),
     rejectIdentity: jest.fn().mockResolvedValue({ id: 'i1' }),
-    adjustAccount: jest.fn().mockResolvedValue({ success: true }),
-    adjustAccountWithPolicy: jest.fn().mockResolvedValue({ status: 'EXECUTED', result: { success: true } }),
-    listAdjustmentApprovals: jest.fn().mockResolvedValue([]),
-    approveAdjustment: jest.fn().mockResolvedValue({ id: 'ap1', status: 'EXECUTED' }),
-    rejectAdjustment: jest.fn().mockResolvedValue({ id: 'ap1', status: 'REJECTED' }),
+    listAuditLogs: jest.fn().mockResolvedValue({ data: [], total: 0 }),
     logAction: jest.fn().mockResolvedValue(undefined),
   }
-  const mockWithdrawalsService = {
-    approve: jest.fn().mockResolvedValue({ id: 'w1' }),
-    reject: jest.fn().mockResolvedValue({ id: 'w1' }),
+  const mockMerchantsService = {
+    auditMerchant: jest.fn().mockResolvedValue({ id: 'm1' }),
+    updateMerchantConfig: jest.fn().mockResolvedValue({ id: 'm1' }),
   }
-  const mockMerchantsService = {}
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [AdminController],
       providers: [
         { provide: AdminService, useValue: mockAdminService },
-        { provide: WithdrawalsService, useValue: mockWithdrawalsService },
         { provide: MerchantsService, useValue: mockMerchantsService },
       ],
     })
@@ -53,6 +56,10 @@ describe('AdminController', () => {
 
   beforeEach(() => jest.clearAllMocks())
 
+  const req = () => ({ headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }) as any
+  const admin = () => ({ sub: 'a1', role: 'SUPER_ADMIN' }) as any
+  const auditMeta = { ip: '127.0.0.1', userAgent: 'jest' }
+
   it('控制器实例化', () => {
     expect(controller).toBeDefined()
   })
@@ -68,106 +75,94 @@ describe('AdminController', () => {
     expect(mockAdminService.listUsers).toHaveBeenCalledWith(query)
   })
 
+  it('getUserDetail 透传 id', async () => {
+    await controller.getUserDetail('u1')
+    expect(mockAdminService.getUserDetail).toHaveBeenCalledWith('u1')
+  })
+
   it('updateUserStatus 透传 id/status/reason/adminId/auditMeta', async () => {
-    const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
     const dto = { status: 'FROZEN', reason: '违规' }
-    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
-    await controller.updateUserStatus('u1', dto as any, admin as any, req as any)
-    expect(mockAdminService.updateUserStatus).toHaveBeenCalledWith(
-      'u1',
-      'FROZEN',
-      '违规',
-      'a1',
-      { ip: '127.0.0.1', userAgent: 'jest' },
-    )
+    await controller.updateUserStatus('u1', dto as any, admin(), req())
+    expect(mockAdminService.updateUserStatus).toHaveBeenCalledWith('u1', 'FROZEN', '违规', 'a1', auditMeta)
   })
 
   it('updateUserRiskLevel 透传 id/level/adminId/auditMeta', async () => {
-    const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
     const dto = { level: 'HIGH' }
-    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
-    await controller.updateUserRiskLevel('u1', dto as any, admin as any, req as any)
-    expect(mockAdminService.updateUserRiskLevel).toHaveBeenCalledWith('u1', 'HIGH', 'a1', {
-      ip: '127.0.0.1',
-      userAgent: 'jest',
-    })
+    await controller.updateUserRiskLevel('u1', dto as any, admin(), req())
+    expect(mockAdminService.updateUserRiskLevel).toHaveBeenCalledWith('u1', 'HIGH', 'a1', auditMeta)
   })
 
-  it('approveWithdrawal 调用 approve 并记录审计', async () => {
-    const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
-    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
-    await controller.approveWithdrawal('w1', admin as any, req as any)
-    expect(mockWithdrawalsService.approve).toHaveBeenCalledWith('w1', 'a1')
-    expect(mockAdminService.logAction).toHaveBeenCalledWith(
-      'a1',
-      'WITHDRAWAL_AUDIT',
-      'w1',
-      { action: 'APPROVE' },
-      { ip: '127.0.0.1', userAgent: 'jest' },
-    )
+  it('listMerchants 透传 query', async () => {
+    const query = { page: 1 }
+    await controller.listMerchants(query as any)
+    expect(mockAdminService.listMerchants).toHaveBeenCalledWith(query)
   })
 
-  it('rejectWithdrawal 调用 reject 并记录审计', async () => {
-    const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
-    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
-    const dto = { reason: '材料不全' }
-    await controller.rejectWithdrawal('w1', dto as any, admin as any, req as any)
-    expect(mockWithdrawalsService.reject).toHaveBeenCalledWith('w1', 'a1', '材料不全')
-    expect(mockAdminService.logAction).toHaveBeenCalledWith(
+  it('auditMerchant: APPROVE 透传商户状态并记录审计', async () => {
+    const dto = { action: 'APPROVE' }
+    const res = await controller.auditMerchant('m1', dto as any, admin(), req())
+    expect(mockMerchantsService.auditMerchant).toHaveBeenCalledWith(
+      'm1',
+      expect.objectContaining({ status: expect.any(String) }),
       'a1',
-      'WITHDRAWAL_AUDIT',
-      'w1',
-      { action: 'REJECT', reason: '材料不全' },
-      { ip: '127.0.0.1', userAgent: 'jest' },
     )
+    expect(mockAdminService.logAction).toHaveBeenCalledWith('a1', 'MERCHANT_AUDIT', 'm1', { action: 'APPROVE', reason: undefined }, auditMeta)
+    expect(res).toEqual({ id: 'm1' })
+  })
+
+  it('auditMerchant: REJECT 缺 reason 时 400，不调商户 service', async () => {
+    const dto = { action: 'REJECT' }
+    await expect(controller.auditMerchant('m1', dto as any, admin(), req())).rejects.toBeInstanceOf(BadRequestException)
+    expect(mockMerchantsService.auditMerchant).not.toHaveBeenCalled()
+  })
+
+  it('updateMerchantConfig 透传并记录审计', async () => {
+    const dto = { dailyLimit: 100000 }
+    await controller.updateMerchantConfig('m1', dto as any, admin(), req())
+    expect(mockMerchantsService.updateMerchantConfig).toHaveBeenCalledWith('m1', dto)
+    expect(mockAdminService.logAction).toHaveBeenCalledWith('a1', 'MERCHANT_CONFIG_UPDATE', 'm1', dto, auditMeta)
+  })
+
+  it('listPaymentOrders / listRiskEvents / listLoginLogs / listAuditLogs 透传 query', async () => {
+    const q = { page: 1 }
+    await controller.listPaymentOrders(q as any)
+    expect(mockAdminService.listPaymentOrders).toHaveBeenCalledWith(q)
+    await controller.listRiskEvents(q as any)
+    expect(mockAdminService.listRiskEvents).toHaveBeenCalledWith(q)
+    await controller.listLoginLogs(q as any)
+    expect(mockAdminService.listLoginLogs).toHaveBeenCalledWith(q)
+    await controller.listAuditLogs(q as any)
+    expect(mockAdminService.listAuditLogs).toHaveBeenCalledWith(q)
+  })
+
+  it('handleRiskEvent 透传 id/adminId/auditMeta/note', async () => {
+    const dto = { note: '人工解除' }
+    await controller.handleRiskEvent('e1', dto as any, admin(), req())
+    expect(mockAdminService.handleRiskEvent).toHaveBeenCalledWith('e1', 'a1', auditMeta, '人工解除')
+  })
+
+  it('getRiskRules / updateRiskRule 透传', async () => {
+    await controller.getRiskRules()
+    expect(mockAdminService.getRiskRules).toHaveBeenCalledWith()
+    const dto = { enabled: false, threshold: 5 }
+    await controller.updateRiskRule('R1', dto as any, admin(), req())
+    expect(mockAdminService.updateRiskRule).toHaveBeenCalledWith('R1', dto, 'a1', auditMeta)
+  })
+
+  it('listPendingIdentities 透传 query', async () => {
+    const q = { page: 1 }
+    await controller.listPendingIdentities(q as any)
+    expect(mockAdminService.listPendingIdentities).toHaveBeenCalledWith(q)
   })
 
   it('approveIdentity 透传 id/adminId/auditMeta', async () => {
-    const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
-    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
-    await controller.approveIdentity('i1', admin as any, req as any)
-    expect(mockAdminService.approveIdentity).toHaveBeenCalledWith('i1', 'a1', {
-      ip: '127.0.0.1',
-      userAgent: 'jest',
-    })
+    await controller.approveIdentity('i1', admin(), req())
+    expect(mockAdminService.approveIdentity).toHaveBeenCalledWith('i1', 'a1', auditMeta)
   })
 
   it('rejectIdentity 透传 id/reason/adminId/auditMeta', async () => {
-    const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
     const dto = { reason: '照片模糊' }
-    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
-    await controller.rejectIdentity('i1', dto as any, admin as any, req as any)
-    expect(mockAdminService.rejectIdentity).toHaveBeenCalledWith('i1', '照片模糊', 'a1', {
-      ip: '127.0.0.1',
-      userAgent: 'jest',
-    })
-  })
-
-  it('adjustAccount 透传 userId/amount/reason/adminId/auditMeta 到带策略入口', async () => {
-    const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
-    const dto = { amount: 100, reason: '补偿' }
-    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
-    await controller.adjustAccount('u1', dto as any, admin as any, req as any)
-    expect(mockAdminService.adjustAccountWithPolicy).toHaveBeenCalledWith('u1', 100, '补偿', 'a1', {
-      ip: '127.0.0.1',
-      userAgent: 'jest',
-    })
-  })
-
-  it('大额调账审批三路由透传', async () => {
-    const admin = { sub: 'a1', role: 'SUPER_ADMIN' }
-    const req = { headers: { 'user-agent': 'jest' }, ip: '127.0.0.1' }
-    await controller.listAdjustments({ status: 'PENDING' } as any)
-    expect(mockAdminService.listAdjustmentApprovals).toHaveBeenCalledWith({ status: 'PENDING' })
-    await controller.approveAdjustment('ap1', admin as any, req as any)
-    expect(mockAdminService.approveAdjustment).toHaveBeenCalledWith('ap1', 'a1', {
-      ip: '127.0.0.1',
-      userAgent: 'jest',
-    })
-    await controller.rejectAdjustment('ap1', { reason: '依据不足' } as any, admin as any, req as any)
-    expect(mockAdminService.rejectAdjustment).toHaveBeenCalledWith('ap1', 'a1', '依据不足', {
-      ip: '127.0.0.1',
-      userAgent: 'jest',
-    })
+    await controller.rejectIdentity('i1', dto as any, admin(), req())
+    expect(mockAdminService.rejectIdentity).toHaveBeenCalledWith('i1', '照片模糊', 'a1', auditMeta)
   })
 })

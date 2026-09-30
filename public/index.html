@@ -3,24 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <base href="/" id="app-base">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>KeBaiPay 科佰支付 · 自托管的开源支付中台</title>
-  <meta name="description" content="KeBaiPay 科佰支付：自托管开源支付中台。个人钱包、商户收单、开放 API、多渠道对账聚合、AI 智能体五层打通，NestJS + Prisma + PostgreSQL + Redis，MIT 开源。">
-  <meta name="keywords" content="KeBaiPay,科佰支付,开源支付系统,支付中台,自托管支付,聚合支付,钱包系统,商户收单,开放API,对账,微信支付,支付宝,AI智能体">
+  <title>KeBaiPay 科佰收单 · 自托管开源合规聚合收单平台</title>
+  <meta name="description" content="KeBaiPay 科佰收单：自托管开源合规聚合收单技术服务。持牌通道收单、开放 API、多渠道对账聚合、AI 智能体四层打通；资金绝不过平台。NestJS + Prisma + PostgreSQL + Redis，MIT 开源，私有化部署。">
+  <meta name="keywords" content="KeBaiPay,科佰收单,开源收单系统,聚合支付,自托管支付,合规收单,商户收单,开放API,渠道对账,微信支付,支付宝,AI智能体,私有化部署">
   <meta name="author" content="KeBaiPay Contributors">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#0FA968">
 
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="KeBaiPay 科佰支付">
-  <meta property="og:title" content="KeBaiPay 科佰支付 · 自托管的开源支付中台">
-  <meta property="og:description" content="钱包、收单、开放 API、对账、AI 智能体五层打通。220 个 API 端点，1178 个单元测试，MIT 开源。">
+  <meta property="og:site_name" content="KeBaiPay 科佰收单">
+  <meta property="og:title" content="KeBaiPay 科佰收单 · 自托管开源合规聚合收单平台">
+  <meta property="og:description" content="持牌通道收单、开放 API、渠道对账、AI 智能体四层打通。136 个 OpenAPI 操作，资金绝不过平台，MIT 开源。">
   <meta property="og:image" content="/og-image.png">
+  <meta property="og:url" content="/">
 
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="KeBaiPay 科佰支付 · 自托管的开源支付中台">
-  <meta name="twitter:description" content="钱包、收单、开放 API、对账、AI 智能体五层打通。MIT 开源。">
+  <meta name="twitter:title" content="KeBaiPay 科佰收单 · 自托管开源合规聚合收单平台">
+  <meta name="twitter:description" content="持牌通道收单、开放 API、渠道对账、AI 智能体四层打通。资金绝不过平台，MIT 开源。">
   <meta name="twitter:image" content="/og-image.png">
 
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -31,51 +32,237 @@
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "KeBaiPay 科佰支付",
+    "name": "KeBaiPay 科佰收单",
     "applicationCategory": "FinanceApplication",
     "operatingSystem": "Web, Docker",
-    "description": "自托管的开源支付中台：个人钱包、商户收单、开放 API、多渠道对账聚合与 AI 智能体。",
+    "description": "自托管开源合规聚合收单技术服务：持牌通道收单、开放 API、多渠道对账聚合与 AI 智能体；资金绝不过平台。",
     "license": "https://opensource.org/licenses/MIT",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CNY" },
-    "softwareVersion": "0.3.2",
-    "programmingLanguage": ["TypeScript", "Vue"]
+    "softwareVersion": "0.3.5",
+    "programmingLanguage": ["TypeScript", "Vue"],
+    "featureList": ["持牌通道收单", "开放 API（136 操作）", "多渠道对账聚合", "AI 智能体", "资金绝不过平台", "私有化部署"]
   }
   </script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; background: #f8fafc; color: #0f172a; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .page { width: 100%; max-width: 720px; padding: 40px 20px; text-align: center; }
-    .logo { width: 64px; height: 64px; margin: 0 auto 16px; display: block; }
-    h1 { font-size: 26px; font-weight: 700; color: #0fa968; margin-bottom: 8px; }
-    .sub { font-size: 14px; color: #64748b; margin-bottom: 32px; line-height: 1.7; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
-    .card { display: block; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px 16px; text-decoration: none; color: inherit; transition: border-color .2s, box-shadow .2s, transform .15s; }
-    .card:hover { border-color: #0fa968; box-shadow: 0 8px 24px rgba(15,169,104,.12); transform: translateY(-2px); }
-    .card h2 { font-size: 16px; margin-bottom: 6px; }
-    .card p { font-size: 12px; color: #94a3b8; line-height: 1.6; }
-    .foot { margin-top: 32px; font-size: 12px; color: #94a3b8; }
+    :root{
+      --bg0:#070B14; --bg1:#0B1220; --card:rgba(255,255,255,.035); --line:rgba(255,255,255,.09);
+      --green:#0FA968; --green2:#22D68B; --gold:#F5B841; --blue:#3B82F6;
+      --txt:#E8EEF7; --sub:#93A1B8;
+    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{background:var(--bg0);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;line-height:1.65;overflow-x:hidden}
+    .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+    a{color:var(--green2);text-decoration:none}
+    a:hover{text-decoration:underline}
+    /* ---------- 顶部导航 ---------- */
+    nav{position:sticky;top:0;z-index:9;backdrop-filter:blur(14px);background:rgba(7,11,20,.72);border-bottom:1px solid var(--line)}
+    nav .wrap{display:flex;align-items:center;justify-content:space-between;height:58px}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:.3px;color:var(--txt)}
+    .brand img{height:28px;width:28px}
+    nav .links{display:flex;gap:20px;font-size:13.5px}
+    nav .links a{color:var(--sub);text-decoration:none;transition:.2s}
+    nav .links a:hover{color:var(--green2);text-decoration:none}
+    @media(max-width:720px){nav .links{display:none}}
+    /* ---------- Hero ---------- */
+    .hero{position:relative;text-align:center;padding:80px 0 56px;overflow:hidden}
+    .hero::before{content:'';position:absolute;inset:-40%;background:
+      radial-gradient(38% 30% at 50% 8%,rgba(15,169,104,.20),transparent 70%),
+      radial-gradient(30% 26% at 78% 20%,rgba(59,130,246,.12),transparent 70%),
+      radial-gradient(28% 24% at 22% 22%,rgba(245,184,65,.10),transparent 70%);
+      pointer-events:none}
+    .hero>*{position:relative}
+    .hero img.mark{width:92px;height:92px;margin-bottom:18px}
+    h1{font-size:clamp(30px,5.4vw,52px);font-weight:800;letter-spacing:-1px;line-height:1.18;
+      background:linear-gradient(115deg,#F4F8FF 30%,#8FE8C0 62%,#F5D98B 92%);
+      -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+    .hero p.tag{margin:18px auto 8px;font-size:clamp(15px,2.2vw,19px);color:var(--sub);max-width:680px}
+    .hero p.tag b{color:var(--txt)}
+    .stack{margin:16px 0 28px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+    .stack span{border:1px solid var(--line);border-radius:999px;padding:4px 14px;font-size:12.5px;color:var(--sub);background:var(--card)}
+    .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+    .btn{display:inline-block;padding:11px 26px;border-radius:10px;font-size:14.5px;font-weight:600;transition:.2s;border:1px solid transparent}
+    .btn.primary{background:linear-gradient(135deg,var(--green),#0C8A57);color:#fff}
+    .btn.primary:hover{transform:translateY(-1px);box-shadow:0 10px 30px rgba(15,169,104,.35);text-decoration:none}
+    .btn.ghost{border-color:var(--line);color:var(--txt);background:var(--card)}
+    .btn.ghost:hover{border-color:var(--green);text-decoration:none}
+    /* ---------- 特性 ---------- */
+    section.block{padding:56px 0;border-top:1px solid var(--line)}
+    .kicker{color:var(--green2);font-size:12.5px;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;text-align:center}
+    h2{font-size:clamp(24px,3.6vw,34px);font-weight:800;letter-spacing:-.5px;text-align:center;margin-bottom:36px}
+    .feat{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+    .feat .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 20px;transition:.2s}
+    .feat .card:hover{border-color:rgba(34,214,139,.45);transform:translateY(-2px)}
+    .feat .card .ico{font-size:22px;margin-bottom:10px}
+    .feat .card h3{font-size:16px;margin-bottom:6px;color:var(--txt)}
+    .feat .card p{font-size:13px;color:var(--sub);line-height:1.7}
+    /* ---------- 截图 ---------- */
+    .shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+    .shot{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;transition:.2s}
+    .shot:hover{border-color:rgba(34,214,139,.45);transform:translateY(-2px)}
+    .shot img{width:100%;display:block;aspect-ratio:16/9;object-fit:cover;background:#fff}
+    .shot figcaption{font-size:12.5px;color:var(--sub);padding:10px 12px;text-align:center}
+    /* ---------- 快速开始 ---------- */
+    .term{background:#0A0F1A;border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:720px;margin:0 auto}
+    .term .bar{height:34px;display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid var(--line)}
+    .term .bar i{width:10px;height:10px;border-radius:50%;display:block}
+    .term .bar i:nth-child(1){background:#F5533D}.term .bar i:nth-child(2){background:#F5B841}.term .bar i:nth-child(3){background:#2BC266}
+    .term pre{padding:18px 20px;font-size:13px;line-height:1.8;color:#9FE8C4;font-family:'SF Mono',ui-monospace,Consolas,monospace;overflow-x:auto}
+    .term pre .c{color:#5B6B82}
+    .term pre .g{color:#22D68B}
+    /* ---------- 文档链接 ---------- */
+    .docgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+    .docgrid a{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;color:var(--txt);transition:.2s}
+    .docgrid a:hover{border-color:var(--green);text-decoration:none;transform:translateY(-2px)}
+    .docgrid a b{display:block;font-size:14px;margin-bottom:4px;color:var(--green2)}
+    .docgrid a span{font-size:12.5px;color:var(--sub)}
+    /* ---------- 镜像与 Star ---------- */
+    .mirrors{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+    .mirrors a{border:1px solid var(--line);border-radius:8px;padding:8px 16px;font-size:13px;color:var(--txt);background:var(--card)}
+    .mirrors a:hover{border-color:var(--green);text-decoration:none}
+    .star{display:inline-block;margin-top:22px;padding:12px 30px;border-radius:10px;font-size:15px;font-weight:700;color:#0B1220;background:linear-gradient(135deg,#F5D98B,#F5B841)}
+    .star:hover{transform:translateY(-1px);box-shadow:0 10px 30px rgba(245,184,65,.35);text-decoration:none}
+    /* ---------- Footer ---------- */
+    footer{border-top:1px solid var(--line);padding:28px 0 36px;text-align:center;color:var(--sub);font-size:12.5px}
+    footer a{color:var(--sub)}
+    footer a:hover{color:var(--green2)}
   </style>
 </head>
 <body>
-  <div class="page">
-    <img class="logo" src="/logo.svg" alt="KeBaiPay">
-    <h1>KeBaiPay 科佰支付</h1>
-    <p class="sub">自托管开源支付中台 · 个人钱包 / 商户收单 / 开放 API / 多渠道对账 / AI 智能体</p>
-    <div class="grid">
-      <a class="card" href="/portal">
-        <h2>门户端</h2>
-        <p>登录 / 注册 / 个人钱包入口</p>
-      </a>
-      <a class="card" href="/h5">
-        <h2>移动端 H5</h2>
-        <p>手机端钱包与智能体对话</p>
-      </a>
-      <a class="card" href="/admin">
-        <h2>管理后台</h2>
-        <p>运营 / 审核 / 对账 / 风控</p>
-      </a>
+  <nav>
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/logo-mark.png" alt="KeBaiPay 图标">KeBaiPay 科佰收单</a>
+      <div class="links">
+        <a href="#features">特性</a>
+        <a href="#shots">界面预览</a>
+        <a href="#quickstart">快速开始</a>
+        <a href="#docs">文档</a>
+        <a href="#mirrors">镜像仓库</a>
+      </div>
     </div>
-    <p class="foot">OpenAPI SDK 文档见 <a href="/docs">/docs</a> · 开放接口调试见 <a href="/api">/api</a></p>
-  </div>
+  </nav>
+
+  <section class="hero">
+    <div class="wrap">
+      <img class="mark" src="/logo-mark.png" alt="KeBaiPay 科佰收单 Logo">
+      <h1>KeBaiPay 科佰收单</h1>
+      <p class="tag">自托管开源<b>合规聚合收单技术服务</b>：持牌通道收单 / 开放 API / 多渠道对账聚合 / AI 智能体，<b>资金绝不过平台</b>。</p>
+      <div class="stack">
+        <span>NestJS 11</span><span>TypeScript</span><span>Prisma 7</span><span>PostgreSQL 16</span><span>Redis 7</span><span>Vue 3</span><span>MIT License</span>
+      </div>
+      <div class="cta">
+        <a class="btn primary" href="/portal">进入商户门户</a>
+        <a class="btn primary" href="/admin">管理后台</a>
+        <a class="btn ghost" href="/h5">移动端 H5</a>
+        <a class="btn ghost" href="/docs">完整文档</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="features">
+    <div class="wrap">
+      <p class="kicker">Why KeBaiPay</p>
+      <h2>为什么选择科佰收单</h2>
+      <div class="feat">
+        <div class="card">
+          <div class="ico">🛡️</div>
+          <h3>合规聚合，资金绝不过平台</h3>
+          <p>商户入网审核 + 持牌通道收单，资金由持牌支付机构清算。不设余额、充值、提现、转账、红包——无资金池，无合规红线。</p>
+        </div>
+        <div class="card">
+          <div class="ico">🔌</div>
+          <h3>开放 API · 136 个操作</h3>
+          <p>标准 OpenAPI 接口：下单、查询、退款、对账、统计全覆盖，带签名鉴权与幂等设计，接入即用。</p>
+        </div>
+        <div class="card">
+          <div class="ico">📊</div>
+          <h3>多渠道对账聚合</h3>
+          <p>模拟账单演练 + 官方账单导入核对，订单级差异定位，微信 / 支付宝账单格式自动解析。</p>
+        </div>
+        <div class="card">
+          <div class="ico">🤖</div>
+          <h3>AI 智能体</h3>
+          <p>内置商户助理、风控审计、收单问答智能体，私有化部署，不依赖外部大模型即可运行。</p>
+        </div>
+        <div class="card">
+          <div class="ico">📦</div>
+          <h3>私有化部署</h3>
+          <p>Docker Compose 一键启动，PostgreSQL + Redis 全本地，数据不出内网，三条命令跑起来。</p>
+        </div>
+        <div class="card">
+          <div class="ico">🧩</div>
+          <h3>开箱即用</h3>
+          <p>内置商户门户、移动端 H5、管理后台三端，含 Mock 渠道与演示数据，克隆即可体验完整收单链路。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="shots">
+    <div class="wrap">
+      <p class="kicker">Screenshots</p>
+      <h2>界面预览</h2>
+      <div class="shots">
+        <figure class="shot"><img src="/shots/portal-dashboard.png" alt="商户门户工作台" loading="lazy"><figcaption>商户 Portal · 工作台</figcaption></figure>
+        <figure class="shot"><img src="/shots/portal-reconciliation.png" alt="商户对账中心" loading="lazy"><figcaption>商户 Portal · 对账中心</figcaption></figure>
+        <figure class="shot"><img src="/shots/portal-orders.png" alt="商户订单管理" loading="lazy"><figcaption>商户 Portal · 订单管理</figcaption></figure>
+        <figure class="shot"><img src="/shots/h5-login.png" alt="移动端 H5 登录" loading="lazy"><figcaption>移动端 H5 · 登录</figcaption></figure>
+        <figure class="shot"><img src="/shots/h5-bills.png" alt="移动端账单" loading="lazy"><figcaption>移动端 H5 · 账单</figcaption></figure>
+        <figure class="shot"><img src="/shots/h5-agent.png" alt="移动端 AI 助手" loading="lazy"><figcaption>移动端 H5 · AI 助手</figcaption></figure>
+        <figure class="shot"><img src="/shots/admin-login.png" alt="管理后台登录" loading="lazy"><figcaption>管理后台 · 登录</figcaption></figure>
+        <figure class="shot"><img src="/shots/admin-finance.png" alt="管理后台财务总览" loading="lazy"><figcaption>管理后台 · 财务总览</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="quickstart">
+    <div class="wrap">
+      <p class="kicker">Quick Start</p>
+      <h2>三条命令，跑起一个合规收单系统</h2>
+      <div class="term">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <pre><span class="c"># 克隆（四平台任选，此处以 GitCode 为例）</span>
+<span class="g">git clone</span> https://gitcode.com/badhope/KeBaiPay.git <span class="g">&amp;&amp;</span> cd KeBaiPay
+<span class="g">cp</span> .env.example .env <span class="g">&amp;&amp;</span> docker compose -f docker-compose.dev.yml up -d
+<span class="g">npm install &amp;&amp;</span> npx prisma migrate deploy <span class="g">&amp;&amp;</span> npx prisma db seed <span class="g">&amp;&amp;</span> npm run start:dev</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="docs">
+    <div class="wrap">
+      <p class="kicker">Documentation</p>
+      <h2>文档与资源</h2>
+      <div class="docgrid">
+        <a href="/docs"><b>官方文档站</b><span>部署、配置、运维与合规说明</span></a>
+        <a href="/api"><b>OpenAPI 调试</b><span>136 个接口在线调试</span></a>
+        <a href="https://github.com/x33834/KeBaiPay/blob/main/README.md" rel="noopener"><b>README</b><span>三语快速上手</span></a>
+        <a href="https://github.com/x33834/KeBaiPay/blob/main/docs/API_REFERENCE.md" rel="noopener"><b>API 参考</b><span>完整端点说明</span></a>
+        <a href="https://github.com/x33834/KeBaiPay/blob/main/docs/CHANGELOG.md" rel="noopener"><b>更新日志</b><span>版本变更记录</span></a>
+        <a href="https://github.com/x33834/KeBaiPay/blob/main/LICENSE" rel="noopener"><b>MIT License</b><span>自由使用与商用</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="mirrors">
+    <div class="wrap" style="text-align:center">
+      <p class="kicker">Mirrors</p>
+      <h2>镜像仓库与支持</h2>
+      <div class="mirrors">
+        <a href="https://github.com/x33834/KeBaiPay" rel="noopener">GitHub · x33834</a>
+        <a href="https://github.com/Morningstar202604/KeBaiPay" rel="noopener">GitHub · Morningstar202604</a>
+        <a href="https://gitcode.com/badhope/KeBaiPay" rel="noopener">GitCode · badhope</a>
+        <a href="https://gitee.com/badhope/KeBaiPay" rel="noopener">Gitee · badhope</a>
+      </div>
+      <p>如果这个项目帮到了你，<a class="star" href="https://github.com/x33834/KeBaiPay" rel="noopener">⭐ Star us on GitHub</a></p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      KeBaiPay 科佰收单 · 合规聚合收单技术服务参考实现 · <a href="/docs/COMPLIANCE_MODE.html">合规模式说明</a> · <a href="https://github.com/x33834/KeBaiPay/blob/main/LICENSE" rel="noopener">MIT License</a><br>
+      © 2026 KeBaiPay Contributors · 资金由持牌支付机构清算，平台不经手用户资金
+    </div>
+  </footer>
 </body>
 </html>

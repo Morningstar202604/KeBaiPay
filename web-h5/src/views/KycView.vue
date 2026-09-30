@@ -2,9 +2,9 @@
   <div class="page">
     <div class="head">
       <h2>实名认证</h2>
-      <p>依据监管要求，收款/提现前需完成实名。信息加密存储，仅用于核验。</p>
+      <p>依据监管要求，完成实名后即可收款、使用收单服务。信息加密存储，仅用于核验。</p>
     </div>
-    <el-alert v-if="verified" type="success" :closable="false" title="已完成实名认证" description="你的账户已通过实名核验，可正常使用全部钱包功能。" />
+    <el-alert v-if="verified" type="success" :closable="false" title="已完成实名认证" description="你的账户已通过实名核验，可正常使用收单与账单服务。平台不设余额，资金由持牌渠道直接清算。" />
     <el-card v-else shadow="never" class="card">
       <el-form :model="form" :rules="rules" ref="formRef" label-position="top">
         <el-form-item label="真实姓名" prop="realName">
@@ -14,13 +14,13 @@
           <el-input v-model="form.idCard" placeholder="18 位身份证号码" maxlength="18" />
         </el-form-item>
         <el-form-item label="设置支付密码（6 位数字）" prop="payPassword">
-          <el-input v-model="form.payPassword" type="password" inputmode="numeric" maxlength="6" placeholder="支付时使用" show-password />
+          <el-input v-model="form.payPassword" type="password" inputmode="numeric" maxlength="6" placeholder="退款安全验证时使用" show-password />
         </el-form-item>
         <el-form-item label="确认支付密码" prop="confirm">
           <el-input v-model="form.confirm" type="password" inputmode="numeric" maxlength="6" placeholder="再次输入" show-password />
         </el-form-item>
         <el-button type="primary" size="large" class="btn" :loading="loading" @click="submit">提交认证</el-button>
-        <p class="note">提交后{{ sandboxTip }}进入审核，审核通过即可使用充值/提现等功能。</p>
+        <p class="note">提交后{{ sandboxTip }}进入审核，审核通过即可收款、使用收单服务。</p>
       </el-form>
     </el-card>
   </div>

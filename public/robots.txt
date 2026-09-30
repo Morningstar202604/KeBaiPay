@@ -7,8 +7,12 @@ Allow: /index.html
 Allow: /style.css
 Allow: /app.js
 Allow: /logo.svg
+Allow: /logo-mark.png
+Allow: /logo.png
+Allow: /logo-horizontal.png
 Allow: /og-image.png
 Allow: /sitemap.xml
+Allow: /shots/
 
 # API 与后台不做索引：无 SEO 价值，且避免端点结构被爬取
 Disallow: /api/

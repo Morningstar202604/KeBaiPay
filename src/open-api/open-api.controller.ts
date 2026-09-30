@@ -12,7 +12,6 @@ import { OpenApiGuard } from './open-api.guard'
 import { OpenApiService } from './open-api.service'
 import { CreateOpenApiOrderDto } from './dto/create-open-api-order.dto'
 import { RefundDto } from './dto/refund.dto'
-import { TransferDto } from './dto/transfer.dto'
 import { OpenApiRequest } from './open-api.types'
 
 @ApiTags('开放 API')
@@ -60,26 +59,13 @@ export class OpenApiController {
   }
 
   @UseGuards(OpenApiGuard)
-  @Post('transfers')
+  @Get('stats')
   @ApiOperation({
-    summary: '商户转账',
-    description: '商户向用户转账（商户余额扣款）',
+    summary: '查询商户收单统计',
+    description: '查询当前应用所属商户的收单统计（成功笔数/金额/手续费/退款）',
   })
-  @ApiResponse({ status: 201, description: '转账成功' })
-  @ApiResponse({ status: 400, description: 'KB501 金额无效 / KB005 余额不足' })
-  @ApiResponse({ status: 403, description: 'KB214 对方未实名 / 风控拦截' })
-  transfer(@Req() req: OpenApiRequest, @Body() dto: TransferDto) {
-    return this.openApiService.transfer(req.merchantApp!, dto)
-  }
-
-  @UseGuards(OpenApiGuard)
-  @Get('balance')
-  @ApiOperation({
-    summary: '查询商户余额',
-    description: '查询当前应用所属商户的账户余额',
-  })
-  @ApiResponse({ status: 200, description: '返回余额信息（单位：元）' })
-  balance(@Req() req: OpenApiRequest) {
+  @ApiResponse({ status: 200, description: '返回收单统计（单位：元）' })
+  stats(@Req() req: OpenApiRequest) {
     return this.openApiService.balance(req.merchantApp!)
   }
 }

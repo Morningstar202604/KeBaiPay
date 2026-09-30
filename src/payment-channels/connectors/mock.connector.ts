@@ -18,7 +18,7 @@ export class MockConnector implements Connector {
   readonly metadata: ConnectorMetadata = {
     name: 'mock',
     displayName: '模拟渠道',
-    capabilities: ['RECHARGE', 'PAYOUT', 'REFUND', 'BALANCE_QUERY', 'RECONCILIATION'],
+    capabilities: ['RECHARGE', 'REFUND', 'RECONCILIATION'],
     supportedCurrencies: ['CNY', 'USD'],
     supportedMethods: ['native', 'jsapi', 'h5', 'app'],
     version: '1.0.0',
@@ -28,7 +28,7 @@ export class MockConnector implements Connector {
   private config: ConnectorConfig = {
     name: 'mock',
     displayName: '模拟渠道',
-    capabilities: ['RECHARGE', 'PAYOUT', 'REFUND', 'BALANCE_QUERY', 'RECONCILIATION'],
+    capabilities: ['RECHARGE', 'REFUND', 'RECONCILIATION'],
     priority: 0,
     timeout: 5000,
     retryConfig: {

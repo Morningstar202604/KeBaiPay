@@ -1,4 +1,3 @@
-import { businessDayKey } from '../common/date-helpers'
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException, Logger, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
@@ -13,7 +12,6 @@ import { maskIdCard } from '../common/mask'
 import { KBErrorCodes, kbError } from '../common/error-codes'
 import {
   BCRYPT_SALT_ROUNDS,
-  DEFAULT_TRANSFER_DAILY_LIMIT_CENTS,
   MAX_PAY_PASSWORD_ATTEMPTS,
   PAY_PASSWORD_LOCK_MS,
 } from '../common/constants'
@@ -95,18 +93,14 @@ export class UsersService implements OnModuleInit {
     return this.prisma.user.create({
       data: {
         ...data,
-        account: {
-          create: {},
-        },
       },
-      include: { account: true },
     })
   }
 
   async findById(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
-      include: { account: true, identity: true },
+      include: { identity: true },
     })
   }
 
@@ -404,96 +398,6 @@ export class UsersService implements OnModuleInit {
   private async comparePassword(password: string, hash: string) {
     const bcrypt = await import('bcrypt')
     return bcrypt.compare(password, hash)
-  }
-
-  async getDailyLimit(userId: string) {
-    const config = await this.prisma.systemConfig.findUnique({
-      where: { key: 'transfer_daily_limit' },
-    })
-    const limit = config ? Math.round(Number(config.value) * 100) : DEFAULT_TRANSFER_DAILY_LIMIT_CENTS
-
-    const today = businessDayKey()
-
-    const usage = await this.prisma.dailyLimitUsage.findUnique({
-      where: {
-        userId_limitType_date: {
-          userId,
-          limitType: 'TRANSFER',
-          date: today,
-        },
-      },
-    })
-
-    const used = usage?.usedAmount || 0
-    return {
-      limitYuan: fenToYuan(limit),
-      usedYuan: fenToYuan(used),
-      remainingYuan: fenToYuan(Math.max(0, limit - used)),
-    }
-  }
-
-  async checkAndIncrementDailyLimit(
-    tx: Prisma.TransactionClient,
-    userId: string,
-    limitType: string,
-    date: string,
-    amount: number,
-    limit: number,
-  ): Promise<void> {
-    if (amount > limit) {
-      throw new BadRequestException(kbError(KBErrorCodes.DAILY_LIMIT_EXCEEDED))
-    }
-
-    let usage = await tx.dailyLimitUsage.findFirst({
-      where: {
-        userId,
-        limitType,
-        date,
-      },
-    })
-    if (!usage) {
-      try {
-        usage = await tx.dailyLimitUsage.create({
-          data: {
-            userId,
-            limitType,
-            date,
-            usedAmount: 0,
-            version: 0,
-          },
-        })
-      } catch (e) {
-        // 首建竞态：同一用户两笔并发转账持不同锁（如不同 idempotencyKey），
-        // 同时 create 撞 @@unique([userId, limitType, date])。捕获后重读，
-        // 走下方 version 条件更新——限额守卫语义不变，避免无谓 500
-        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-          usage = await tx.dailyLimitUsage.findFirst({
-            where: { userId, limitType, date },
-          })
-        } else {
-          throw e
-        }
-      }
-    }
-    if (!usage) {
-      throw new BadRequestException(kbError(KBErrorCodes.DAILY_LIMIT_EXCEEDED))
-    }
-
-    const updated = await tx.dailyLimitUsage.updateMany({
-      where: {
-        id: usage.id,
-        version: usage.version,
-        usedAmount: { lte: limit - amount },
-      },
-      data: {
-        usedAmount: { increment: amount },
-        version: { increment: 1 },
-      },
-    })
-
-    if (updated.count === 0) {
-      throw new BadRequestException(kbError(KBErrorCodes.DAILY_LIMIT_EXCEEDED))
-    }
   }
 
   /** 修改登录密码 */

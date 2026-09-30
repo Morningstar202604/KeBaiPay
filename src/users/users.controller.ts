@@ -109,12 +109,4 @@ export class UsersController {
   loginLogs(@CurrentUser() user: Pick<User, 'id'>) {
     return this.usersService.getLoginLogs(user.id)
   }
-
-  @UseGuards(JwtAuthGuard)
-  @Get('daily-limit')
-  @ApiOperation({ summary: '查询当日限额使用情况' })
-  @ApiResponse({ status: 200, description: '返回当日已用/总额度' })
-  getDailyLimit(@CurrentUser() user: Pick<User, 'id'>) {
-    return this.usersService.getDailyLimit(user.id)
-  }
 }

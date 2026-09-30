@@ -1,23 +1,15 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
-import {
-  PaymentOrderStatus,
-  TransactionStatus,
-  TransactionType,
-  WithdrawalStatus,
-} from '../common/enums.js'
+import { PaymentOrderStatus } from '../common/enums.js'
 import { FinanceService } from './finance.service.js'
 import { PrismaService } from '../prisma/prisma.service.js'
 import { SettlementService } from '../notifications/settlement.service.js'
 
 type PrismaMock = {
-  transactionOrder: Record<string, jest.Mock>
   paymentOrder: Record<string, jest.Mock>
-  withdrawalOrder: Record<string, jest.Mock>
   merchant: Record<string, jest.Mock>
-  account: Record<string, jest.Mock>
   dailySnapshot: Record<string, jest.Mock>
-}
+} & Record<string, unknown>
 
 describe('FinanceService', () => {
   let service: FinanceService
@@ -25,25 +17,13 @@ describe('FinanceService', () => {
 
   beforeEach(async () => {
     prisma = {
-      transactionOrder: {
-        findMany: jest.fn(),
-        aggregate: jest.fn(),
-        count: jest.fn(),
-      },
       paymentOrder: {
         findMany: jest.fn(),
         groupBy: jest.fn(),
         aggregate: jest.fn(),
       },
-      withdrawalOrder: {
-        findMany: jest.fn(),
-        aggregate: jest.fn(),
-      },
       merchant: {
         findMany: jest.fn(),
-      },
-      account: {
-        aggregate: jest.fn(),
       },
       dailySnapshot: {
         findMany: jest.fn(),
@@ -69,31 +49,19 @@ describe('FinanceService', () => {
   })
 
   describe('getDailySummary', () => {
-    it('应按日期分组统计收入、支出、手续费与笔数，并转换为元', async () => {
-      prisma.transactionOrder.findMany.mockResolvedValue([
+    it('按业务日聚合收单订单：金额计收入、退款额计支出、手续费累加、笔数', async () => {
+      prisma.paymentOrder.findMany.mockResolvedValue([
         {
-          type: TransactionType.RECHARGE,
           amount: 10000,
           fee: 100,
-          completedAt: new Date('2026-06-01T10:00:00.000Z'),
+          refundAmount: 0,
+          paidAt: new Date('2026-06-01T04:00:00.000Z'), // 北京 12:00 → 业务日 06-01
         },
         {
-          type: TransactionType.TRANSFER,
-          amount: 3000,
-          fee: 30,
-          completedAt: new Date('2026-06-01T11:00:00.000Z'),
-        },
-        {
-          type: TransactionType.RED_PACKET,
           amount: 5000,
           fee: 50,
-          completedAt: new Date('2026-06-02T09:00:00.000Z'),
-        },
-        {
-          type: TransactionType.PAYMENT,
-          amount: 2000,
-          fee: 20,
-          completedAt: new Date('2026-06-02T12:00:00.000Z'),
+          refundAmount: 2000,
+          paidAt: new Date('2026-06-02T04:00:00.000Z'), // 北京 12:00 → 业务日 06-02
         },
       ])
 
@@ -102,47 +70,43 @@ describe('FinanceService', () => {
         endDate: '2026-06-02',
       })
 
-      expect(prisma.transactionOrder.findMany).toHaveBeenCalledWith({
+      expect(prisma.paymentOrder.findMany).toHaveBeenCalledWith({
         where: {
-          status: TransactionStatus.SUCCESS,
-          completedAt: {
+          status: { in: [PaymentOrderStatus.PAID, PaymentOrderStatus.REFUNDED] },
+          paidAt: {
             gte: new Date('2026-05-31T16:00:00.000Z'),
             lte: new Date('2026-06-02T15:59:59.999Z'),
+            not: null,
           },
         },
-        select: {
-          type: true,
-          amount: true,
-          fee: true,
-          completedAt: true,
-        },
+        select: { amount: true, fee: true, refundAmount: true, paidAt: true },
       })
       expect(result.data).toEqual([
         {
           date: '2026-06-01',
           totalIncome: 10000,
-          totalExpense: 3000,
-          totalFee: 130,
-          transactionCount: 2,
+          totalExpense: 0,
+          totalFee: 100,
+          transactionCount: 1,
           totalIncomeYuan: '100.00',
-          totalExpenseYuan: '30.00',
-          totalFeeYuan: '1.30',
+          totalExpenseYuan: '0.00',
+          totalFeeYuan: '1.00',
         },
         {
           date: '2026-06-02',
           totalIncome: 5000,
           totalExpense: 2000,
-          totalFee: 70,
-          transactionCount: 2,
+          totalFee: 50,
+          transactionCount: 1,
           totalIncomeYuan: '50.00',
           totalExpenseYuan: '20.00',
-          totalFeeYuan: '0.70',
+          totalFeeYuan: '0.50',
         },
       ])
     })
 
-    it('无交易时返回空数组', async () => {
-      prisma.transactionOrder.findMany.mockResolvedValue([])
+    it('无订单时返回空数组', async () => {
+      prisma.paymentOrder.findMany.mockResolvedValue([])
 
       const result = await service.getDailySummary({})
 
@@ -151,30 +115,14 @@ describe('FinanceService', () => {
   })
 
   describe('getMerchantSettlements', () => {
-    it('应按 merchantId 分组统计金额、手续费与结算金额，并补充商户信息', async () => {
+    it('按 merchantId 分组统计金额、手续费与结算金额，并补充商户信息', async () => {
       prisma.paymentOrder.groupBy.mockResolvedValue([
-        {
-          merchantId: 'm1',
-          _sum: { amount: 50000, fee: 500 },
-          _count: { id: 10 },
-        },
-        {
-          merchantId: 'm2',
-          _sum: { amount: 30000, fee: 300 },
-          _count: { id: 5 },
-        },
+        { merchantId: 'm1', _sum: { amount: 50000, fee: 500, refundAmount: 0 }, _count: { id: 10 } },
+        { merchantId: 'm2', _sum: { amount: 30000, fee: 300, refundAmount: 0 }, _count: { id: 5 } },
       ])
       prisma.merchant.findMany.mockResolvedValue([
-        {
-          id: 'm1',
-          merchantNo: 'M001',
-          merchantName: '商户一',
-        },
-        {
-          id: 'm2',
-          merchantNo: 'M002',
-          merchantName: '商户二',
-        },
+        { id: 'm1', merchantNo: 'M001', merchantName: '商户一' },
+        { id: 'm2', merchantNo: 'M002', merchantName: '商户二' },
       ])
 
       const result = await service.getMerchantSettlements({
@@ -228,11 +176,7 @@ describe('FinanceService', () => {
 
     it('merchantId 为空时应按全部商户统计', async () => {
       prisma.paymentOrder.groupBy.mockResolvedValue([
-        {
-          merchantId: 'm1',
-          _sum: { amount: 10000, fee: 100 },
-          _count: { id: 2 },
-        },
+        { merchantId: 'm1', _sum: { amount: 10000, fee: 100, refundAmount: 0 }, _count: { id: 2 } },
       ])
       prisma.merchant.findMany.mockResolvedValue([
         { id: 'm1', merchantNo: 'M001', merchantName: '商户一' },
@@ -251,15 +195,11 @@ describe('FinanceService', () => {
   })
 
   describe('getFeeIncome', () => {
-    it('应分别按日期统计 paymentFee 与 withdrawalFee，并汇总为 totalFee', async () => {
+    it('仅按收单订单统计手续费，提现代付手续费下线（withdrawalFee 恒 0）', async () => {
       prisma.paymentOrder.findMany.mockResolvedValue([
-        { fee: 100, paidAt: new Date('2026-06-01T10:00:00.000Z') }, // 北京 18:00 → 06-01
-        { fee: 200, paidAt: new Date('2026-06-01T14:00:00.000Z') }, // 北京 22:00 → 06-01
-        { fee: 50, paidAt: new Date('2026-06-02T09:00:00.000Z') }, // 北京 17:00 → 06-02
-      ])
-      prisma.withdrawalOrder.findMany.mockResolvedValue([
-        { fee: 30, reviewedAt: new Date('2026-06-01T11:00:00.000Z') }, // 北京 19:00 → 06-01
-        { fee: 70, reviewedAt: new Date('2026-06-02T05:00:00.000Z') }, // 北京 13:00 → 06-02
+        { fee: 100, paidAt: new Date('2026-06-01T04:00:00.000Z') },
+        { fee: 200, paidAt: new Date('2026-06-01T06:00:00.000Z') },
+        { fee: 50, paidAt: new Date('2026-06-02T04:00:00.000Z') },
       ])
 
       const result = await service.getFeeIncome({
@@ -267,72 +207,52 @@ describe('FinanceService', () => {
         endDate: '2026-06-02',
       })
 
-      // 业务日口径（北京时间）：06-01 = UTC 05-31T16:00 ~ 06-01T15:59:59
       expect(prisma.paymentOrder.findMany).toHaveBeenCalledWith({
         where: {
           status: PaymentOrderStatus.PAID,
           paidAt: {
             gte: new Date('2026-05-31T16:00:00.000Z'),
             lte: new Date('2026-06-02T15:59:59.999Z'),
+            not: null,
           },
         },
         select: { fee: true, paidAt: true },
-      })
-      expect(prisma.withdrawalOrder.findMany).toHaveBeenCalledWith({
-        where: {
-          status: WithdrawalStatus.SUCCESS,
-          reviewedAt: {
-            gte: new Date('2026-05-31T16:00:00.000Z'),
-            lte: new Date('2026-06-02T15:59:59.999Z'),
-          },
-        },
-        select: { fee: true, reviewedAt: true },
       })
       expect(result.data).toEqual([
         {
           date: '2026-06-01',
           paymentFee: 300,
-          withdrawalFee: 30,
-          totalFee: 330,
+          totalFee: 300,
           paymentFeeYuan: '3.00',
-          withdrawalFeeYuan: '0.30',
-          totalFeeYuan: '3.30',
+          withdrawalFeeYuan: '0.00',
+          totalFeeYuan: '3.00',
         },
         {
           date: '2026-06-02',
           paymentFee: 50,
-          withdrawalFee: 70,
-          totalFee: 120,
+          totalFee: 50,
           paymentFeeYuan: '0.50',
-          withdrawalFeeYuan: '0.70',
-          totalFeeYuan: '1.20',
+          withdrawalFeeYuan: '0.00',
+          totalFeeYuan: '0.50',
         },
       ])
     })
   })
 
   describe('generateDailySnapshot', () => {
-    it('应聚合总资产、收入、支出、手续费、交易笔数并 upsert DailySnapshot', async () => {
-      prisma.account.aggregate.mockResolvedValue({
-        _sum: { totalBalance: 1000000 },
-      })
-      prisma.transactionOrder.aggregate.mockResolvedValueOnce({
-        _sum: { amount: 80000 },
-      })
-      prisma.transactionOrder.aggregate.mockResolvedValueOnce({
-        _sum: { amount: 30000 },
-      })
-      prisma.paymentOrder.aggregate.mockResolvedValue({
-        _sum: { fee: 500 },
-      })
-      prisma.withdrawalOrder.aggregate.mockResolvedValue({
-        _sum: { fee: 200 },
-      })
-      prisma.transactionOrder.count.mockResolvedValue(20)
+    it('聚合收单订单（PAID/REFUNDED）：totalAssets 恒 0，收入=交易额、支出=退款额', async () => {
+      prisma.paymentOrder.aggregate
+        // 第一个聚合：当日全部收单订单（PAID + REFUNDED）
+        .mockResolvedValueOnce({
+          _sum: { amount: 80000, fee: 700, refundAmount: 10000 },
+          _count: { id: 20 },
+        })
+        // 第二个聚合：当日退款订单
+        .mockResolvedValueOnce({ _sum: { refundAmount: 30000 } })
       prisma.dailySnapshot.upsert.mockResolvedValue({
         id: 's1',
         date: '2026-06-01',
-        totalAssets: 1000000,
+        totalAssets: 0,
         totalIncome: 80000,
         totalExpense: 30000,
         totalFee: 700,
@@ -343,49 +263,26 @@ describe('FinanceService', () => {
 
       const result = await service.generateDailySnapshot('2026-06-01')
 
-      expect(prisma.account.aggregate).toHaveBeenCalledWith({
-        _sum: { totalBalance: true },
-      })
-      expect(prisma.transactionOrder.aggregate).toHaveBeenCalledTimes(2)
-      expect(prisma.paymentOrder.aggregate).toHaveBeenCalledWith({
-        where: {
-          status: PaymentOrderStatus.PAID,
-          paidAt: {
-            gte: new Date('2026-05-31T16:00:00.000Z'),
-            lte: new Date('2026-06-01T15:59:59.999Z'),
-          },
-        },
-        _sum: { fee: true },
-      })
-      expect(prisma.withdrawalOrder.aggregate).toHaveBeenCalledWith({
-        where: {
-          status: WithdrawalStatus.SUCCESS,
-          reviewedAt: {
-            gte: new Date('2026-05-31T16:00:00.000Z'),
-            lte: new Date('2026-06-01T15:59:59.999Z'),
-          },
-        },
-        _sum: { fee: true },
-      })
+      expect(prisma.paymentOrder.aggregate).toHaveBeenCalledTimes(2)
       expect(prisma.dailySnapshot.upsert).toHaveBeenCalledWith({
         where: { date: '2026-06-01' },
         create: {
           date: '2026-06-01',
-          totalAssets: 1000000,
+          totalAssets: 0,
           totalIncome: 80000,
           totalExpense: 30000,
           totalFee: 700,
           transactionCount: 20,
         },
         update: {
-          totalAssets: 1000000,
+          totalAssets: 0,
           totalIncome: 80000,
           totalExpense: 30000,
           totalFee: 700,
           transactionCount: 20,
         },
       })
-      expect(result.totalAssetsYuan).toBe('10000.00')
+      expect(result.totalAssetsYuan).toBe('0.00')
       expect(result.totalIncomeYuan).toBe('800.00')
       expect(result.totalExpenseYuan).toBe('300.00')
       expect(result.totalFeeYuan).toBe('7.00')
@@ -393,12 +290,12 @@ describe('FinanceService', () => {
   })
 
   describe('getDailySnapshots', () => {
-    it('应按日期范围过滤快照并转换为元', async () => {
+    it('按日期范围过滤快照并转换为元', async () => {
       prisma.dailySnapshot.findMany.mockResolvedValue([
         {
           id: 's1',
           date: '2026-06-02',
-          totalAssets: 200000,
+          totalAssets: 0,
           totalIncome: 10000,
           totalExpense: 5000,
           totalFee: 100,
@@ -409,7 +306,7 @@ describe('FinanceService', () => {
         {
           id: 's2',
           date: '2026-06-01',
-          totalAssets: 150000,
+          totalAssets: 0,
           totalIncome: 8000,
           totalExpense: 3000,
           totalFee: 80,
@@ -425,45 +322,12 @@ describe('FinanceService', () => {
       })
 
       expect(prisma.dailySnapshot.findMany).toHaveBeenCalledWith({
-        where: {
-          date: {
-            gte: '2026-06-01',
-            lte: '2026-06-02',
-          },
-        },
+        where: { date: { gte: '2026-06-01', lte: '2026-06-02' } },
         orderBy: { date: 'desc' },
       })
       expect(result.data).toEqual([
-        {
-          id: 's1',
-          date: '2026-06-02',
-          totalAssets: 200000,
-          totalIncome: 10000,
-          totalExpense: 5000,
-          totalFee: 100,
-          transactionCount: 5,
-          createdAt: expect.any(Date),
-          updatedAt: expect.any(Date),
-          totalAssetsYuan: '2000.00',
-          totalIncomeYuan: '100.00',
-          totalExpenseYuan: '50.00',
-          totalFeeYuan: '1.00',
-        },
-        {
-          id: 's2',
-          date: '2026-06-01',
-          totalAssets: 150000,
-          totalIncome: 8000,
-          totalExpense: 3000,
-          totalFee: 80,
-          transactionCount: 3,
-          createdAt: expect.any(Date),
-          updatedAt: expect.any(Date),
-          totalAssetsYuan: '1500.00',
-          totalIncomeYuan: '80.00',
-          totalExpenseYuan: '30.00',
-          totalFeeYuan: '0.80',
-        },
+        expect.objectContaining({ date: '2026-06-02', totalAssetsYuan: '0.00', totalIncomeYuan: '100.00' }),
+        expect.objectContaining({ date: '2026-06-01', totalAssetsYuan: '0.00', totalIncomeYuan: '80.00' }),
       ])
     })
 

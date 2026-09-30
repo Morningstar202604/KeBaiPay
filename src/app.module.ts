@@ -16,23 +16,19 @@ import { join } from 'path'
 import { existsSync } from 'fs'
 import { AuthModule } from './auth/auth.module'
 import { UsersModule } from './users/users.module'
-import { AccountsModule } from './accounts/accounts.module'
-import { TransactionsModule } from './transactions/transactions.module'
-import { TransfersModule } from './transfers/transfers.module'
+// 合规聚合模式：以下资金池模块已下线（无证经营支付业务红线，见 docs/COMPLIANCE_MODE.md）
+// AccountsModule / TransactionsModule / TransfersModule / WithdrawalsModule /
+// RedPacketsModule / EscrowModule / BatchTransfersModule —— 全部不注册
 import { BillsModule } from './bills/bills.module'
-import { WithdrawalsModule } from './withdrawals/withdrawals.module'
-import { RedPacketsModule } from './red-packets/red-packets.module'
 import { QrCodesModule } from './qr-codes/qr-codes.module'
 import { MerchantsModule } from './merchants/merchants.module'
 import { PrismaModule } from './prisma/prisma.module'
 import { CashierModule } from './cashier/cashier.module'
-import { BankCardsModule } from './bank-cards/bank-cards.module'
-import { EscrowModule } from './escrow/escrow.module'
-import { BatchTransfersModule } from './batch-transfers/batch-transfers.module'
-import { SubscriptionsModule } from './subscriptions/subscriptions.module'
-import { SplitsModule } from './splits/splits.module'
+// SubscriptionsModule（订阅自动扣费）已下线：扣费为平台内资金划转，聚合模式下
+// 需持牌机构签约代扣，超出平台职责（见 docs/COMPLIANCE_MODE.md）
+// SplitsModule（任务分账）已下线：分账属资金操作，聚合模式下应由持牌通道侧分账能力完成
 import { CouponsModule } from './coupons/coupons.module'
-import { ReferralsModule } from './referrals/referrals.module'
+// ReferralsModule（邀请返利）已下线：返利入平台余额，聚合模式无余额，返利应由商户结算侧完成
 import { MessagesModule } from './messages/messages.module'
 import { InvoicesModule } from './invoices/invoices.module'
 import { OpenApiModule } from './open-api/open-api.module'
@@ -48,7 +44,6 @@ import { AuditModule } from './audit/audit.module'
 import { HealthModule } from './health/health.module'
 import { NotificationsModule } from './notifications/notifications.module'
 import { SmsModule } from './sms/sms.module'
-import { MetricsModule } from './metrics/metrics.module'
 import { AgentModule } from './agent/agent.module'
 import { RequestLoggingMiddleware } from './common/request-logging.middleware'
 import { ScheduleHealthModule } from './common/schedule-health.module'
@@ -69,7 +64,7 @@ function spaStaticModules() {
       ServeStaticModule.forRoot({
         rootPath: portalDist,
         serveRoot: '/portal',
-        exclude: ['/auth/{*splat}', '/merchants/{*splat}', '/cashier/{*splat}', '/users/{*splat}', '/accounts/{*splat}'],
+        exclude: ['/auth/{*splat}', '/merchants/{*splat}', '/cashier/{*splat}', '/users/{*splat}'],
       }),
     )
   }
@@ -79,7 +74,7 @@ function spaStaticModules() {
       ServeStaticModule.forRoot({
         rootPath: h5Dist,
         serveRoot: '/h5',
-        exclude: ['/auth/{*splat}', '/accounts/{*splat}', '/transactions/{*splat}', '/transfers/{*splat}', '/withdrawals/{*splat}', '/red-packets/{*splat}', '/bills/{*splat}', '/cashier/{*splat}', '/qr-codes/{*splat}', '/users/{*splat}'],
+        exclude: ['/auth/{*splat}', '/bills/{*splat}', '/cashier/{*splat}', '/qr-codes/{*splat}', '/users/{*splat}'],
       }),
     )
   }
@@ -89,7 +84,7 @@ function spaStaticModules() {
       ServeStaticModule.forRoot({
         rootPath: adminDist,
         serveRoot: '/admin',
-        exclude: ['/admin/auth/{*splat}', '/admin/dashboard/{*splat}', '/admin/users/{*splat}', '/admin/merchants/{*splat}', '/admin/withdrawals/{*splat}', '/admin/payment-orders/{*splat}', '/admin/risk-events/{*splat}', '/admin/finance/{*splat}', '/admin/login-logs/{*splat}', '/admin/system-config/{*splat}', '/admin/system-config', '/admin/risk-rules/{*splat}', '/admin/identity/{*splat}', '/admin/accounts/{*splat}', '/admin/audit-logs/{*splat}', '/admin/admin-users/{*splat}', '/admin/channels/{*splat}', '/admin/reconciliation/{*splat}', '/agent/{*splat}'],
+        exclude: ['/admin/auth/{*splat}', '/admin/dashboard/{*splat}', '/admin/users/{*splat}', '/admin/merchants/{*splat}', '/admin/payment-orders/{*splat}', '/admin/risk-events/{*splat}', '/admin/finance/{*splat}', '/admin/login-logs/{*splat}', '/admin/system-config/{*splat}', '/admin/system-config', '/admin/risk-rules/{*splat}', '/admin/identity/{*splat}', '/admin/audit-logs/{*splat}', '/admin/admin-users/{*splat}', '/admin/channels/{*splat}', '/admin/reconciliation/{*splat}', '/agent/{*splat}'],
       }),
     )
   }
@@ -132,22 +127,11 @@ function spaStaticModules() {
     PaymentChannelsModule,
     AuthModule,
     UsersModule,
-    AccountsModule,
-    TransactionsModule,
-    TransfersModule,
     BillsModule,
-    WithdrawalsModule,
-    RedPacketsModule,
     QrCodesModule,
     MerchantsModule,
     CashierModule,
-    BankCardsModule,
-    EscrowModule,
-    BatchTransfersModule,
-    SubscriptionsModule,
-    SplitsModule,
     CouponsModule,
-    ReferralsModule,
     MessagesModule,
     InvoicesModule,
     OpenApiModule,
@@ -158,7 +142,6 @@ function spaStaticModules() {
     HealthModule,
     ScheduleHealthModule,
     SmsModule,
-    MetricsModule,
     AgentModule,
   ],
   providers: [

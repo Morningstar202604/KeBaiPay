@@ -31,7 +31,7 @@ export class WebhooksController {
   }
 
   @Post('recharge/:channel')
-  @ApiOperation({ summary: '充值回调', description: '支付渠道回调通知（由渠道服务器调用）' })
+  @ApiOperation({ summary: '收单支付回调', description: '支付渠道回调通知（由渠道服务器调用），确认收单订单支付成功' })
   @ApiResponse({ status: 200, description: '处理成功' })
   async rechargeCallback(
     @Param('channel') channel: string,
@@ -39,17 +39,6 @@ export class WebhooksController {
     @Req() req: RawBodyRequest,
   ) {
     return this.webhooksService.handleRechargeCallback(channel, this.resolveRawBody(req), headers)
-  }
-
-  @Post('payout/:channel')
-  @ApiOperation({ summary: '代付回调', description: '代付渠道回调通知' })
-  @ApiResponse({ status: 200, description: '处理成功' })
-  async payoutCallback(
-    @Param('channel') channel: string,
-    @Headers() headers: Record<string, string>,
-    @Req() req: RawBodyRequest,
-  ) {
-    return this.webhooksService.handlePayoutCallback(channel, this.resolveRawBody(req), headers)
   }
 
   @Post('refund/:channel')

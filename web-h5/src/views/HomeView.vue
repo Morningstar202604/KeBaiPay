@@ -1,15 +1,15 @@
 <template>
   <div>
-    <div class="balance-card">
-      <div class="bal-top">
-        <span class="bal-label">账户总余额（元）</span>
-        <span class="bal-badge">科佰钱包</span>
+    <div class="summary-card">
+      <div class="sum-top">
+        <span class="sum-label">收单服务</span>
+        <span class="sum-badge">科佰收单</span>
       </div>
-      <div class="bal-value num">{{ account?.totalBalanceYuan || '0.00' }}</div>
-      <div class="bal-sub">
-        可用 <b>¥{{ account?.availableBalanceYuan || '0.00' }}</b>
+      <div class="sum-value num">{{ stats.totalYuan }}</div>
+      <div class="sum-sub">
+        累计收单 <b>{{ stats.count }}</b> 笔
         <span class="sep">·</span>
-        冻结 <b>¥{{ account?.frozenBalanceYuan || '0.00' }}</b>
+        平台不代收资金，款项由持牌支付通道直接清算
       </div>
     </div>
 
@@ -31,17 +31,16 @@
       </template>
       <el-skeleton v-if="loading" :rows="4" animated />
       <div v-else-if="ledgers.length === 0" class="empty">
-        <el-icon size="28"><Wallet /></el-icon>
+        <el-icon size="28"><List /></el-icon>
         <p>暂无账单记录</p>
       </div>
-      <div v-for="l in ledgers.slice(0, 6)" :key="l.id" class="ledger-row">
+      <div v-for="l in ledgers.slice(0, 6)" :key="l.orderNo" class="ledger-row">
         <div class="ledger-left">
-          <div>{{ typeText(l.type) }}</div>
+          <div>{{ l.subject || '收单订单' }}</div>
           <div class="ledger-time">{{ fmt(l.createdAt) }}</div>
         </div>
-        <!-- 账本方向约定：DEBIT=资金增加(收入)，CREDIT=资金减少(支出) -->
-        <div :class="['ledger-amt num', l.direction === 'DEBIT' ? 'in' : 'out']">
-          {{ l.direction === 'DEBIT' ? '+' : '-' }}¥{{ l.amountYuan }}
+        <div class="ledger-amt num">
+          -¥{{ l.amountYuan }}
         </div>
       </div>
     </el-card>
@@ -49,60 +48,32 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus, Refresh, Download, Present, Wallet } from '@element-plus/icons-vue'
-import type { AccountInfo, LedgerItem } from '@/types'
-import { fetchAccount } from '@/api/modules'
+import { Money, List, MagicStick, Postcard } from '@element-plus/icons-vue'
+import type { BillItem } from '@/types'
+import { fetchBills } from '@/api/modules'
 import { extractError } from '@/api/http'
 
-const account = ref<AccountInfo | null>(null)
-const balanceDisplay = ref('0.00')
-
-// 余额数字滚动动画（P3）：页面不可见时直接显示终值，避免 rAF 冻结
-function animateBalance(targetYuan: string) {
-  const target = Number(targetYuan) || 0
-  if (document.visibilityState !== 'visible') {
-    balanceDisplay.value = target.toFixed(2)
-    return
-  }
-  const from = Number(balanceDisplay.value) || 0
-  const start = performance.now()
-  const duration = 600
-  function step(now: number) {
-    const t = Math.min(1, (now - start) / duration)
-    const eased = 1 - Math.pow(1 - t, 3)
-    balanceDisplay.value = (from + (target - from) * eased).toFixed(2)
-    if (t < 1) requestAnimationFrame(step)
-    else balanceDisplay.value = target.toFixed(2)
-  }
-  requestAnimationFrame(step)
-}
 const loading = ref(true)
-const ledgers = ref<LedgerItem[]>([])
+const ledgers = ref<BillItem[]>([])
+const stats = computed(() => {
+  const total = ledgers.value.reduce((sum, l) => sum + (Number(l.amountYuan) || 0), 0)
+  return { totalYuan: total.toFixed(2), count: ledgers.value.length }
+})
 
 const actions = [
-  { to: '/recharge', label: '充值', icon: Plus, bg: '#e6f7f0', color: '#0c8a57' },
-  { to: '/transfer', label: '转账', icon: Refresh, bg: '#e0f2fe', color: '#0369a1' },
-  { to: '/withdraw', label: '提现', icon: Download, bg: '#fef3c7', color: '#b45309' },
-  { to: '/redpacket', label: '红包', icon: Present, bg: '#fee2e2', color: '#b91c1c' },
+  { to: '/cashier', label: '收银台', icon: Money, bg: '#e6f7f0', color: '#0c8a57' },
+  { to: '/bills', label: '账单', icon: List, bg: '#e0f2fe', color: '#0369a1' },
+  { to: '/agent', label: 'AI助手', icon: MagicStick, bg: '#f3e8ff', color: '#7c3aed' },
+  { to: '/kyc', label: '实名认证', icon: Postcard, bg: '#fef3c7', color: '#b45309' },
 ]
 
-function typeText(t: string) {
-  const map: Record<string, string> = {
-    RECHARGE: '充值', TRANSFER: '转账', WITHDRAW: '提现', RED_PACKET: '红包', PAYMENT: '付款',
-    REFUND: '退款', FEE: '手续费', ADJUSTMENT: '调账', ESCROW: '担保', ESCROW_RELEASE: '担保解冻',
-    ESCROW_REFUND: '担保退款', BATCH_TRANSFER: '批量转账', SUBSCRIPTION: '订阅', REFERRAL_REWARD: '邀请奖励',
-  }
-  return map[t] || t
-}
 function fmt(v: string) { return v ? v.replace('T', ' ').slice(5, 16) : '' }
 
 onMounted(async () => {
   try {
-    account.value = await fetchAccount()
-  animateBalance(account.value?.totalBalanceYuan || '0.00')
-    ledgers.value = account.value?.ledgers || []
+    ledgers.value = await fetchBills()
   } catch (e) {
     ElMessage.error(extractError(e))
   } finally {
@@ -112,7 +83,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.balance-card {
+.summary-card {
   position: relative;
   overflow: hidden;
   background:
@@ -124,7 +95,7 @@ onMounted(async () => {
   margin-bottom: 14px;
   box-shadow: 0 12px 32px rgba(11, 18, 32, 0.28);
 }
-.balance-card::after {
+.summary-card::after {
   content: "";
   position: absolute;
   right: -40px;
@@ -134,12 +105,12 @@ onMounted(async () => {
   border-radius: 50%;
   background: radial-gradient(circle, rgba(15, 169, 104, 0.5), transparent 70%);
 }
-.bal-top { display: flex; align-items: center; justify-content: space-between; position: relative; }
-.bal-label { font-size: 13px; opacity: 0.85; }
-.bal-badge { font-size: 11px; background: rgba(255,255,255,0.12); padding: 3px 10px; border-radius: 999px; }
-.bal-value { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; margin: 10px 0 8px; position: relative; }
-.bal-sub { font-size: 12px; opacity: 0.8; position: relative; }
-.bal-sub b { font-weight: 600; }
+.sum-top { display: flex; align-items: center; justify-content: space-between; position: relative; }
+.sum-label { font-size: 13px; opacity: 0.85; }
+.sum-badge { font-size: 11px; background: rgba(255,255,255,0.12); padding: 3px 10px; border-radius: 999px; }
+.sum-value { font-size: 40px; font-weight: 700; letter-spacing: -0.02em; margin: 10px 0 8px; position: relative; }
+.sum-sub { font-size: 12px; opacity: 0.8; position: relative; }
+.sum-sub b { font-weight: 600; }
 .sep { margin: 0 6px; opacity: 0.5; }
 
 .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
@@ -164,9 +135,7 @@ onMounted(async () => {
 .list-head { display: flex; justify-content: space-between; align-items: center; }
 .ledger-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--el-border-color-lighter); }
 .ledger-time { font-size: 12px; color: var(--el-text-color-placeholder); margin-top: 2px; }
-.ledger-amt { font-weight: 600; }
-.ledger-amt.in { color: #0c8a57; }
-.ledger-amt.out { color: #dc2626; }
+.ledger-amt { font-weight: 600; color: #dc2626; }
 .empty { text-align: center; color: var(--el-text-color-placeholder); padding: 24px 0; }
 .empty p { margin: 8px 0 0; font-size: 13px; }
 </style>

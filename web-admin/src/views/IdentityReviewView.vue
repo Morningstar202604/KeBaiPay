@@ -2,7 +2,7 @@
   <div class="page">
     <div class="head">
       <h2>实名审核</h2>
-      <p class="sub">商户漏斗的第一道闸门：通过后用户方可收款/提现。开启 SANDBOX_AUTO_APPROVE 时此列表通常为空（提交即自动通过）。</p>
+      <p class="sub">商户漏斗的第一道闸门：通过后商户方可收款、开通收单服务。开启 SANDBOX_AUTO_APPROVE 时此列表通常为空（提交即自动通过）。</p>
     </div>
 
     <el-card shadow="never">

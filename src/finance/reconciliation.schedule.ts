@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import {
-  RiskEventType,
-  RiskLevel,
   ReconciliationStatus,
 } from '../common/enums'
 import { PrismaService } from '../prisma/prisma.service'

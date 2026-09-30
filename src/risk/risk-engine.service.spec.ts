@@ -1,16 +1,13 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals'
-import { readFileSync } from 'node:fs'
-import { resolve as pathResolve, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { RiskEngineService } from './risk-engine.service.js'
 import { PrismaService } from '../prisma/prisma.service.js'
 import { RedisService } from '../redis/redis.service.js'
-import { RiskLevel, RiskEventType } from '../common/enums.js'
+import { RiskLevel, RiskEventType, PaymentOrderStatus } from '../common/enums.js'
 import { DEFAULT_TRANSFER_DAILY_LIMIT_CENTS } from '../common/constants.js'
 
 type PrismaMock = {
   systemConfig: { findMany: jest.Mock; findUnique: jest.Mock }
-  transactionOrder: { count: jest.Mock; aggregate: jest.Mock }
+  paymentOrder: { count: jest.Mock; aggregate: jest.Mock }
   riskEvent: { create: jest.Mock }
 }
 type RedisMock = {
@@ -38,7 +35,7 @@ describe('RiskEngineService', () => {
   beforeEach(() => {
     prisma = {
       systemConfig: { findMany: jest.fn(), findUnique: jest.fn() },
-      transactionOrder: { count: jest.fn(), aggregate: jest.fn() },
+      paymentOrder: { count: jest.fn(), aggregate: jest.fn() },
       riskEvent: { create: jest.fn().mockResolvedValue({}) },
     }
     redis = {
@@ -58,8 +55,8 @@ describe('RiskEngineService', () => {
   const setupPassingMocks = (): void => {
     prisma.systemConfig.findMany.mockResolvedValue([])
     prisma.systemConfig.findUnique.mockResolvedValue(null)
-    prisma.transactionOrder.count.mockResolvedValue(0)
-    prisma.transactionOrder.aggregate.mockResolvedValue({ _sum: { amount: 0 } })
+    prisma.paymentOrder.count.mockResolvedValue(0)
+    prisma.paymentOrder.aggregate.mockResolvedValue({ _sum: { amount: 0 } })
     // Redis 可用且滑动窗口计数为 0：frequency / ip_frequency 规则不拦截
     // ip_frequency 走 fail-closed，必须 mock Redis 可用
     redis.isEnabled.mockReturnValue(true)
@@ -72,7 +69,7 @@ describe('RiskEngineService', () => {
 
       const result = await service.check({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: 1000,
         ip: '1.2.3.4',
       })
@@ -84,12 +81,12 @@ describe('RiskEngineService', () => {
       expect(prisma.riskEvent.create).not.toHaveBeenCalled()
     })
 
-    it('SINGLE_LIMIT: 单笔金额超过限额时拦截并写入 LARGE_TRANSFER 事件', async () => {
+    it('SINGLE_LIMIT: 单笔金额超过限额时拦截并写入 LARGE_PAYMENT 事件', async () => {
       setupPassingMocks()
 
       const result = await service.check({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: SINGLE_LIMIT + 1,
       })
 
@@ -103,9 +100,9 @@ describe('RiskEngineService', () => {
       expect(prisma.riskEvent.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           userId: 'u1',
-          type: RiskEventType.LARGE_TRANSFER,
+          type: RiskEventType.LARGE_PAYMENT,
           level: RiskLevel.HIGH,
-          description: expect.stringContaining('单笔金额限额'),
+          description: expect.stringContaining('单笔金额'),
         }),
       })
     })
@@ -115,7 +112,7 @@ describe('RiskEngineService', () => {
 
       const result = await service.check({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: SINGLE_LIMIT,
       })
 
@@ -126,12 +123,12 @@ describe('RiskEngineService', () => {
 
     it('DAILY_LIMIT(次数): 单日交易次数达到上限时拦截', async () => {
       setupPassingMocks()
-      // daily_count 使用 prisma.count，返回 50 = 上限
-      prisma.transactionOrder.count.mockResolvedValue(DAILY_COUNT_LIMIT)
+      // daily_count 使用 paymentOrder.count，返回 50 = 上限
+      prisma.paymentOrder.count.mockResolvedValue(DAILY_COUNT_LIMIT)
 
       const result = await service.check({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: 1000,
       })
 
@@ -144,7 +141,7 @@ describe('RiskEngineService', () => {
       // daily_count 不在 freqCodes 中，事件类型按 ctx.type 映射
       expect(prisma.riskEvent.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          type: RiskEventType.LARGE_TRANSFER,
+          type: RiskEventType.LARGE_PAYMENT,
         }),
       })
     })
@@ -152,13 +149,13 @@ describe('RiskEngineService', () => {
     it('DAILY_LIMIT(金额): 单日累计金额 + 本次超过限额时拦截', async () => {
       setupPassingMocks()
       // 已用 19_999_000 分，本次 2000 分 → 20_001_000 > 20_000_000
-      prisma.transactionOrder.aggregate.mockResolvedValue({
+      prisma.paymentOrder.aggregate.mockResolvedValue({
         _sum: { amount: DAILY_AMOUNT_LIMIT - 1000 },
       })
 
       const result = await service.check({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: 2000,
       })
 
@@ -172,14 +169,13 @@ describe('RiskEngineService', () => {
 
     it('DAILY_LIMIT(金额) 边界: 累计 + 本次恰好等于限额时不拦截', async () => {
       setupPassingMocks()
-      // 已用 19_999_000 分，本次 1000 分 → 20_000_000，不大于限额
-      prisma.transactionOrder.aggregate.mockResolvedValue({
+      prisma.paymentOrder.aggregate.mockResolvedValue({
         _sum: { amount: DAILY_AMOUNT_LIMIT - 1000 },
       })
 
       const result = await service.check({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: 1000,
       })
 
@@ -193,11 +189,11 @@ describe('RiskEngineService', () => {
       // 本测试需要 Redis 不可用以验证 DB count 回退路径
       redis.isEnabled.mockReturnValue(false)
       // count = 10 同时用于 daily_count(10 < 50 不触发) 和 frequency(10 >= 10 触发 WARN)
-      prisma.transactionOrder.count.mockResolvedValue(FREQ_WINDOW_MAX)
+      prisma.paymentOrder.count.mockResolvedValue(FREQ_WINDOW_MAX)
 
       const result = await service.check({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: 1000,
       })
 
@@ -223,7 +219,7 @@ describe('RiskEngineService', () => {
 
       const result = await service.check({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: 1000,
         ip: '1.2.3.4',
       })
@@ -245,7 +241,7 @@ describe('RiskEngineService', () => {
       await expect(
         service.check({
           userId: 'u1',
-          type: 'TRANSFER',
+          type: 'PAYMENT',
           amount: 1000,
           ip: '1.2.3.4',
         }),
@@ -261,7 +257,7 @@ describe('RiskEngineService', () => {
 
       const result = await service.check({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: 1000,
         ip: '1.2.3.4',
       })
@@ -275,24 +271,24 @@ describe('RiskEngineService', () => {
       // ip_blacklist 不在 freqCodes 中 → 按 ctx.type 映射
       expect(prisma.riskEvent.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          type: RiskEventType.LARGE_TRANSFER,
+          type: RiskEventType.LARGE_PAYMENT,
         }),
       })
     })
 
-    it('WITHDRAW 类型拦截时映射为 LARGE_WITHDRAWAL 事件', async () => {
+    it('REFUND 类型拦截时事件类型仍映射为 LARGE_PAYMENT（收单/退款统一事件口径）', async () => {
       setupPassingMocks()
 
       const result = await service.check({
         userId: 'u1',
-        type: 'WITHDRAW',
+        type: 'REFUND',
         amount: SINGLE_LIMIT + 1,
       })
 
       expect(result.blocked).toBe(true)
       expect(prisma.riskEvent.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          type: RiskEventType.LARGE_WITHDRAWAL,
+          type: RiskEventType.LARGE_PAYMENT,
         }),
       })
     })
@@ -307,14 +303,14 @@ describe('RiskEngineService', () => {
 
       await service.check({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: SINGLE_LIMIT + 1,
         ip: '1.2.3.4',
       })
 
       expect(prisma.riskEvent.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          description: expect.stringContaining('单笔金额限额'),
+          description: expect.stringContaining('单笔金额'),
         }),
       })
       // 描述中应同时包含两个 BLOCK 规则名
@@ -332,15 +328,14 @@ describe('RiskEngineService', () => {
 
       await service.recordTransaction({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: 1000,
         ip: '1.2.3.4',
       })
 
       // 默认 frequency 与 ip_frequency 规则 windowSeconds=60，windowMs=60000
-      // ZSET key 格式：risk:freq:{userId}:{type}:{windowSeconds}（不再含 bucket）
       expect(redis.slidingWindowRecord).toHaveBeenCalledWith(
-        'risk:freq:u1:TRANSFER:60',
+        'risk:freq:u1:PAYMENT:60',
         60000,
         expect.any(String),
       )
@@ -356,7 +351,7 @@ describe('RiskEngineService', () => {
 
       await service.recordTransaction({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: 1000,
         ip: '1.2.3.4',
       })
@@ -370,18 +365,16 @@ describe('RiskEngineService', () => {
 
       await service.recordTransaction({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: 1000,
         // 无 ip
       })
 
-      // 用户维度被调用
       expect(redis.slidingWindowRecord).toHaveBeenCalledWith(
-        'risk:freq:u1:TRANSFER:60',
+        'risk:freq:u1:PAYMENT:60',
         60000,
         expect.any(String),
       )
-      // 所有调用都不应包含 risk:ipfreq
       for (const call of redis.slidingWindowRecord.mock.calls) {
         expect(call[0]).not.toMatch(/^risk:ipfreq:/)
       }
@@ -398,14 +391,13 @@ describe('RiskEngineService', () => {
 
       await service.recordTransaction({
         userId: 'u1',
-        type: 'TRANSFER',
+        type: 'PAYMENT',
         amount: 1000,
         ip: '1.2.3.4',
       })
 
-      // 自定义 120s 窗口应被记录
       expect(redis.slidingWindowRecord).toHaveBeenCalledWith(
-        'risk:freq:u1:TRANSFER:120',
+        'risk:freq:u1:PAYMENT:120',
         120000,
         expect.any(String),
       )
@@ -421,8 +413,8 @@ describe('RiskEngineService', () => {
     it('缓存 TTL 内多次 check 不重复查询数据库', async () => {
       setupPassingMocks()
 
-      await service.check({ userId: 'u1', type: 'TRANSFER', amount: 1000 })
-      await service.check({ userId: 'u1', type: 'TRANSFER', amount: 1000 })
+      await service.check({ userId: 'u1', type: 'PAYMENT', amount: 1000 })
+      await service.check({ userId: 'u1', type: 'PAYMENT', amount: 1000 })
 
       expect(prisma.systemConfig.findMany).toHaveBeenCalledTimes(1)
     })
@@ -430,19 +422,18 @@ describe('RiskEngineService', () => {
     it('clearCache 后重新从数据库加载规则', async () => {
       setupPassingMocks()
 
-      await service.check({ userId: 'u1', type: 'TRANSFER', amount: 1000 })
+      await service.check({ userId: 'u1', type: 'PAYMENT', amount: 1000 })
       expect(prisma.systemConfig.findMany).toHaveBeenCalledTimes(1)
 
       service.clearCache()
 
-      await service.check({ userId: 'u1', type: 'TRANSFER', amount: 1000 })
+      await service.check({ userId: 'u1', type: 'PAYMENT', amount: 1000 })
       expect(prisma.systemConfig.findMany).toHaveBeenCalledTimes(2)
     })
   })
 
   describe('listAllRules', () => {
     it('返回全部默认规则，含 SystemConfig 自定义覆盖(含已禁用)', async () => {
-      // 自定义配置：禁用 single_amount
       prisma.systemConfig.findMany.mockResolvedValue([
         {
           key: 'risk_rule:single_amount',
@@ -452,98 +443,63 @@ describe('RiskEngineService', () => {
 
       const rules = await service.listAllRules()
 
-      // 6 条默认规则
       expect(rules).toHaveLength(6)
       const singleAmount = rules.find((r) => r.code === 'single_amount')
       expect(singleAmount).toBeDefined()
-      // 被自定义配置覆盖为禁用
       expect(singleAmount?.enabled).toBe(false)
-      // listAllRules 返回含已禁用规则
       expect(rules.some((r) => !r.enabled)).toBe(true)
     })
   })
 
-  describe('风控日计数/日金额：复合索引 & 读法不变', () => {
-    it('schema 中存在两条复合索引 [fromUserId, createdAt, status] 与 [toUserId, createdAt, status]', () => {
-      const fsSchemaPath = pathResolve(dirname(fileURLToPath(import.meta.url)), '../../prisma/schema.prisma')
-      const schema = readFileSync(fsSchemaPath, 'utf-8')
-      const idxBlock = schema.slice(
-        schema.indexOf('model TransactionOrder'),
-        schema.indexOf('model Bill'),
-      )
-      // 标准化空白后断言复合索引存在（Prisma 生成索引名 transaction_orders_from_user_id_created_at_status_idx）
-      const norm = (s: string) => s.replace(/\s+/g, ' ')
-      expect(norm(idxBlock)).toContain('@@index([fromUserId, createdAt, status])')
-      expect(norm(idxBlock)).toContain('@@index([toUserId, createdAt, status])')
-      // 原单列索引保留（避免回归）
-      expect(norm(idxBlock)).toContain('@@index([fromUserId])')
-      expect(norm(idxBlock)).toContain('@@index([toUserId])')
-    })
-
-    it('getDailyAmount 仍读 transactionOrder.aggregate（口径不变）：mock 累计值即返回的当日金额', async () => {
+  describe('风控日计数/日金额：paymentOrder 收单口径', () => {
+    it('getDailyAmount 读 paymentOrder.aggregate：payerId + paidAt 当日 + PAID 状态', async () => {
       setupPassingMocks()
-      // 给定 mock：当日 SUCCESS 交易合计 1_500_000 分
       const mockedSum = 1_500_000
-      prisma.transactionOrder.aggregate.mockResolvedValue({ _sum: { amount: mockedSum } })
+      prisma.paymentOrder.aggregate.mockResolvedValue({ _sum: { amount: mockedSum } })
 
       const result = await service.check({
         userId: 'u1',
-        type: 'TRANSFER',
-        // 1_500_000 + 2000 < DAILY_AMOUNT_LIMIT(20_000_000) → 不拦截
+        type: 'PAYMENT',
         amount: 2000,
       })
 
-      // 行为不变：仍走 transactionOrder.aggregate，且 aggregate 查询口径与原实现一致
-      // （OR from/to + type + createdAt gte + status SUCCESS + _sum.amount）
-      expect(prisma.transactionOrder.aggregate).toHaveBeenCalledTimes(1)
-      expect(prisma.transactionOrder.aggregate).toHaveBeenCalledWith(
+      // 收单口径：按付款方 payerId + 当日 paidAt + 已支付订单金额合计
+      expect(prisma.paymentOrder.aggregate).toHaveBeenCalledWith(
         expect.objectContaining({
           _sum: { amount: true },
           where: expect.objectContaining({
-            type: 'TRANSFER',
-            status: 'SUCCESS',
-            OR: expect.arrayContaining([
-              expect.objectContaining({ fromUserId: 'u1' }),
-              expect.objectContaining({ toUserId: 'u1' }),
-            ]),
+            payerId: 'u1',
+            status: PaymentOrderStatus.PAID,
+            paidAt: expect.objectContaining({ gte: expect.any(Date) }),
           }),
         }),
       )
-      // 当日金额取 mock 的 _sum.amount（与改前一致，未被 DailyLimitUsage 替代）
       expect(result.blocked).toBe(false)
       expect(result.passed).toBe(true)
-      // 对照边界：累计逼近上限时应拦截，证明返回值确实来自 aggregate mock
-      prisma.transactionOrder.aggregate.mockResolvedValue({
+
+      prisma.paymentOrder.aggregate.mockResolvedValue({
         _sum: { amount: DAILY_AMOUNT_LIMIT - 1000 },
       })
-      const nearLimit = await service.check({
-        userId: 'u1',
-        type: 'TRANSFER',
-        amount: 2000,
-      })
+      const nearLimit = await service.check({ userId: 'u1', type: 'PAYMENT', amount: 2000 })
       expect(nearLimit.blocked).toBe(true)
     })
 
-    it('getDailyCount 仍读 transactionOrder.count（口径不变）：mock 笔数即返回的当日次数', async () => {
+    it('getDailyCount 读 paymentOrder.count：REFUND 类型统计 REFUNDED 状态', async () => {
       setupPassingMocks()
-      prisma.transactionOrder.count.mockResolvedValue(42)
+      prisma.paymentOrder.count.mockResolvedValue(42)
 
       const result = await service.check({
         userId: 'u1',
-        type: 'WITHDRAW',
+        type: 'REFUND',
         amount: 1000,
       })
 
-      // 仍走 transactionOrder.count，查询口径与原实现一致（OR + type + createdAt + status SUCCESS）
-      expect(prisma.transactionOrder.count).toHaveBeenCalledWith(
+      expect(prisma.paymentOrder.count).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            type: 'WITHDRAW',
-            status: 'SUCCESS',
-            OR: expect.arrayContaining([
-              expect.objectContaining({ fromUserId: 'u1' }),
-              expect.objectContaining({ toUserId: 'u1' }),
-            ]),
+            payerId: 'u1',
+            status: PaymentOrderStatus.REFUNDED,
+            paidAt: expect.objectContaining({ gte: expect.any(Date) }),
           }),
         }),
       )

@@ -5,9 +5,6 @@ import {
   RechargeRequest,
   RechargeResponse,
   RechargeCallbackResult,
-  PayoutRequest,
-  PayoutResponse,
-  PayoutQueryResult,
   RefundRequest,
   RefundResponse,
   RefundQueryResult,
@@ -427,125 +424,6 @@ export class AlipayChannel implements PaymentChannel {
   }
 
   buildRefundCallbackSuccess(): string {
-    return 'success'
-  }
-
-  async createPayout(params: PayoutRequest): Promise<PayoutResponse> {
-    const cfg = params.channelConfig
-    const appId = cfg.appId as string
-    const privateKey = cfg.privateKey as string
-
-    if (!appId || !privateKey) {
-      throw new Error('支付宝配置不完整')
-    }
-
-    const sdk = this.buildSdk(cfg)
-
-    try {
-      const result = await sdk.exec(
-        'alipay.fund.trans.uni.transfer',
-        {
-          bizContent: {
-            out_biz_no: params.orderNo,
-            payee_type: 'ALIPAY_LOGON_ID',
-            payee_account: params.channelAccount,
-            amount: (params.amount / 100).toFixed(2),
-            remark: `提现_${params.userName}`,
-          },
-        },
-        { validateSign: false },
-      )
-
-      if (result.code !== '10000') {
-        this.logger.error(`支付宝转账失败: ${JSON.stringify(result)}`)
-        throw new Error(`支付宝转账失败: ${result.sub_msg || result.msg || '未知错误'}`)
-      }
-
-      return {
-        // 语义约定：channelOrderNo 恒为渠道侧单号（支付宝 order_id）。
-        // 极端情况下渠道未返回 order_id 时回退我方单号占位，
-        // 回调匹配逻辑对这两种取值均兼容（见 withdrawals.service.handlePayoutCallback）。
-        channelOrderNo: (result.order_id as string) || params.orderNo,
-        status: 'PROCESSING',
-        message: '转账受理中',
-      }
-    } catch (error) {
-      this.logger.error(`支付宝转账调用异常: ${error}`)
-      throw error
-    }
-  }
-
-  async queryPayout(
-    channelOrderNo: string,
-    channelConfig: ChannelConfig,
-  ): Promise<PayoutQueryResult> {
-    const cfg = channelConfig
-    const appId = cfg.appId as string
-    const privateKey = cfg.privateKey as string
-
-    if (!appId || !privateKey) {
-      throw new Error('支付宝配置不完整')
-    }
-
-    const sdk = this.buildSdk(cfg)
-
-    try {
-      const result = await sdk.exec(
-        'alipay.fund.trans.order.query',
-        // createPayout 持久化的是渠道侧单号（order_id），查询必须用同一字段；
-        // 此前误将其作为 out_biz_no（我方单号）查询，永远查不到订单
-        { bizContent: { order_id: channelOrderNo } },
-        { validateSign: false },
-      )
-
-      if (result.status === 'SUCCESS') {
-        return { channelOrderNo, status: 'SUCCESS', message: '转账成功' }
-      } else if (result.status === 'FAIL') {
-        return { channelOrderNo, status: 'FAILED', message: '转账失败' }
-      }
-      return { channelOrderNo, status: 'PROCESSING', message: '转账处理中' }
-    } catch {
-      return { channelOrderNo, status: 'PROCESSING', message: '查询失败，请稍后重试' }
-    }
-  }
-
-  parsePayoutCallback(
-    rawBody: string,
-    headers: Record<string, string>,
-    channelConfig: ChannelConfig,
-  ): {
-    channelOrderNo: string
-    orderNo: string
-    status: 'SUCCESS' | 'FAILED'
-    signature: string
-  } {
-    const alipayPublicKey = channelConfig.alipayPublicKey as string
-    if (!alipayPublicKey) {
-      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '支付宝公钥未配置'))
-    }
-
-    const sdk = this.buildSdk(channelConfig)
-    const params = this.parseNotifyParams(rawBody)
-
-    // 必须验签：否则攻击者可伪造 payout 成功回调，触发提现订单误标 SUCCESS
-    // 导致资金已扣但实际未到账的严重资金事故
-    if (!sdk.checkNotifySignV2(params)) {
-      throw new Error(kbError(KBErrorCodes.AUTHENTICATION_FAILED, '支付宝代付回调签名验证失败'))
-    }
-
-    // 支付宝转账异步通知同时携带 out_biz_no（我方单号）与 order_id（渠道侧单号）。
-    // 语义约定：channelOrderNo 恒取渠道侧单号 order_id，orderNo 取我方单号 out_biz_no。
-    // 此前两者都填 out_biz_no，与 createPayout 存储的 order_id 恒不匹配，
-    // 导致真实回调必然命中 CALLBACK_CHANNEL_ORDER_NO_MISMATCH、订单卡死 PROCESSING。
-    return {
-      channelOrderNo: params.order_id || '',
-      orderNo: params.out_biz_no || '',
-      status: params.status === 'SUCCESS' ? 'SUCCESS' : 'FAILED',
-      signature: params.sign || '',
-    }
-  }
-
-  buildPayoutCallbackSuccess(): string {
     return 'success'
   }
 }

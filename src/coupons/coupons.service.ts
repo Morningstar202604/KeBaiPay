@@ -214,10 +214,6 @@ export class CouponsService {
     return { items, total, page, limit }
   }
 
-  /**
-   * 使用用户优惠券
-   * @returns 折扣金额（分）
-   */
   /** 查询用户优惠券详情 */
   async findUserCoupon(userId: string, userCouponNo: string) {
     const uc = await this.prisma.userCoupon.findUnique({

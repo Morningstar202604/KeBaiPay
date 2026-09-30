@@ -12,9 +12,7 @@
 /** 连接器能力枚举 */
 export type ConnectorCapability =
   | 'RECHARGE'
-  | 'PAYOUT'
   | 'REFUND'
-  | 'BALANCE_QUERY'
   | 'RECONCILIATION'
 
 /** 连接器运行状态 */

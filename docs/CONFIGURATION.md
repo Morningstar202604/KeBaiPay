@@ -21,7 +21,7 @@
 | **服务** | `PORT` | – | 默认 3001 |
 | | `NODE_ENV` | – | `production` 时启用全部安全强校验 |
 | | `CORS_ORIGINS` | 生产 | 逗号分隔白名单（前端三端 dev 端口 5173-5175） |
-| **支付回调** | `RECHARGE_NOTIFY_URL` | ✅ | 充值回调完整外网 URL，缺省时充值下单直接报错 |
+| **支付回调** | `CHANNEL_NOTIFY_URL` | ✅ | 收单结果回调完整外网 URL（持牌通道确认支付结果，生产必须公网 https），缺省时创建收单订单无法指定回调 |
 | | `CASHIER_BASE_URL` | – | 收银台对外地址（回跳商户页） |
 | | `SMS_PROVIDER` | – | `mock`(dev) / `aliyun` / `tencent` / `huawei`，接入见 [sms-integration](sms-integration.md) |
 | **通知** | `SMTP_HOST/PORT/USER/PASS/FROM` | – | 未配置 SMTP_USER 时邮件自动降级为日志 |

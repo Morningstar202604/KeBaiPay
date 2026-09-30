@@ -196,7 +196,7 @@ PORT=3001
 
 # 配置生产域名（替换为实际域名）
 CORS_ORIGINS="https://your-domain.com,https://pay.your-domain.com,https://api.your-domain.com"
-RECHARGE_NOTIFY_URL="https://api.your-domain.com/webhooks/recharge"
+CHANNEL_NOTIFY_URL="https://api.your-domain.com/webhooks/recharge"
 CASHIER_BASE_URL="https://pay.your-domain.com"
 ```
 
@@ -406,7 +406,7 @@ sudo journalctl -u cloudflared -f
 - [ ] 服务器开放 80 和 443 端口
 - [ ] 防火墙允许 HTTP/HTTPS 流量
 - [ ] `.env` 中的域名已更新为生产域名
-- [ ] `RECHARGE_NOTIFY_URL` 指向可公网访问的 HTTPS 地址
+- [ ] `CHANNEL_NOTIFY_URL` 指向可公网访问的 HTTPS 地址
 - [ ] 微信支付/支付宝的回调地址已更新为生产域名
 
 ---

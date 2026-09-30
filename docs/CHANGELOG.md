@@ -9,6 +9,9 @@
 - [版本 0.3.0（2026-09-14）](#版本-0302026-09-14)
 - [版本 0.3.1（2026-09-14）](#版本-0312026-09-14)
 - [版本 0.3.2（2026-09-14）](#版本-0322026-09-14)
+- [版本 0.3.3（2026-09-30）](#版本-0332026-09-30)
+- [版本 0.3.4（2026-09-30）](#版本-0342026-09-30)
+- [版本 0.3.5（2026-10-01）](#版本-0352026-10-01)
 - [版本 2.2.1（2026-08-26）](#版本-2212026-08-26)
 - [仓库体检与开源规范化](#仓库体检与开源规范化)
 - [Agent 智能体修复与测试](#agent-智能体修复与测试)
@@ -1228,3 +1231,89 @@ maxAmount = floor(remainingAmount / remainingCount × 2) - 1
 - 单元测试：635 → 1023（增长 61%）
 - E2E 测试：~50 → 324（增长 548%）
 - 文档体系全面更新：README 重写 + 12 个 docs 文件同步更新
+
+## 版本 0.3.5（2026-10-01）
+
+**版本类型：** 合规改造收尾（渠道 type 列废弃 / 回调变量改名 / 截图资产下线 / e2e 运行时验收）
+
+- **渠道 `PaymentChannelConfig.type` 列彻底废弃**：聚合模式纯收单，`type` 无业务语义；schema 删字段与索引、新迁移 `20260930040000_drop_channel_type` DROP 列、registry/controller/service/seed/前端表单与列表/API 类型全链路移除，存量渠道不再有"充值/代付/BOTH"方向语义。
+- **openapi 残留端点清理**：删除 openapi.json/API_REFERENCE 中代码并不存在的 `GET /users/daily-limit`（operationId `UsersController_getDailyLimit`，全仓 controller 无此路由），端点口径最终统一为 **136 个操作 / 121 条路径**（与 `src/**/*.controller.ts` 实测一致）。
+- **`RECHARGE_NOTIFY_URL` 改名 `CHANNEL_NOTIFY_URL`**：收单渠道回调配置，全链路同步（cashier.service、security-validator 生产校验与 spec、.env.example、.env、8 份文档），校验规则不变（生产必须 http(s):// 且非 localhost）。
+- **截图资产下线旧钱包画面**：删除 `demo/screenshots/` 4 张改造前截图（h5-home / h5-cashier / admin-dashboard / admin-agents，含余额卡、充值转账提现红包、提现审核菜单、钱包管家）；`docs/assets/` 6 张孤立资产清理（保留 portal 工作台/对账 2 张）；README 三语截图矩阵、USER_MANUAL、demo/README、docs/index.html 引用同步重排，全仓零残留旧画面引用。
+- **e2e 运行时验收**：修复 `agent.e2e-spec.ts`（夹具 scope 收敛 wallet:read、工具断言对齐收单工具集 kbpay_query_orders/query_bill/send_message/claim_coupon/query_merchant_stats、删除资金确认与余额查询用例）与 `user-scenarios.e2e-spec.ts`（mock create 补齐 paymentOrder 默认值），实测 `npm run test:e2e` **5/5 套件、45/45 用例全绿**。
+- **验收实测**：`npm run build` / `npm run lint` 0 错误；`npm test` **749/749 用例全绿**；`npm run test:e2e` **45/45 全绿**；三端 typecheck 全 0 错误；`npx prisma validate` 通过。
+
+---
+
+## 版本 0.3.4（2026-09-30）
+
+**版本类型：** 合规改造收尾（测试/字典/文档对齐）
+
+## 测试与种子
+
+- **断裂测试修复**：清理 17 个 spec/e2e 对已删模块（transactions/withdrawals/transfers/accounts/journal.service）与已删 Prisma 模型（PlatformAccount/Account/TransactionOrder/Bill/WithdrawalOrder/AdjustmentApproval）的 import 与 mock，`npm test` 恢复可跑
+- **种子脚本改订单维度**：`prisma/seed.ts` 不再调用已删 `prisma.account.*`（availableBalance/frozenBalance/totalBalance），改为生成收单订单维度的演示数据
+
+### 死代码与死枚举清理
+
+- **公共字典**：删除已下线业务的死常量（提现/红包/担保/批量转账/订阅/分账/返现）、死枚举（RedPacket/Escrow/BatchTransfer/Subscription/Split/Referral 等 14 个）、死错误码（RED_PACKET_*/ESCROW_*/SPLIT_*/SUBSCRIPTION_*/BANKCARD_*）
+- **helpers 死函数**：删除 `createFrozenLegLedgerEntry` / `LedgerWriter` / `FrozenLegEntryParams`（写已删 accountLedger 模型）
+- **代付套件删除**：渠道层 `createPayout/queryPayout/parsePayoutCallback/buildPayoutCallback` 及 alipay/wechat/mock 三渠道实现、`getChannelByType('PAYOUT')` 等无生产调用方的死代码移除
+
+### 前端文案收单化
+
+- H5：登录/注册品牌由"科佰钱包"改为"科佰收单"；KYC 页删除"充值/提现"等已下线用途表述；AI 助手页删除"查余额/转账/发红包"承诺与默认 `wallet:read` scope
+- 商户端：删除"提现费率"字段渲染与支付密码 placeholder 中"提现"用途
+- 管理端：实名审核副标题删除"收款/提现"；智能体管理删除"钱包管家(wallet)"场景与 `wallet:write:transfer` 作用域；渠道类型下拉删除"充值 RECHARGE / 代付 PAYOUT"
+
+### 文档与端点口径统一
+
+- **端点实测对齐**：以 `src/**/*.controller.ts` 实测为准，统一为 **137 个操作 / 122 条路径**；README 原"192/137/120"三处打架口径全部废弃
+- **openapi.json**：补 `GET /open-api/v1/stats`；`/webhooks/recharge/{channel}` summary 由"充值回调"改为"收单回调"；删除死路径 `/admin/system-configs`（复数）、`/agent/verify-chain/{agentId}`、`/coupons/mine/{userCouponNo}/use`；补 `/cashier/orders/{orderNo}/channel-pay`、`/admin/reconciliation/channel-bill/{generate,reconcile,checks}`
+- **README（zh/en/ja）**：功能矩阵删除"订阅计费/邀请返现"；删除"大额调账双人复核"整节与配套时序图；版本徽章同步 0.3.4；截图引用删除 `admin-review-withdrawals.png`；合规段措辞对齐"资金绝不过平台"
+- **六本操作指南**（MERCHANT_GUIDE / USER_GUIDE / USER_MANUAL / ADMIN_GUIDE / QUICKSTART / SDK_GUIDE）：删除担保/批量转账/订阅/分账/转账/查余额/提现/绑卡/红包/调账/提现审核/返利章节与端点表；SDK 删除 `transfer()` / `getBalance()` 封装；统一为收单与对账口径
+- **docs 其余文档**：`index.html` 特性卡改收单/对账/渠道能力；`DEVELOPER_GUIDE` 架构/目录树/模块表/调度改聚合模式；`USER_CONFIGURATION_GUIDE` / `PRODUCTION_READINESS` / `TROUBLESHOOT` / `HANDOVER` 删除资金池活跃表述；`public/index.html` meta description/keywords 删"个人钱包…钱包系统"
+- **差异项**：`LAUNCH.md` / `EXTERNAL_QUICKSTART.md` / `CONFIGURATION.md`（CHANNEL_NOTIFY_URL 注释）/ `DEPLOYMENT.md`（删"暂停提现/转账接口"）/ `legal/merchant-agreement.md`（结算重复句合并）对齐收单口径
+- **历史快照横幅**：`UI_OPTIMIZATION_PLAN.md` / `PROJECT_PLAN.md` / `PRODUCT_READINESS_ASSESSMENT.md` / `TEAM.md` 顶部加"资金池业务已下线，本文档部分内容已过时"横幅（保留正文作审计轨迹）
+
+### 冗余文件归档
+
+- 删除根目录未跟踪快照：`文件树.txt` / `文件树-改造后.txt` / `文件树-最终版.txt`
+- `KeBaiPay-文件结构说明.md` 移入 `docs/`
+- `reports/*.md`（5 篇评审产物）→ `docs/archive/reports/`
+- `test/ARTIFACT.md` / `test/SIMULATION_GUIDE.md` → `docs/archive/`
+- `demo/` 过期截图（h5-recharge / h5-redpacket / admin-review-withdrawals / admin-withdrawals）与 README 旧钱包文案清理
+
+### C 类决策摘要（待业务确认，未在本版本落地）
+
+- `DailySnapshot` 模型 totalAssets/totalIncome 等"平台持有资金"口径保留为通道流水量统计语义，未 DROP
+- `JournalEntry` 复式账本模型保留为合规留痕用途，未删除
+- 6 张孤儿表（channel_statements / channel_statement_items / custom_risk_rules / risk_audit_sessions / risk_audit_messages / reconciliation_difference_items）保持现状，后续补模型或补 DROP
+- 渠道 type 枚举 RECHARGE/PAYOUT 与支付密码字段语义待后端拍板
+
+### 注意
+
+- 本版本不动数据库 schema（无新迁移）
+- 文档与 openapi 已与代码实测端点一致；如后续增删端点，请同步 `docs/openapi.json` 与 `docs/API_REFERENCE.md`
+
+---
+
+## 版本 0.3.3（2026-09-30）
+
+**版本类型：** 合规聚合模式改造（资金池下线）
+
+### 合规（重大变更）
+
+- **资金池模块全部下线并物理删除**：accounts、transactions、withdrawals、transfers、red-packets、escrow、batch-transfers、splits、subscriptions、referrals、bank-cards 共 11 个模块目录、7 个死 DTO、20 张资金池数据表（迁移 `20260930010000_compliance_pool_removal`）
+- **收单链路**：新增 `POST /cashier/orders/:orderNo/channel-pay`（alipay/wechat/mock）；webhooks 改为收单回调（验签→终态幂等→渠道/金额一致→置 PAID→通知商户）
+- **退款重做**：退款单内嵌 PaymentOrder（refundNo/refundStatus/refundChannelNo/refundIdempotencyKey/refundPendingAmount），由持牌通道原路退回，删除平台余额扣回与复式记账
+- **对账/财务/账单**：全部改为订单维度（收单金额/手续费/退款），平台资产恒为 0
+- **开放 API**：删除 transfer/balance 端点，新增 `/open-api/v1/stats`（商户收单统计）
+- **管理端/智能体**：提现审核、人工调账下线；AI 工具收敛为查订单/商户统计
+- **前端三端**：H5 删钱包/充值/提现/转账/红包页，收银台改渠道支付；管理端删提现审核；商户端保持订单维度
+- **文档同步**：README/legal/API 参考/openapi.json 已按聚合模式重写或过滤
+
+### 注意
+
+- 部署执行 `npx prisma migrate deploy`（两个迁移：收单渠道字段 + 删表）
+- 删表不可逆，上线前备份历史数据

@@ -50,12 +50,14 @@
 
 | # | 检查项 | 值 | 状态 |
 |---|---|---|---|
-| 1 | root package.json version | 0.2.1 | ✅ |
-| 2 | web package.json version | 0.2.1 | ✅ |
-| 3 | web-h5 package.json version | 0.2.1 | ✅ |
-| 4 | web-admin package.json version | 0.2.1 | ✅ |
-| 5 | README version badge | 0.2.1 | ✅ |
-| 6 | CHANGELOG.md latest | v0.2.1 (2026-09-05) | ✅ |
+| 1 | root package.json version | 0.3.5 | ✅ |
+| 2 | web package.json version | 0.3.5 | ✅ |
+| 3 | web-h5 package.json version | 0.3.5 | ✅ |
+| 4 | web-admin package.json version | 0.3.5 | ✅ |
+| 5 | README version badge | 0.3.5 | ✅ |
+| 6 | CHANGELOG.md latest | v0.3.5 (2026-10-01) | ✅ |
+
+> 本节为发布快照（原始记录日期 2026-09-05，当时基线 0.2.1）；值已更新为当前版本 v0.3.5。
 
 ---
 
@@ -183,8 +185,8 @@ git check-ignore -v dist/ node_modules/ demo/videos/
 
 ## 九、合规提示
 
-> ⚠️ 本项目含平台内钱包账本设计，在中国大陆直接运营涉及**无证支付业务红线**。
-> 生产部署前请阅读 [专家面板评估报告](docs/EXPERT_PANEL_ASSESSMENT.md)。
+> ⚠️ 本项目按"合规聚合技术服务商"模式设计：平台不经手任何用户资金，不设余额/充值/提现/转账/红包/分账/担保。在中国大陆实际对外营业仍需取得相应支付业务资质或与持牌机构合规合作，这是运营资质问题，不是许可证能解决的。
+> 生产部署前请阅读 [合规模式说明](COMPLIANCE_MODE.md) 与 [上线清单](PRODUCTION_READINESS.md)。
 > 默认仅提供 mock 渠道，不具备真实支付能力。
 
 ---
@@ -218,6 +220,6 @@ cd ../web-admin && npm install && npm run build
 
 ---
 
-**最后更新**：2026-09-05  
-**项目版本**：v0.2.1  
+**初版发布准备记录**：2026-09-05（基线 v0.2.1）  
+**项目版本**：v0.3.5  
 **发布状态**：✅ 已完成开源发布准备

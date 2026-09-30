@@ -8,7 +8,6 @@ import { FinanceController } from './finance.controller'
 import { ReconciliationController } from './reconciliation.controller'
 import { FinanceSchedule } from './finance.schedule'
 import { ReconciliationSchedule } from './reconciliation.schedule'
-import { JournalService } from './journal.service'
 
 @Module({
   imports: [
@@ -30,9 +29,8 @@ import { JournalService } from './journal.service'
     ReconciliationService,
     FinanceSchedule,
     ReconciliationSchedule,
-    JournalService,
   ],
   controllers: [FinanceController, ReconciliationController],
-  exports: [FinanceService, ReconciliationService, JournalService],
+  exports: [FinanceService, ReconciliationService],
 })
 export class FinanceModule {}

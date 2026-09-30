@@ -8,11 +8,11 @@ import { fenToYuan } from '../../common/helpers'
 /**
  * 工具注册表：
  *  - 统一管理所有 Agent 可调用的工具
- *  - 工具按场景分组（wallet / merchant / risk）
- *  - 资金类工具标记 requireConfirm=true，由 AgentService 强制二次确认
+ *  - 工具按场景分组（wallet / merchant / risk / support）
+ *    wallet 为 C 端收单客户场景（历史命名，原"钱包管家"，现提供订单查询/账单等收单服务）
  *
  * 工具实现原则：
- *  1. 只读类工具直接执行（query_balance、query_bill 等）
+ *  1. 只读类工具直接执行（query_order、query_bill 等）
  *  2. 写入类工具先写 AgentOperationLog（PENDING_CONFIRM），再由用户确认后执行
  *  3. 工具执行依赖 Agent 上下文（subjectId/scopes/authScopes），从闭包传入
  */
@@ -79,32 +79,31 @@ export class ToolRegistry {
     return str.slice(0, max)
   }
 
-  /** ========== C 端钱包管家工具 ========== */
+  /** ========== C 端收单客户工具（合规聚合模式：无钱包余额，改为订单统计） ========== */
   private walletTools(ctx: AgentCurrentUser, deps: ToolDeps): LlmTool[] {
     return [
       {
-        name: 'kbpay_query_balance',
-        description: '查询当前用户钱包余额',
+        name: 'kbpay_query_orders',
+        description: '查询我作为付款方的收单订单统计（成功笔数/金额）',
         inputSchema: { type: 'object', properties: {} },
         requireConfirm: false,
         execute: async () => {
           this.checkScope(ctx, 'wallet:read')
           const subjectId = this.requireSubjectId(ctx)
-          const account = await this.prisma.account.findUnique({
-            where: { userId: subjectId },
-            select: { availableBalance: true, frozenBalance: true, totalBalance: true },
+          const agg = await this.prisma.paymentOrder.aggregate({
+            where: { payerId: subjectId, status: 'PAID' },
+            _count: { id: true },
+            _sum: { amount: true },
           })
           return {
-            balanceYuan: account ? fenToYuan(account.totalBalance) : '0.00',
-            balanceFen: account?.totalBalance ?? 0,
-            availableYuan: account ? fenToYuan(account.availableBalance) : '0.00',
-            frozenYuan: account ? fenToYuan(account.frozenBalance) : '0.00',
+            paidCount: agg._count.id || 0,
+            paidAmountYuan: fenToYuan(agg._sum.amount || 0),
           }
         },
       },
       {
         name: 'kbpay_query_bill',
-        description: '查询用户账单列表（最近 N 天）',
+        description: '查询我的收单支付订单列表（最近 N 天）',
         inputSchema: {
           type: 'object',
           properties: {
@@ -119,23 +118,21 @@ export class ToolRegistry {
           const days = Math.min(Math.max(1, Number(args?.days) || 30), 365)
           const limit = Math.min(args?.limit ?? 20, 100)
           const since = new Date(Date.now() - days * 86400_000)
-          const bills = await this.prisma.bill.findMany({
-            where: { userId: subjectId, createdAt: { gte: since } },
+          const orders = await this.prisma.paymentOrder.findMany({
+            where: { payerId: subjectId, createdAt: { gte: since } },
             orderBy: { createdAt: 'desc' },
             take: limit,
             select: {
-              id: true,
-              type: true,
-              direction: true,
+              orderNo: true,
               amount: true,
-              counterparty: true,
-              remark: true,
+              status: true,
+              paidAt: true,
               createdAt: true,
             },
           })
           return {
-            count: bills.length,
-            bills: bills.map((b) => ({ ...b, amountYuan: fenToYuan(b.amount) })),
+            count: orders.length,
+            orders: orders.map((o) => ({ ...o, amountYuan: fenToYuan(o.amount) })),
           }
         },
       },
@@ -191,85 +188,6 @@ export class ToolRegistry {
           return deps.couponsService.claim(subjectId, couponNo)
         },
       },
-      {
-        name: 'kbpay_transfer',
-        description: '用户间转账（需要用户二次确认）',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            toUserId: { type: 'string', description: '收款用户ID' },
-            amountYuan: { type: 'number', description: '金额（元），必须为正数且不超过智能体限额' },
-            remark: { type: 'string', description: '转账备注，最多 200 字' },
-          },
-          required: ['toUserId', 'amountYuan'],
-        },
-        requireConfirm: true,
-        execute: async (args: any) => {
-          this.checkScope(ctx, 'wallet:write:transfer')
-          this.requireSubjectId(ctx)
-          // 金额边界校验：防止负数、零、超大、非数字金额进入确认流程
-          const amountYuan = this.validateAmountYuan(args?.amountYuan)
-          // 收款人 ID 校验
-          const toUserId = this.truncate(args?.toUserId, 64)
-          if (!toUserId || toUserId === ctx.subjectId) {
-            throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '收款人ID无效或不能向自己转账'))
-          }
-          // 备注长度限制
-          const remark = this.truncate(args?.remark, 200)
-          // 提案阶段只做校验与信息展示；真实资金操作由 executeConfirmed 在
-          // 用户 /agent/confirm 确认后执行（opLogId 作为幂等键）
-          return {
-            pending: true,
-            message: `准备向用户 ${toUserId} 转账 ${amountYuan} 元，等待用户确认`,
-            payload: { toUserId, amountYuan, remark },
-          }
-        },
-        executeConfirmed: async (args: any) => {
-          this.checkScope(ctx, 'wallet:write:transfer')
-          const subjectId = this.requireSubjectId(ctx)
-          const amountYuan = this.validateAmountYuan(args?.amountYuan)
-          const toUserId = this.truncate(args?.toUserId, 64)
-          if (!toUserId || toUserId === ctx.subjectId) {
-            throw new BadRequestException(kbError(KBErrorCodes.INVALID_PARAMETER, '收款人ID无效或不能向自己转账'))
-          }
-          const remark = this.truncate(args?.remark, 200)
-          // 授权单笔限额：AgentAuthorization.maxAmount 此前只存不校验，
-          // 用户授权时设置的金额上限被架空。确认执行路径实时读取授权记录强制执行，
-          // 顺带校验授权未撤销（防确认窗口内撤销后的残余执行）
-          if (ctx.authId) {
-            const auth = await this.prisma.agentAuthorization.findUnique({
-              where: { id: ctx.authId },
-              select: { maxAmount: true, revokedAt: true },
-            })
-            if (!auth || auth.revokedAt) {
-              throw new ForbiddenException(
-                kbError(KBErrorCodes.AGENT_AUTHORIZATION_REVOKED, '授权不存在或已撤销'),
-              )
-            }
-            const amountFen = Math.round(amountYuan * 100)
-            if (auth.maxAmount != null && amountFen > auth.maxAmount) {
-              throw new ForbiddenException(
-                kbError(KBErrorCodes.FORBIDDEN, `超过该授权的单笔限额 ${fenToYuan(auth.maxAmount)} 元`),
-              )
-            }
-          }
-          // opLogId 由 AgentService 注入 args.__opLogId，作为幂等键防止重复执行
-          const opLogId = this.truncate(args?.__opLogId, 64) || `AGENT:legacy:${Date.now()}`
-          const order = await deps.transfersService.agentTransfer(subjectId, {
-            toUserId,
-            amountFen: Math.round(amountYuan * 100),
-            remark,
-            idempotencyKey: `AGENT:${opLogId}`,
-          })
-          return {
-            success: true,
-            orderNo: order.orderNo,
-            amountYuan,
-            toUserId,
-            message: `转账成功，订单号 ${order.orderNo}`,
-          }
-        },
-      },
     ]
   }
 
@@ -307,31 +225,36 @@ export class ToolRegistry {
         },
       },
       {
-        name: 'kbpay_query_merchant_balance',
-        description: '查询商户余额（通过 Merchant.userId 关联 Account）',
+        name: 'kbpay_query_merchant_stats',
+        description: '查询商户收单统计（成功订单笔数/金额/退款）',
         inputSchema: { type: 'object', properties: {} },
         requireConfirm: false,
         execute: async () => {
           this.checkScope(ctx, 'merchant:read')
-          // 商户主体 subjectId 是 Merchant.id，需通过 Merchant.userId 关联到 Account
           const merchantId = this.requireSubjectId(ctx)
           const merchant = await this.prisma.merchant.findUnique({
             where: { id: merchantId },
-            select: {
-              userId: true,
-              merchantName: true,
-              status: true,
-              user: { select: { account: { select: { availableBalance: true, frozenBalance: true, totalBalance: true } } } },
-            },
+            select: { merchantName: true, status: true },
           })
-          if (!merchant) return { balanceYuan: '0.00', message: '商户不存在' }
-          const acc = merchant.user?.account
+          if (!merchant) return { message: '商户不存在' }
+          const [paidAgg, refundAgg] = await Promise.all([
+            this.prisma.paymentOrder.aggregate({
+              where: { merchantId, status: 'PAID' },
+              _count: { id: true },
+              _sum: { amount: true, fee: true },
+            }),
+            this.prisma.paymentOrder.aggregate({
+              where: { merchantId, refundAmount: { gt: 0 } },
+              _sum: { refundAmount: true },
+            }),
+          ])
           return {
             merchantName: merchant.merchantName,
             status: merchant.status,
-            balanceYuan: acc ? fenToYuan(acc.totalBalance) : '0.00',
-            availableYuan: acc ? fenToYuan(acc.availableBalance) : '0.00',
-            frozenYuan: acc ? fenToYuan(acc.frozenBalance) : '0.00',
+            paidCount: paidAgg._count.id || 0,
+            paidAmountYuan: fenToYuan(paidAgg._sum.amount || 0),
+            feeYuan: fenToYuan(paidAgg._sum.fee || 0),
+            refundAmountYuan: fenToYuan(refundAgg._sum.refundAmount || 0),
           }
         },
       },
@@ -389,11 +312,10 @@ export class ToolRegistry {
  *  - messagesService：发站内消息
  *  - couponsService：领取优惠券
  *  - scheduleHealthService：查调度健康
- *  - transfersService：真实转账执行（kbpay_transfer 确认后调用）
+ *  （合规聚合模式：transfersService 已移除，用户间转账下线）
  */
 export interface ToolDeps {
   messagesService: any
   couponsService: any
   scheduleHealthService: any
-  transfersService: any
 }

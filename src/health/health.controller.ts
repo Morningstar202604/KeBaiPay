@@ -67,11 +67,11 @@ export class HealthController {
   async getChannelHealth() {
     // 真实渠道状态：registry 注册集合 + DB 启用配置（原 ChannelHealthService 为假监控，
     // 统计无消费方、cron 恒置可用；此处改为可验证的真实配置状态）
-    const result: { code: string; name: string; enabled: boolean; type?: string }[] = []
+    const result: { code: string; name: string; enabled: boolean }[] = []
     for (const code of this.channelRegistry.getAllChannelCodes()) {
       try {
         const cfg = await this.channelRegistry.getEnabledConfig(code)
-        result.push({ code: cfg.code, name: cfg.name, enabled: true, type: cfg.type })
+        result.push({ code: cfg.code, name: cfg.name, enabled: true })
       } catch {
         result.push({ code, name: code, enabled: false })
       }

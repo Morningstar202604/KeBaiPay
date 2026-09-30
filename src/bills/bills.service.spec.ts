@@ -2,20 +2,20 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { Test } from '@nestjs/testing'
 import { BillsService } from './bills.service.js'
 import { PrismaService } from '../prisma/prisma.service.js'
-import { BillDirection } from '../common/enums.js'
+import { BillDirection, PaymentOrderStatus } from '../common/enums.js'
 import { fenToYuan } from '../common/helpers.js'
 
 describe('BillsService', () => {
   let service: BillsService
   type PrismaMock = {
-    bill: { findMany: jest.Mock }
+    paymentOrder: { findMany: jest.Mock }
   }
 
   let prisma: PrismaMock
 
   beforeEach(async () => {
     prisma = {
-      bill: { findMany: jest.fn() },
+      paymentOrder: { findMany: jest.fn() },
     }
 
     const module = await Test.createTestingModule({
@@ -28,30 +28,45 @@ describe('BillsService', () => {
     service = module.get(BillsService)
   })
 
-  describe('findByUser 查询账单', () => {
-    it('不传 direction 时只按 userId 查询', async () => {
-      const bills = [{ id: 'b1', userId: 'u1' }]
-      prisma.bill.findMany.mockResolvedValue(bills)
+  describe('findByUser 查询账单（paymentOrder 收单订单维度）', () => {
+    it('不传 direction 时只按 payerId 查询', async () => {
+      const rows = [{ id: 'po1', payerId: 'u1' }]
+      prisma.paymentOrder.findMany.mockResolvedValue(rows)
 
       const result = await service.findByUser('u1')
 
-      expect(result).toBe(bills)
-      expect(prisma.bill.findMany).toHaveBeenCalledWith({
-        where: { userId: 'u1' },
+      expect(result).toBe(rows)
+      expect(prisma.paymentOrder.findMany).toHaveBeenCalledWith({
+        where: { payerId: 'u1' },
         orderBy: { createdAt: 'desc' },
         take: 50,
       })
     })
 
-    it('传 direction 时按 userId 和 direction 查询', async () => {
-      const bills = [{ id: 'b2', userId: 'u1', direction: BillDirection.INCOME }]
-      prisma.bill.findMany.mockResolvedValue(bills)
+    it('direction=EXPENSE 时仅返回已支付/已退款订单', async () => {
+      const rows = [{ id: 'po2', payerId: 'u1', status: 'PAID' }]
+      prisma.paymentOrder.findMany.mockResolvedValue(rows)
 
-      const result = await service.findByUser('u1', BillDirection.INCOME)
+      const result = await service.findByUser('u1', BillDirection.EXPENSE)
 
-      expect(result).toBe(bills)
-      expect(prisma.bill.findMany).toHaveBeenCalledWith({
-        where: { userId: 'u1', direction: BillDirection.INCOME },
+      expect(result).toBe(rows)
+      expect(prisma.paymentOrder.findMany).toHaveBeenCalledWith({
+        where: {
+          payerId: 'u1',
+          status: { in: [PaymentOrderStatus.PAID, PaymentOrderStatus.REFUNDED] },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      })
+    })
+
+    it('direction=INCOME 不追加状态过滤（仅 EXPENSE 有语义）', async () => {
+      prisma.paymentOrder.findMany.mockResolvedValue([])
+
+      await service.findByUser('u1', BillDirection.INCOME)
+
+      expect(prisma.paymentOrder.findMany).toHaveBeenCalledWith({
+        where: { payerId: 'u1' },
         orderBy: { createdAt: 'desc' },
         take: 50,
       })

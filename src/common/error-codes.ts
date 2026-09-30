@@ -7,8 +7,8 @@
  * - KB200 ~ KB299：用户/账户
  * - KB300 ~ KB399：商户
  * - KB400 ~ KB499：参数/请求错误
- * - KB500 ~ KB599：资金操作（转账、充值、提现）
- * - KB600 ~ KB699：支付订单/收银台/红包/收款码
+ * - KB500 ~ KB599：收单渠道/订单回调
+ * - KB600 ~ KB699：支付订单/收银台/收款码
  * - KB700 ~ KB799：开放 API / 渠道回调
  * - KB800 ~ KB899：风控（复用 KB403 表达通用禁止，具体风控拦截保留动态规则名）
  * - KB900 ~ KB999：管理后台/财务
@@ -19,9 +19,6 @@ export const KBErrorCodes = {
   IDENTITY_RECORD_NOT_FOUND: 'KB002',
   DAILY_LIMIT_EXCEEDED: 'KB003',
   ACCOUNT_NOT_FOUND: 'KB004',
-  INSUFFICIENT_BALANCE: 'KB005',
-  ADJUSTMENT_AMOUNT_INVALID: 'KB006',
-  ADJUSTMENT_REASON_REQUIRED: 'KB007',
   REJECT_REASON_REQUIRED: 'KB008',
 
   // 认证/授权/签名
@@ -45,10 +42,6 @@ export const KBErrorCodes = {
   PAYEE_NOT_VERIFIED: 'KB214',
   IDENTITY_NOT_PENDING: 'KB215',
   IDENTITY_IDCARD_USED: 'KB216',
-  BANKCARD_NOT_FOUND: 'KB217',
-  BANKCARD_ALREADY_BOUND: 'KB218',
-  BANKCARD_LIMIT_EXCEEDED: 'KB219',
-  BANKCARD_CARD_NUMBER_INVALID: 'KB220',
   LOGIN_PASSWORD_INCORRECT: 'KB221',
   PHONE_ALREADY_BOUND: 'KB222',
   EMAIL_ALREADY_BOUND: 'KB223',
@@ -63,7 +56,6 @@ export const KBErrorCodes = {
   MERCHANT_NOT_FOUND: 'KB304',
   MERCHANT_AUDIT_PENDING_ONLY: 'KB305',
   MERCHANT_PAY_RATE_INVALID: 'KB306',
-  MERCHANT_WITHDRAW_RATE_INVALID: 'KB307',
   MERCHANT_DAILY_LIMIT_INVALID: 'KB308',
   MERCHANT_CONFIG_NO_CHANGE: 'KB309',
   MERCHANT_NOT_APPROVED: 'KB310',
@@ -76,22 +68,13 @@ export const KBErrorCodes = {
   FORBIDDEN: 'KB403',
   RESOURCE_NOT_FOUND: 'KB404',
 
-  // 资金操作
-  TRANSFER_AMOUNT_INVALID: 'KB501',
-  TRANSFER_TO_SELF: 'KB502',
-  RECHARGE_AMOUNT_INVALID: 'KB503',
+  // 收单渠道/订单回调
   NO_RECHARGE_CHANNEL: 'KB504',
   RECHARGE_CHANNEL_FAILED: 'KB505',
-  WITHDRAWAL_AMOUNT_INVALID: 'KB506',
-  WITHDRAWAL_ORDER_NOT_FOUND: 'KB507',
-  WITHDRAWAL_ORDER_STATUS_INVALID: 'KB508',
-  NO_PAYOUT_CHANNEL: 'KB509',
   ORDER_ALREADY_HANDLED: 'KB510',
-  FROZEN_BALANCE_INSUFFICIENT: 'KB511',
-  PAYOUT_CHANNEL_FAILED: 'KB512',
   CALLBACK_STATUS_INVALID: 'KB513',
 
-  // 支付订单/收银台/红包/收款码
+  // 支付订单/收银台/收款码
   MERCHANT_ORDER_NO_EXISTS: 'KB601',
   EXPIRED_TIME_INVALID: 'KB602',
   ORDER_NOT_FOUND: 'KB603',
@@ -104,22 +87,9 @@ export const KBErrorCodes = {
   QR_CODE_INVALID: 'KB610',
   QR_CODE_PAY_SELF: 'KB611',
   MERCHANT_STATUS_ABNORMAL: 'KB612',
-  RED_PACKET_AMOUNT_INVALID: 'KB613',
-  RED_PACKET_NOT_FOUND: 'KB614',
-  RED_PACKET_CLAIMED_OR_EXPIRED: 'KB615',
-  RED_PACKET_CLAIM_SELF: 'KB616',
-  RED_PACKET_EXPIRED: 'KB617',
-  RED_PACKET_STATUS_CHANGED: 'KB618',
   QR_CODE_EXPIRED: 'KB619',
   QR_CODE_USE_CASHIER: 'KB620',
   IDEMPOTENCY_KEY_CONFLICT: 'KB621',
-  RED_PACKET_TYPE_INVALID: 'KB622',
-  RED_PACKET_COUNT_INVALID: 'KB623',
-  RED_PACKET_PER_AMOUNT_INVALID: 'KB624',
-  RED_PACKET_DESIGNATED_MISMATCH: 'KB625',
-  RED_PACKET_PASSWORD_REQUIRED: 'KB626',
-  RED_PACKET_PASSWORD_INCORRECT: 'KB627',
-  RED_PACKET_ALREADY_CLAIMED: 'KB628',
   RESOURCE_ALREADY_EXISTS: 'KB629',
 
   // 开放 API / 渠道回调
@@ -139,49 +109,6 @@ export const KBErrorCodes = {
   REFUND_AMOUNT_EXCEEDED: 'KB716',
   MERCHANT_APP_DISABLED: 'KB717',
 
-  // 担保交易
-  ESCROW_ORDER_NOT_FOUND: 'KB630',
-  ESCROW_STATUS_INVALID: 'KB631',
-  ESCROW_BUYER_ONLY: 'KB632',
-  ESCROW_SELLER_ONLY: 'KB633',
-  ESCROW_CANNOT_SELF: 'KB634',
-  ESCROW_REASON_REQUIRED: 'KB635',
-  ESCROW_ALREADY_HANDLED: 'KB636',
-  ESCROW_EXPIRED: 'KB637',
-  ESCROW_STATUS_CHANGED: 'KB638',
-
-  // 批量转账
-  BATCH_TRANSFER_NOT_FOUND: 'KB640',
-  BATCH_TRANSFER_EMPTY: 'KB641',
-  BATCH_TRANSFER_TOO_MANY: 'KB642',
-  BATCH_TRANSFER_ITEM_DUPLICATED: 'KB643',
-  BATCH_TRANSFER_ITEM_INVALID: 'KB644',
-  BATCH_TRANSFER_NOT_CANCELLABLE: 'KB645',
-
-  // 订阅/周期扣款
-  SUBSCRIPTION_PLAN_NOT_FOUND: 'KB650',
-  SUBSCRIPTION_PLAN_DISABLED: 'KB651',
-  SUBSCRIPTION_NOT_FOUND: 'KB652',
-  SUBSCRIPTION_STATUS_INVALID: 'KB653',
-  SUBSCRIPTION_ALREADY_EXISTS: 'KB654',
-  SUBSCRIPTION_CHARGE_NOT_FOUND: 'KB655',
-  SUBSCRIPTION_CANNOT_SELF_SUBSCRIBE: 'KB656',
-  SUBSCRIPTION_PERIOD_INVALID: 'KB657',
-  SUBSCRIPTION_AMOUNT_INVALID: 'KB658',
-  SUBSCRIPTION_FIRST_CHARGE_FAILED: 'KB659',
-  SUBSCRIPTION_LIMIT_EXCEEDED: 'KB669',
-
-  // 分账 Split
-  SPLIT_ORDER_NOT_FOUND: 'KB660',
-  SPLIT_SOURCE_ORDER_NOT_FOUND: 'KB661',
-  SPLIT_AMOUNT_EXCEED_SOURCE: 'KB662',
-  SPLIT_RECEIVER_DUPLICATED: 'KB663',
-  SPLIT_RECEIVER_INVALID: 'KB664',
-  SPLIT_STATUS_INVALID: 'KB665',
-  SPLIT_ITEM_NOT_FOUND: 'KB666',
-  SPLIT_AMOUNT_INVALID: 'KB667',
-  SPLIT_RECEIVER_EMPTY: 'KB668',
-
   // 优惠券 Coupon
   COUPON_NOT_FOUND: 'KB670',
   COUPON_DISABLED: 'KB671',
@@ -192,17 +119,6 @@ export const KBErrorCodes = {
   COUPON_STATUS_INVALID: 'KB676',
   USER_COUPON_NOT_FOUND: 'KB677',
   USER_COUPON_USED: 'KB678',
-
-  // 邀请返现 Referral
-  REFERRAL_CODE_NOT_FOUND: 'KB680',
-  REFERRAL_CODE_EXISTS: 'KB681',
-  REFERRAL_NOT_FOUND: 'KB682',
-  REFERRAL_ALREADY_BOUND: 'KB683',
-  REFERRAL_CANNOT_SELF: 'KB684',
-  REFERRAL_STATUS_INVALID: 'KB685',
-  REFERRAL_REWARD_CONFIG_INVALID: 'KB686',
-  REFERRAL_TRIGGER_INVALID: 'KB687',
-  REFERRAL_NOT_PENDING: 'KB688',
 
   // 消息中心 Message
   MESSAGE_NOT_FOUND: 'KB690',
@@ -238,7 +154,6 @@ export const KBErrorCodes = {
 
   // 管理后台/财务
   RISK_EVENT_NOT_FOUND: 'KB901',
-  JOURNAL_UNBALANCED: 'KB902',
 
   // 管理员管理
   ADMIN_USER_NOT_FOUND: 'KB910',
@@ -279,9 +194,6 @@ export const KBErrorMessages: Record<KBErrorCode, string> = {
   [KBErrorCodes.IDENTITY_RECORD_NOT_FOUND]: '实名记录不存在',
   [KBErrorCodes.DAILY_LIMIT_EXCEEDED]: '超出单日限额',
   [KBErrorCodes.ACCOUNT_NOT_FOUND]: '账户不存在',
-  [KBErrorCodes.INSUFFICIENT_BALANCE]: '余额不足',
-  [KBErrorCodes.ADJUSTMENT_AMOUNT_INVALID]: '调账金额不能为 0',
-  [KBErrorCodes.ADJUSTMENT_REASON_REQUIRED]: '调账必须填写原因',
   [KBErrorCodes.REJECT_REASON_REQUIRED]: '拒绝审核必须填写原因',
 
   [KBErrorCodes.MISSING_PHONE_OR_EMAIL]: '手机号或邮箱至少提供一个',
@@ -303,10 +215,6 @@ export const KBErrorMessages: Record<KBErrorCode, string> = {
   [KBErrorCodes.PAYEE_NOT_VERIFIED]: '对方未实名认证，无法收款',
   [KBErrorCodes.IDENTITY_NOT_PENDING]: '该实名记录不在待审核状态',
   [KBErrorCodes.IDENTITY_IDCARD_USED]: '该身份证号已被使用',
-  [KBErrorCodes.BANKCARD_NOT_FOUND]: '银行卡不存在',
-  [KBErrorCodes.BANKCARD_ALREADY_BOUND]: '该银行卡已被绑定',
-  [KBErrorCodes.BANKCARD_LIMIT_EXCEEDED]: '绑卡数量超过上限（最多 10 张）',
-  [KBErrorCodes.BANKCARD_CARD_NUMBER_INVALID]: '银行卡号格式不正确',
   [KBErrorCodes.LOGIN_PASSWORD_INCORRECT]: '原登录密码错误',
   [KBErrorCodes.PHONE_ALREADY_BOUND]: '该手机号已被其他账号绑定',
   [KBErrorCodes.EMAIL_ALREADY_BOUND]: '该邮箱已被其他账号绑定',
@@ -320,7 +228,6 @@ export const KBErrorMessages: Record<KBErrorCode, string> = {
   [KBErrorCodes.MERCHANT_NOT_FOUND]: '商户不存在',
   [KBErrorCodes.MERCHANT_AUDIT_PENDING_ONLY]: '只能审核待审核的商户',
   [KBErrorCodes.MERCHANT_PAY_RATE_INVALID]: '收款费率必须在 0 ~ 10000 之间',
-  [KBErrorCodes.MERCHANT_WITHDRAW_RATE_INVALID]: '提现费率必须在 0 ~ 10000 之间',
   [KBErrorCodes.MERCHANT_DAILY_LIMIT_INVALID]: '日限额必须大于 0',
   [KBErrorCodes.MERCHANT_CONFIG_NO_CHANGE]: '至少修改一个配置项',
   [KBErrorCodes.MERCHANT_NOT_APPROVED]: '商户未审核通过',
@@ -332,18 +239,9 @@ export const KBErrorMessages: Record<KBErrorCode, string> = {
   [KBErrorCodes.FORBIDDEN]: '权限/风控禁止',
   [KBErrorCodes.RESOURCE_NOT_FOUND]: '资源不存在',
 
-  [KBErrorCodes.TRANSFER_AMOUNT_INVALID]: '转账金额必须大于 0',
-  [KBErrorCodes.TRANSFER_TO_SELF]: '不能给自己转账',
-  [KBErrorCodes.RECHARGE_AMOUNT_INVALID]: '充值金额必须大于 0',
-  [KBErrorCodes.NO_RECHARGE_CHANNEL]: '暂无可用充值渠道',
-  [KBErrorCodes.RECHARGE_CHANNEL_FAILED]: '充值渠道调用失败',
-  [KBErrorCodes.WITHDRAWAL_AMOUNT_INVALID]: '提现金额必须大于 0',
-  [KBErrorCodes.WITHDRAWAL_ORDER_NOT_FOUND]: '提现订单不存在',
-  [KBErrorCodes.WITHDRAWAL_ORDER_STATUS_INVALID]: '订单状态不正确',
-  [KBErrorCodes.NO_PAYOUT_CHANNEL]: '暂无可用代付渠道',
+  [KBErrorCodes.NO_RECHARGE_CHANNEL]: '暂无可用收单渠道',
+  [KBErrorCodes.RECHARGE_CHANNEL_FAILED]: '收单渠道调用失败',
   [KBErrorCodes.ORDER_ALREADY_HANDLED]: '订单已被处理或状态已变更',
-  [KBErrorCodes.FROZEN_BALANCE_INSUFFICIENT]: '冻结余额不足，数据异常',
-  [KBErrorCodes.PAYOUT_CHANNEL_FAILED]: '代付渠道调用失败',
   [KBErrorCodes.CALLBACK_STATUS_INVALID]: '订单状态不支持回调处理',
 
   [KBErrorCodes.MERCHANT_ORDER_NO_EXISTS]: '商户订单号已存在',
@@ -358,22 +256,9 @@ export const KBErrorMessages: Record<KBErrorCode, string> = {
   [KBErrorCodes.QR_CODE_INVALID]: '收款码无效',
   [KBErrorCodes.QR_CODE_PAY_SELF]: '不能向自己的收款码付款',
   [KBErrorCodes.MERCHANT_STATUS_ABNORMAL]: '商户状态异常',
-  [KBErrorCodes.RED_PACKET_AMOUNT_INVALID]: '红包金额必须大于 0',
-  [KBErrorCodes.RED_PACKET_NOT_FOUND]: '红包不存在',
-  [KBErrorCodes.RED_PACKET_CLAIMED_OR_EXPIRED]: '红包已被领取或已过期',
-  [KBErrorCodes.RED_PACKET_CLAIM_SELF]: '不能领取自己的红包',
-  [KBErrorCodes.RED_PACKET_EXPIRED]: '红包已过期，系统将自动退回',
-  [KBErrorCodes.RED_PACKET_STATUS_CHANGED]: '红包状态已变化',
   [KBErrorCodes.QR_CODE_EXPIRED]: '收款码已失效',
   [KBErrorCodes.QR_CODE_USE_CASHIER]: '商户二维码请通过收银台支付',
   [KBErrorCodes.IDEMPOTENCY_KEY_CONFLICT]: '幂等键冲突，请更换后重试',
-  [KBErrorCodes.RED_PACKET_TYPE_INVALID]: '红包类型无效，仅支持 LUCKY/ORDINARY/EXCLUSIVE/PASSWORD',
-  [KBErrorCodes.RED_PACKET_COUNT_INVALID]: '红包数量无效，群红包数量需在 1-100 之间',
-  [KBErrorCodes.RED_PACKET_PER_AMOUNT_INVALID]: '普通红包每人金额无效或总额不匹配',
-  [KBErrorCodes.RED_PACKET_DESIGNATED_MISMATCH]: '专属红包仅指定收款人可领取',
-  [KBErrorCodes.RED_PACKET_PASSWORD_REQUIRED]: '口令红包需提供密码',
-  [KBErrorCodes.RED_PACKET_PASSWORD_INCORRECT]: '红包口令错误',
-  [KBErrorCodes.RED_PACKET_ALREADY_CLAIMED]: '该用户已领取过此红包',
   [KBErrorCodes.RESOURCE_ALREADY_EXISTS]: '资源已存在或唯一约束冲突',
 
   [KBErrorCodes.CALLBACK_CHANNEL_MISMATCH]: '回调渠道与订单渠道不匹配',
@@ -392,48 +277,6 @@ export const KBErrorMessages: Record<KBErrorCode, string> = {
   [KBErrorCodes.REFUND_AMOUNT_EXCEEDED]: '退款金额超过可退金额',
   [KBErrorCodes.MERCHANT_APP_DISABLED]: '应用已禁用',
 
-  // 担保交易
-  [KBErrorCodes.ESCROW_ORDER_NOT_FOUND]: '担保订单不存在',
-  [KBErrorCodes.ESCROW_STATUS_INVALID]: '担保订单状态不允许该操作',
-  [KBErrorCodes.ESCROW_BUYER_ONLY]: '只有买家可以执行此操作',
-  [KBErrorCodes.ESCROW_SELLER_ONLY]: '只有卖家可以执行此操作',
-  [KBErrorCodes.ESCROW_CANNOT_SELF]: '不能与自己进行担保交易',
-  [KBErrorCodes.ESCROW_REASON_REQUIRED]: '必须填写原因',
-  [KBErrorCodes.ESCROW_ALREADY_HANDLED]: '订单已被处理',
-  [KBErrorCodes.ESCROW_EXPIRED]: '担保订单已过期',
-  [KBErrorCodes.ESCROW_STATUS_CHANGED]: '担保订单状态已变化',
-
-  // 批量转账
-  [KBErrorCodes.BATCH_TRANSFER_NOT_FOUND]: '批量转账批次不存在',
-  [KBErrorCodes.BATCH_TRANSFER_EMPTY]: '批量转账明细不能为空',
-  [KBErrorCodes.BATCH_TRANSFER_TOO_MANY]: '单批次明细数超过上限（500 笔）',
-  [KBErrorCodes.BATCH_TRANSFER_ITEM_DUPLICATED]: '同一批次中存在重复的收款方',
-  [KBErrorCodes.BATCH_TRANSFER_ITEM_INVALID]: '明细参数无效',
-  [KBErrorCodes.BATCH_TRANSFER_NOT_CANCELLABLE]: '批次状态不允许取消',
-
-  // 订阅/周期扣款
-  [KBErrorCodes.SUBSCRIPTION_PLAN_NOT_FOUND]: '订阅计划不存在',
-  [KBErrorCodes.SUBSCRIPTION_PLAN_DISABLED]: '订阅计划已下架',
-  [KBErrorCodes.SUBSCRIPTION_NOT_FOUND]: '订阅不存在',
-  [KBErrorCodes.SUBSCRIPTION_STATUS_INVALID]: '订阅状态不允许该操作',
-  [KBErrorCodes.SUBSCRIPTION_ALREADY_EXISTS]: '已订阅该计划',
-  [KBErrorCodes.SUBSCRIPTION_CHARGE_NOT_FOUND]: '订阅扣款记录不存在',
-  [KBErrorCodes.SUBSCRIPTION_CANNOT_SELF_SUBSCRIBE]: '不能订阅自己的计划',
-  [KBErrorCodes.SUBSCRIPTION_PERIOD_INVALID]: '订阅周期参数无效',
-  [KBErrorCodes.SUBSCRIPTION_AMOUNT_INVALID]: '订阅金额必须大于 0',
-  [KBErrorCodes.SUBSCRIPTION_FIRST_CHARGE_FAILED]: '订阅首期扣款失败',
-  [KBErrorCodes.SUBSCRIPTION_LIMIT_EXCEEDED]: '订阅数量超过上限',
-
-  [KBErrorCodes.SPLIT_ORDER_NOT_FOUND]: '分账订单不存在',
-  [KBErrorCodes.SPLIT_SOURCE_ORDER_NOT_FOUND]: '源订单不存在或非已支付状态',
-  [KBErrorCodes.SPLIT_AMOUNT_EXCEED_SOURCE]: '分账总额超过源订单可分账金额',
-  [KBErrorCodes.SPLIT_RECEIVER_DUPLICATED]: '同一批次存在重复的分账接收方',
-  [KBErrorCodes.SPLIT_RECEIVER_INVALID]: '分账接收方无效',
-  [KBErrorCodes.SPLIT_STATUS_INVALID]: '分账订单状态不允许该操作',
-  [KBErrorCodes.SPLIT_ITEM_NOT_FOUND]: '分账明细不存在',
-  [KBErrorCodes.SPLIT_AMOUNT_INVALID]: '分账金额必须大于 0',
-  [KBErrorCodes.SPLIT_RECEIVER_EMPTY]: '至少包含 1 个分账接收方',
-
   [KBErrorCodes.COUPON_NOT_FOUND]: '优惠券不存在',
   [KBErrorCodes.COUPON_DISABLED]: '优惠券已下架',
   [KBErrorCodes.COUPON_EXPIRED]: '优惠券已过期',
@@ -443,16 +286,6 @@ export const KBErrorMessages: Record<KBErrorCode, string> = {
   [KBErrorCodes.COUPON_STATUS_INVALID]: '优惠券状态不允许该操作',
   [KBErrorCodes.USER_COUPON_NOT_FOUND]: '用户优惠券不存在',
   [KBErrorCodes.USER_COUPON_USED]: '优惠券已被使用',
-
-  [KBErrorCodes.REFERRAL_CODE_NOT_FOUND]: '邀请码不存在',
-  [KBErrorCodes.REFERRAL_CODE_EXISTS]: '邀请码已存在',
-  [KBErrorCodes.REFERRAL_NOT_FOUND]: '邀请关系不存在',
-  [KBErrorCodes.REFERRAL_ALREADY_BOUND]: '该用户已绑定邀请关系',
-  [KBErrorCodes.REFERRAL_CANNOT_SELF]: '不能邀请自己',
-  [KBErrorCodes.REFERRAL_STATUS_INVALID]: '邀请状态不允许该操作',
-  [KBErrorCodes.REFERRAL_REWARD_CONFIG_INVALID]: '奖励配置无效',
-  [KBErrorCodes.REFERRAL_TRIGGER_INVALID]: '触发奖励的交易无效',
-  [KBErrorCodes.REFERRAL_NOT_PENDING]: '邀请关系非待结算状态',
 
   [KBErrorCodes.MESSAGE_NOT_FOUND]: '消息不存在',
   [KBErrorCodes.MESSAGE_ALREADY_READ]: '消息已读',
@@ -485,7 +318,6 @@ export const KBErrorMessages: Record<KBErrorCode, string> = {
   [KBErrorCodes.RECONCILIATION_DIFF_STATUS_INVALID]: '差异项状态不允许该操作',
 
   [KBErrorCodes.RISK_EVENT_NOT_FOUND]: '风险事件不存在',
-  [KBErrorCodes.JOURNAL_UNBALANCED]: '复式记账借贷不平衡',
 
   [KBErrorCodes.ADMIN_USER_NOT_FOUND]: '管理员不存在',
   [KBErrorCodes.ADMIN_USERNAME_EXISTS]: '用户名已存在',

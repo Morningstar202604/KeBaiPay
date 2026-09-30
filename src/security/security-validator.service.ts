@@ -120,23 +120,23 @@ export class SecurityValidatorService {
       }
     }
 
-    // 生产环境 RECHARGE_NOTIFY_URL 必须配置为外网可访问的完整 URL
-    // 否则渠道回调会指向不存在的相对路径，充值订单永远卡在 PENDING
+    // 生产环境 CHANNEL_NOTIFY_URL 必须配置为外网可访问的完整 URL
+    // 否则收单回调会指向不存在的相对路径，订单永远卡在 PENDING
     if (isProduction) {
-      const rechargeNotifyUrl = this.configService.get<string>('RECHARGE_NOTIFY_URL')
+      const rechargeNotifyUrl = this.configService.get<string>('CHANNEL_NOTIFY_URL')
       if (!rechargeNotifyUrl) {
-        errors.push('生产环境必须配置 RECHARGE_NOTIFY_URL（充值渠道回调地址）')
+        errors.push('生产环境必须配置 CHANNEL_NOTIFY_URL（收单渠道回调地址）')
       } else if (!/^https?:\/\//.test(rechargeNotifyUrl)) {
-        errors.push('RECHARGE_NOTIFY_URL 必须是 http(s):// 开头的完整 URL')
+        errors.push('CHANNEL_NOTIFY_URL 必须是 http(s):// 开头的完整 URL')
       } else {
         // new URL() 对畸形 URL 会抛 TypeError，需 try-catch 避免启动崩溃
         try {
           const hostname = new URL(rechargeNotifyUrl).hostname
           if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            errors.push('RECHARGE_NOTIFY_URL 不允许指向 localhost，生产环境必须是外网可访问地址')
+            errors.push('CHANNEL_NOTIFY_URL 不允许指向 localhost，生产环境必须是外网可访问地址')
           }
         } catch {
-          errors.push('RECHARGE_NOTIFY_URL 格式无效，无法解析为合法 URL')
+          errors.push('CHANNEL_NOTIFY_URL 格式无效，无法解析为合法 URL')
         }
       }
     }

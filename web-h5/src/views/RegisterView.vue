@@ -2,7 +2,7 @@
   <div class="register-page">
     <div class="brand">
       <div class="brand-mark">佰</div>
-      <h1>注册科佰钱包</h1>
+      <h1>注册科佰收单</h1>
       <p>一分钟开通，开启支付之旅</p>
     </div>
     <div class="card">

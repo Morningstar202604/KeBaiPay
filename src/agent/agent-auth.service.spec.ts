@@ -37,7 +37,7 @@ describe('AgentAuthService.createAgent 密钥哈希存储（M5 修复）', () =>
     const result = await service.createAgent({
       name: '测试智能体',
       scenario: 'wallet',
-      scopes: ['balance:read'],
+      scopes: ['order:read'],
     })
 
     // 库内为 64 位 hex 摘要，且不等于明文

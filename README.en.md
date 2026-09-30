@@ -1,18 +1,26 @@
 <div align="center">
 
+<p align="center"><img src="public/logo-horizontal.png" alt="KeBaiPay 科佰收单 Logo" width="440"></p>
+
+
 # 💳 KeBaiPay
 
-**A payment middle-platform that actually runs: wallet, acquiring, open API, reconciliation, and AI agents — five layers, fully wired.**
+**A compliant aggregated payment technology reference implementation: acquiring, open API, reconciliation, AI agents — funds never touch the platform.**
 
 `NestJS 11` · `TypeScript` · `Prisma 7` · `PostgreSQL 16` · `Redis 7` · `Vue 3` · `MCP`
 
-[![version](https://img.shields.io/badge/version-0.3.2-0FA968)](docs/CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-0.3.5-0FA968)](docs/CHANGELOG.md)
 [![node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](package.json)
-[![tests](https://img.shields.io/badge/tests-1293%20passing-0FA968)](docs/CHANGELOG.md)
-[![coverage](https://img.shields.io/badge/coverage-55.6%25-0FA968)](docs/CODE_HEALTH_REPORT.md)
 [![license](https://img.shields.io/badge/license-MIT-0FA968)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/x33834/KeBaiPay?style=social&label=Star)](https://github.com/x33834/KeBaiPay) · [![Gitee stars](https://img.shields.io/badge/Gitee-欢迎Star-C71D23?style=flat-square&logo=git)](https://gitee.com/badhope/KeBaiPay)
 
-[Quick Start](#-quick-start) · [Architecture](#-architecture) · [Money-Safety Engineering](#-money-safety-engineering) · [Screenshots](#-screenshots) · [Feature Matrix](#-feature-matrix) · [Docs](#-docs) · [Mirrors](#-mirror-repositories)
+[Quick Start](#-quick-start) · [Architecture](#-architecture) · [Acquiring & Reconciliation](#-acquiring--reconciliation) · [Screenshots](#-screenshots) · [Feature Matrix](#-feature-matrix) · [Docs](#-docs) · [Mirrors](#-mirror-repositories)
+
+</div>
+
+<div align="center">
+
+**🌐 Language / 言語：** [简体中文](README.md) · [English](README.en.md) · [日本語](README.ja.md)
 
 </div>
 
@@ -20,9 +28,9 @@
 
 ## 📖 What is this, exactly?
 
-A **privately deployable payment system reference implementation**. Not a toy demo — WeChat / Alipay SDK direct integration, double-entry bookkeeping, distributed locks, idempotency keys, and tamper-evident audit hash chains are all there, the way production systems should have them. **192 OpenAPI endpoints, 41 business modules, 1293 unit tests.**
+A **privately deployable reference implementation of a compliant aggregated payment technology service**. Merchant onboarding & KYC + acquiring through licensed channels (WeChat / Alipay) + order-level reconciliation + tamper-evident audit hash chain. **All funds are settled by licensed payment institutions; the platform never holds user funds** — no balance, no top-up, no withdrawal, no transfer, no red packet, no split, no escrow.
 
-Three commands and you have a complete system with a wallet, acquiring, reconciliation, and an AI that can help you manage money.
+Three commands and you have a complete system that can accept payments, reconcile orders, onboard merchants, and let an AI assistant help you operate.
 
 ```bash
 git clone https://gitcode.com/badhope/KeBaiPay.git && cd KeBaiPay
@@ -30,9 +38,9 @@ cp .env.example .env && docker compose -f docker-compose.dev.yml up -d
 npm install && npx prisma migrate deploy && npx prisma db seed && npm run start:dev
 ```
 
-Open <http://localhost:3001>. Test account `13800000001` / `Abc12345` (balance ¥10,000, pay password `123456`); admin at <http://localhost:3001/admin> with `admin` / `ChangeAdmin2026`.
+Open <http://localhost:3001>. Test user `13800000001` / `Abc12345` (payer), admin at <http://localhost:3001/admin> with `admin` / `ChangeAdmin2026`.
 
-> Pulling slowly? The repo is mirrored on GitCode / Gitee — see [Mirror Repositories](#-mirror-repositories).
+> Slow pull in China? Mirrored on GitCode / Gitee — see [Mirrors](#-mirror-repositories).
 
 ---
 
@@ -48,81 +56,68 @@ flowchart TB
     end
     subgraph Gateway["Access Layer"]
       OpenAPI["Open API · HMAC-SHA256"]
-      Webhook["Channel Webhook · Verify First"]
-      Cashier["Cashier / QR Code"]
+      Webhook["Channel Webhooks · Signature-first"]
+      Cashier["Cashier / Payment QR"]
     end
     subgraph Core["Core Domains"]
-      Wallet["Wallet · Double-Entry"]
-      Tx["Tx · Top-up/Withdraw/Transfer"]
-      Split["Split · Batch · Subscription"]
-      Escrow["Escrow · Red Packet · Coupon"]
+      Cashier["Acquiring · Channel Pay"]
+      Merchant["Merchant Onboarding · Risk"]
+      Reconcile["Order Reconciliation · Daily Snapshot"]
+      Agent["AI Agent · Ops Assistant"]
     end
     subgraph Infra["Infra & Security"]
       Ledger["Audit Hash Chain"]
-      Lock["Redis Lock · Watchdog"]
-      Channel["Dual Channel Layer\nWeChat/Alipay/mock"]
+      Lock["Redis Distributed Lock · Watchdog"]
+      Channel["Dual-Abstraction Channel Layer\nWeChat/Alipay/mock"]
       DB[("PostgreSQL 16")]
       Cache[("Redis 7")]
     end
     Client --> Gateway --> Core --> Infra
     Channel --> DB
     Core -. audit .-> Ledger
-    Core -. lock .-> Lock
+    Core -. locks .-> Lock
 ```
 
-**Four-layer concurrency defense** (the same money is never double-debited or double-credited): a distributed lock prevents concurrent entry → DB transactions handle intermediate states → conditional atomic `updateMany` handles concurrent writes → idempotency-key unique constraints handle retries. Every layer change is covered by tests.
+**Four-layer concurrency defense** (an order can never be double-confirmed or double-booked): distributed lock for concurrent entry → DB transaction for intermediate state → conditional atomic `updateMany` for concurrent writes → unique idempotency key for callback retries. Each layer is covered by tests.
 
 ---
 
-## 🎯 What can you do with it
+## 🎯 Who is this for
 
-| Who you are | What you get |
+| You are | What you walk away with |
 |---|---|
-| **Engineer learning payment systems** | A complete money-flow template: Redis distributed lock (watchdog renewal) → transaction → conditional atomic update → idempotency key — four-layer concurrency defense; forced balanced double-entry; tamper-evident audit hash chain |
-| **Indie dev who needs to collect payments** | WeChat/Alipay/mock connectors, HMAC open API, a zero-dependency Node SDK, ready-to-use cashier and collection QR |
-| **Team exploring Agentic Payments** | A built-in MCP Server letting Claude / Cursor safely operate funds on your behalf: scope auth + limits + confirmation + full-chain audit |
+| **An engineer who wants to understand payment systems** | A complete acquiring reference: Redis lock (watchdog renewal) → transaction → conditional atomic update → idempotency key; tamper-evident audit hash chain; channel-bill-to-order reconciliation |
+| **An indie dev who needs to accept money** | WeChat / Alipay / mock connectors, HMAC open API, zero-dependency Node SDK, out-of-the-box cashier and payment QR |
+| **A team exploring Agentic Payments** | Built-in MCP server: scope authorization + limits + two-step confirmation + full audit trail |
 
 ### Core capabilities
 
-- **Money-safety engineering** — two-phase withdrawal commit + timeout scan reconciliation, so a crashed process never double-pays; cumulative split overage checks, batch-transfer crash recovery, all edge cases tested
-- **Double-entry + audit hash chain** — unbalanced debits/credits roll back immediately; admin actions are fully chained, with `pg_advisory_xact_lock` preventing forks
-- **Key governance** — channel credentials stored AES-256-GCM envelope-encrypted; `appSecret` stored as SHA-256 only; sensitive fields masked by a field-name allow-list
-- **Dual-abstraction channel layer** — PaymentChannel (official SDK) + Connector routing (retry/idempotency gating); adding a channel means implementing one interface
-- **Open API on par with commercial gateways** — HMAC-SHA256 + time window + nonce replay protection + `timingSafeEqual` + exponential webhook backoff + SSRF hardening
-- **Multi-channel reconciliation aggregation** — auto pull → match → diff workflow → CSV export
-- **AI Agent layer** — Vercel AI SDK against any OpenAI-compatible model; MCP Server in both in-process and standalone stdio forms
-- **Observability** — Prometheus `/metrics`, zero-overhead OpenTelemetry, structured logs with end-to-end traceId
+- **Compliant fund flow** — no fund pool on platform: no balance / top-up / withdrawal / transfer / red packet / split / escrow; funds settle via licensed channels; refunds go back the same way; order-level reconciliation cross-checked against daily snapshots
+- **Audit hash chain** — every admin action is chained with its predecessor hash; `pg_advisory_xact_lock` prevents forking
+- **Key governance** — channel credentials sealed with AES-256-GCM envelope encryption; `appSecret` stored as SHA-256 only; PII masked by field-name whitelist
+- **Dual channel abstraction** — PaymentChannel (official SDK) + Connector routing (retry / idempotency gating); adding a new channel is just implementing an interface
+- **Commercial-grade open API** — HMAC-SHA256 + time window + nonce replay protection + `timingSafeEqual` + webhook exponential backoff + SSRF hardening
+- **Multi-channel reconciliation** — auto pull → match → discrepancy workflow → CSV export
+- **AI Agent layer** — Vercel AI SDK, any OpenAI-compatible model; built-in MCP server plus standalone stdio process
+- **Observability** — Prometheus `/metrics`, zero-overhead OpenTelemetry, structured logs with traceId
 
 ---
 
-## 🔐 Money-Safety Engineering (highlight)
+## 🔐 Acquiring & Reconciliation (key)
 
-Payment systems fear two things most: **money computed wrong** and **interfaces brute-forced**. The capabilities below are implemented and tested — they are the project's core selling point.
+Payment systems fear two things: **wrong books** and **callback abuse**. The following are production-grade and test-covered.
 
-| Guard | Approach | Effect |
+| Defense | How | Effect |
 |---|---|---|
-| **Dual approval for large adjustments** | An admin single adjustment with `\|amount\| ≥ LARGE_ADJUSTMENT_THRESHOLD_YUAN` (default ¥50,000) doesn't move money directly — it creates an approval ticket; a second admin approves, then executes at the **locked price** | One person can't unilaterally move large sums; self-approval returns **403**; optimistic-lock claim prevents concurrent double execution |
-| **Drop-order self-heal (PENDING auto-reconcile)** | A scheduled job actively queries the channel `queryRecharge` for timed-out top-up orders, sharing the same distributed lock with callbacks | Lost callbacks still auto-credit; **any amount mismatch / missing amount is rejected (fail-closed)** |
-| **Unified pay-password / ID-card validation** | 11 entry points reuse the same `@IsPayPassword` / `@IsIdCard` / `@IsSafeText` decorators | One rule, consistent platform-wide, no bypass |
-| **Adjustment bounds + credential length** | DTO adds `@Min(-500000)@Max(500000)@IsNumber({maxDecimalPlaces:2})`; 42 credential/internal-ID fields get `@MaxLength` | Rejects sub-fen amounts and out-of-bound adjustments; avoids bcrypt input-boundary DoS |
-| **Webhook verify-first** | Signature verification runs **before** the idempotency check; forged callbacks return 400 regardless of order state | Replayed forged callbacks on terminal orders are no longer let through by the idempotency cache |
+| **Dropped-order self-healing** | A scheduled job actively queries the channel for timed-out PENDING orders, sharing the same lock as webhook callbacks | Lost callbacks auto-recover; **amount mismatch or missing amount → fail-closed reject** |
+| **Unified pay-password / ID-card validators** | 11 entry points share one `@IsPayPassword` / `@IsIdCard` / `@IsSafeText` decorator | One rule, platform-wide; no bypass |
+| **Amount & credential bounds** | DTO `@Min/@Max/@IsNumber({maxDecimalPlaces:2})`; 42 credentials / internal IDs bounded with `@MaxLength` | Reject sub-cent amounts and out-of-bounds params; avoid bcrypt DoS |
+| **Webhook signature-first** | Signature verification runs **before** idempotency lookup; forged callbacks return 400 regardless of order state | Replayed forged callbacks to terminal orders no longer slip through |
+| **Channel-bill reconciliation** | Scheduled pull of official channel bills → per-order match against platform records → discrepancy workflow → CSV export | One-sided, wrong, or missing orders surface in the discrepancy table; nothing is silently booked |
 
-```mermaid
-sequenceDiagram
-    participant A as Admin A (initiator)
-    participant S as Backend
-    participant DB as DB
-    participant B as Admin B (reviewer)
-    A->>S: Adjust 60,000 (over threshold)
-    S->>DB: Create approval ticket (lock amount = 60000.00)
-    Note over DB: Funds unchanged, status PENDING_APPROVAL
-    A->>S: Approve by self
-    S-->>A: 403 initiator cannot approve own adjustment
-    B->>S: Approve ticket
-    S->>DB: Execute at locked price → EXECUTED
-```
+> One hard rule on the fund path: the amount returned by callback / query must exactly equal the order amount, otherwise it is fail-closed rejected.
 
-> There is also one **non-bypassable hard rule** on the money path: the amount returned by a callback / query must exactly match the order amount, otherwise it is rejected fail-closed — no one-sided or mismatched ledger entry ever lands silently.
+> **Production critical config**: `CHANNEL_NOTIFY_URL` (the acquiring channel callback URL) must be set to a publicly reachable `http(s)://` URL; the production security validator rejects localhost or missing values. See [.env.example](.env.example) and [Deployment](docs/DEPLOYMENT.md).
 
 ---
 
@@ -131,36 +126,32 @@ sequenceDiagram
 ![showcase](demo/videos/showcase-preview.gif)
 
 <details open>
-<summary><b>Admin Console (10 pages)</b></summary>
+<summary><b>Admin Console</b></summary>
 
-| Overview | Users | Merchants |
+| Users | Merchants | Payment Orders |
 |---|---|---|
-| ![dashboard](demo/screenshots/admin-dashboard.png) | ![users](demo/screenshots/admin-users.png) | ![merchants](demo/screenshots/admin-merchants.png) |
-| KYC Review | Withdrawal Review | Orders |
-| ![review](demo/screenshots/admin-review-withdrawals.png) | ![withdrawals](demo/screenshots/admin-withdrawals.png) | ![orders](demo/screenshots/admin-orders.png) |
-| Finance | Risk | Agents |
-| ![finance](demo/screenshots/admin-finance.png) | ![risk](demo/screenshots/admin-risk.png) | ![agents](demo/screenshots/admin-agents.png) |
+| ![users](demo/screenshots/admin-users.png) | ![merchants](demo/screenshots/admin-merchants.png) | ![orders](demo/screenshots/admin-orders.png) |
+| Finance | Risk Events | Admin Login |
+| ![finance](demo/screenshots/admin-finance.png) | ![risk](demo/screenshots/admin-risk.png) | ![login](demo/screenshots/admin-login.png) |
 
 </details>
 
 <details>
-<summary><b>User H5 (7 pages)</b></summary>
+<summary><b>User H5</b></summary>
 
-| Wallet Home | Top-up | Red Packet |
+| Login | Bills | AI Assistant |
 |---|---|---|
-| ![home](demo/screenshots/h5-home.png) | ![recharge](demo/screenshots/h5-recharge.png) | ![redpacket](demo/screenshots/h5-redpacket.png) |
-| Bills | Cashier | AI Assistant |
-| ![bills](demo/screenshots/h5-bills.png) | ![cashier](demo/screenshots/h5-cashier.png) | ![agent](demo/screenshots/h5-agent.png) |
+| ![login](demo/screenshots/h5-login.png) | ![bills](demo/screenshots/h5-bills.png) | ![agent](demo/screenshots/h5-agent.png) |
 
 </details>
 
 <details>
-<summary><b>Merchant Portal (8 pages)</b></summary>
+<summary><b>Merchant Portal</b></summary>
 
 | Dashboard | App Keys | Orders |
 |---|---|---|
 | ![dashboard](demo/screenshots/portal-dashboard.png) | ![apps](demo/screenshots/portal-apps.png) | ![orders](demo/screenshots/portal-orders.png) |
-| QR Codes | Reconciliation | Merchant Profile |
+| Payment QR | Reconciliation | Profile |
 | ![qrcodes](demo/screenshots/portal-qrcodes.png) | ![recon](demo/screenshots/portal-reconciliation.png) | ![merchant](demo/screenshots/portal-merchant.png) |
 
 </details>
@@ -169,53 +160,51 @@ sequenceDiagram
 
 ## 💡 Why it's worth a look
 
-Most open-source payment projects are either SDK wrappers (only "how to call the API") or a payment module inside an e-commerce system (only "how to jump to the cashier"). **Very few actually explain the ledger, reconciliation, risk control, and key governance clearly.**
+Open-source payment projects are usually either an SDK wrapper ("how to call the API") or a payment module bolted onto an e-commerce system ("how to jump to the cashier"). **Few actually explain acquiring, reconciliation, risk, and key governance end-to-end.**
 
-A few things in this project that may be useful references for you:
+- **Concurrency defense is layered, not one big lock** — lock for entry, conditional atomic update for writes, idempotency key for retries, transaction isolation for intermediate state. Each layer is test-covered.
+- **Reconciliation is mandatory** — official channel bills are matched per order; discrepancies enter a workflow. Many systems' "reconciliation" is just a transaction log table with no way to chase mismatches.
+- **Audit chain is tamper-evident** — each log carries its predecessor hash; an advisory lock prevents forking. Modify one log and everything after it breaks.
+- **AI operations have gates** — MCP tools are not "AI does whatever it wants": scope + per-call/daily limit + two-step confirmation, every call chained.
 
-- **Concurrency defense is layered, not one lock to rule them all** — the lock solves concurrent entry, conditional atomic update solves concurrent writes, the idempotency key solves retries, transaction isolation solves intermediate states. Each layer solves a different problem, and changing any layer is protected by tests.
-- **Double-entry is enforced** — unbalanced books roll back immediately. Many systems' "ledger" is just a flow table; when it doesn't balance, there's nowhere to investigate.
-- **The audit chain is tamper-evident** — each log carries the previous hash, with a DB advisory lock preventing forks. Change one log and everything after it breaks.
-- **AI spending has gates** — MCP tools aren't "the AI does whatever it wants"; they are scope auth + per-tx / daily limits + confirmation for fund operations, every call on the audit chain.
-
-We're also honest about what's unfinished: **the Stripe / UnionPay Connectors are skeletons**, coverage is 55.6% (a real jest baseline gate since v0.3.1 prevents regressions; target 75% within a year — detailed in the [Code Health Report](docs/CODE_HEALTH_REPORT.md)). Those two are the next focus.
+Honest gaps: **Stripe / UnionPay connectors are skeletons today**; more channels and multi-currency are on the roadmap.
 
 ---
 
 ## 📊 Feature Matrix
 
-| Domain | Status | Domain | Status |
+| Capability | Status | Capability | Status |
 |---|---|---|---|
-| Wallet top-up/transfer/withdraw/bills | ✅ | Multi-channel reconciliation | ✅ |
-| Red packet (random/normal/exclusive/code) | ✅ | Escrow | ✅ |
-| Merchant onboarding/app/webhook retry | ✅ | Batch transfer + crash recovery | ✅ |
-| Open API + zero-dep Node SDK | ✅ | Subscription / split | ✅ |
-| WeChat/Alipay official SDK | ✅ | Coupon / referral / invoice | ✅ |
-| Dual approval for large adjustments | ✅ | Top-up drop-order auto-reconcile | ✅ |
-| AI Agent + MCP + confirmation | ✅ | Stripe / UnionPay Connector | 🚧 skeleton |
-| KYC dual-end UI / channel config center | ✅ | Mini-program SDK / multi-currency | 📋 planned |
+| Licensed-channel acquiring (WeChat/Alipay/mock) | ✅ | Multi-channel reconciliation | ✅ |
+| Merchant onboarding + KYC | ✅ | Refund to original channel | ✅ |
+| Merchant apps + webhook retry | ✅ | Order-level daily snapshot | ✅ |
+| Open API + zero-dep Node SDK | ✅ | Coupons / invoices | ✅ |
+| WeChat / Alipay official SDK direct | ✅ | Dropped-order auto-heal | ✅ |
+| No platform fund pool (compliant) | ✅ | Audit hash chain | ✅ |
+| AI Agent + MCP + 2-step confirm | ✅ | Stripe / UnionPay connector | 🚧 skeleton |
+| Dual-end KYC UI / channel config center | ✅ | Mini-program SDK / multi-currency | 📋 planned |
 
 ---
 
 ## 📚 Docs
 
-| Getting Started | Deep Dive | Ops |
+| Getting started | Deep dive | Ops |
 |---|---|---|
-| [Quick Start](docs/QUICKSTART.md) | [Developer Guide](docs/DEVELOPER_GUIDE.md) | [Production Deploy](docs/DEPLOYMENT.md) |
-| [API Reference](docs/API_REFERENCE.md) | [Expert Panel & Roadmap](docs/EXPERT_PANEL_ASSESSMENT.md) | [Production Readiness](docs/PRODUCTION_READINESS.md) |
-| [SDK Guide](docs/SDK_GUIDE.md) | [Code Health Report](docs/CODE_HEALTH_REPORT.md) | [Troubleshoot](docs/TROUBLESHOOT.md) |
+| [Quickstart](docs/QUICKSTART.md) | [Developer Guide](docs/DEVELOPER_GUIDE.md) | [Deployment](docs/DEPLOYMENT.md) |
+| [API Reference](docs/API_REFERENCE.md) | [Compliance Mode](docs/COMPLIANCE_MODE.md) | [Production Readiness](docs/PRODUCTION_READINESS.md) |
+| [SDK Guide](docs/SDK_GUIDE.md) | [Code Health](docs/CODE_HEALTH_REPORT.md) | [Troubleshooting](docs/TROUBLESHOOT.md) |
 | [User Manual](docs/USER_MANUAL.md) | [Versioning](docs/VERSIONING.md) | [Changelog](docs/CHANGELOG.md) |
 | [User Agreement](docs/legal/user-agreement.md) | [Privacy Policy](docs/legal/privacy-policy.md) | [Merchant Agreement](docs/legal/merchant-agreement.md) |
-| [Refund & Dispute Rules](docs/legal/refund-policy.md) | [Compliance Statement](docs/legal/compliance-statement.md) | [Commercial License](docs/legal/commercial-license.md) |
+| [Refund Policy](docs/legal/refund-policy.md) | [Compliance Statement](docs/legal/compliance-statement.md) | [Commercial License](docs/legal/commercial-license.md) |
 
-- Full OpenAPI 3.0 spec (192 endpoints): [`docs/openapi.json`](docs/openapi.json)
-- Merchant 5-step first collection: see [QUICKSTART](docs/QUICKSTART.md)
+- Full OpenAPI 3.0 spec (**136 operations / 121 paths**, verified against code): [`docs/openapi.json`](docs/openapi.json)
+- 5-step first payment: see [QUICKSTART](docs/QUICKSTART.md)
 
 ---
 
-## 🌏 Mirror Repositories
+## 🌏 Mirror repositories
 
-Maintained in parallel across four platforms (same branches, tags and HEAD) — pick any, no favorites:
+Four platforms kept in lockstep (same branches / tags / HEAD). Same content, pick any:
 
 | Platform | URL |
 |---|---|
@@ -224,38 +213,36 @@ Maintained in parallel across four platforms (same branches, tags and HEAD) — 
 | **GitCode** | [badhope/KeBaiPay](https://gitcode.com/badhope/KeBaiPay) |
 | **Gitee** | [badhope/KeBaiPay](https://gitee.com/badhope/KeBaiPay) |
 
-**🌐 Official site** (GitHub Pages, dual-account deployment): <https://x33834.github.io/KeBaiPay/> · <https://morningstar202604.github.io/KeBaiPay/>
+**🌐 Website** (GitHub Pages, two orgs, identical content): <https://x33834.github.io/KeBaiPay/> · <https://morningstar202604.github.io/KeBaiPay/>
 
 ---
 
 ## 🤝 Contributing
 
-Before opening a PR, ensure `npm run lint && npx jest --maxWorkers=4` is green. Releases follow the [SemVer discipline](docs/VERSIONING.md); see [CONTRIBUTING.md](CONTRIBUTING.md).
+Before a PR: `npm run lint && npx jest --maxWorkers=4` must be green. Releases follow [SemVer](docs/VERSIONING.md); see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Report security vulnerabilities privately via [SECURITY.md](SECURITY.md) — no public issues.
+Security issues: use [SECURITY.md](SECURITY.md) private disclosure — do not open a public issue.
 
 ---
 
-## ⚠️ Compliance
+## ⚠️ Compliance note
 
-The code is MIT — use it freely. But **the system contains an in-platform ledger; operating it in mainland China involves unlicensed payment business and the "二清" (illegal fund pooling) red line** — that's a licensing/qualification issue, not something a license solves. Only the mock channel is enabled by default, so you can't accidentally run an illegal business.
+The code is MIT, use it freely. **This system is designed as a compliant aggregated payment technology service: the platform itself never holds user funds, and does not offer balance / top-up / withdrawal / transfer / red packet / split / escrow. All fund settlement is performed by licensed payment institutions.** Operating publicly in mainland China still requires the appropriate payment license or a compliant partnership with a licensed institution — that is a business-license matter, not something this code solves. Only the mock channel is enabled by default.
 
-Before production, read the [Compliance Analysis](docs/EXPERT_PANEL_ASSESSMENT.md) and [Production Checklist](docs/PRODUCTION_READINESS.md).
+Read [Compliance Mode](docs/COMPLIANCE_MODE.md) and [Production Readiness](docs/PRODUCTION_READINESS.md) before deploying.
 
 ---
 
 ## 📄 License
 
-[MIT](LICENSE) — free to use, modify, and distribute, including commercially.
+[MIT](LICENSE) — free to use, modify, and redistribute, including commercially.
 
 ---
 
 <div align="center">
 
-If this project saved you a few all-nighters, or finally made some money-flow click — **a Star ⭐ is the best feedback**.
+If this project saved you a few late nights, ⭐ Star it — that's the best feedback.
 
-Share it with someone who might need it; good things get maintained only when seen.
-
-<sub>Built with care by KeBaiPay Contributors · v0.3.2</sub>
+<sub>Built with care by KeBaiPay Contributors · v0.3.5</sub>
 
 </div>

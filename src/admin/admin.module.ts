@@ -12,7 +12,6 @@ import { ChannelConfigController } from './channel-config.controller'
 import { ChannelConfigService } from './channel-config.service'
 import { PermissionsGuard } from './permissions.guard'
 import { FinanceModule } from '../finance/finance.module'
-import { WithdrawalsModule } from '../withdrawals/withdrawals.module'
 import { MerchantsModule } from '../merchants/merchants.module'
 
 @Module({
@@ -29,7 +28,6 @@ import { MerchantsModule } from '../merchants/merchants.module'
       inject: [ConfigService],
     }),
     FinanceModule,
-    WithdrawalsModule,
     MerchantsModule,
   ],
   providers: [AdminService, AdminAuthService, PermissionsGuard, ChannelConfigService],

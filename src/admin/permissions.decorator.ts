@@ -2,8 +2,6 @@ import { SetMetadata } from '@nestjs/common'
 import type { AdminRole } from '../common/enums'
 
 export type Permission =
-  | 'account:adjust'
-  | 'withdrawal:audit'
   | 'reconciliation:run'
   | 'finance:view'
   | 'identity:audit'
@@ -30,8 +28,6 @@ export const PERMISSIONS_KEY = 'permissions'
 export const ROLE_PERMISSIONS: Record<AdminRole, Permission[] | '*'> = {
   SUPER_ADMIN: '*',
   FINANCE: [
-    'account:adjust',
-    'withdrawal:audit',
     'reconciliation:run',
     'finance:view',
     // 商户费率/日限额属财务参数，仅财务可改；客服的 merchant:audit 只管入驻审核

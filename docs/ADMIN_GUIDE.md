@@ -1,643 +1,160 @@
 # KeBaiPay 管理后台指南
 
-> 管理员操作手册
-
-## 目录
-
-- [管理员登录](#管理员登录)
-- [用户管理](#用户管理)
-- [商户管理](#商户管理)
-- [财务管理](#财务管理)
-- [风控管理](#风控管理)
-- [系统配置](#系统配置)
-- [管理员管理](#管理员管理)
-- [多平台对账聚合（S5）管理](#多平台对账聚合s5管理)
-- [AI 风控审计（S3）管理](#ai-风控审计s3管理)
-- [自定义规则模板管理](#自定义规则模板管理)
-- [权限矩阵](#权限矩阵)
-- [常见问题](#常见问题)
+> 适用版本：v0.3.5（合规聚合模式）
+> 管理员职责：商户审核、用户/实名管理、风控处置、渠道配置、收单订单监管、对账监控、AI 智能体管理、系统配置。
+> 平台**不设**：提现审核、调账双人复核、转账审批、红包/担保/分账/订阅管理。
 
 ---
 
-## 管理员登录
-
-### 登录方式
-
-通过管理后台 API 登录。
-
-### 登录请求
+## 1. 登录与管理员管理
 
 ```http
-POST /admin/auth/login
-Content-Type: application/json
-
-{
-  "username": "admin",
-  "password": "admin123456"
-}
-```
-
-### 登录响应
-
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIs..."
-}
-```
-
-### 修改密码
-
-```http
-POST /admin/auth/change-password
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "oldPassword": "old_password",
-  "newPassword": "new_password"
-}
-```
-
----
-
-## 用户管理
-
-### 查看用户列表
-
-```http
-GET /admin/users?page=1&limit=20
-Authorization: Bearer <admin_token>
-```
-
-### 查看用户详情
-
-```http
-GET /admin/users/:id
-Authorization: Bearer <admin_token>
-```
-
-### 冻结/解冻用户
-
-```http
-POST /admin/users/:id/status
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "status": "FROZEN",
-  "reason": "异常操作"
-}
-```
-
-**用户状态：**
-
-| 状态 | 说明 |
-|------|------|
-| ACTIVE | 正常 |
-| EXPENSE_RESTRICTED | 支出受限 |
-| INCOME_RESTRICTED | 收入受限 |
-| FROZEN | 冻结 |
-
-### 修改用户风控等级
-
-```http
-POST /admin/users/:id/risk-level
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "level": "HIGH"
-}
-```
-
-**风控等级：**
-
-| 等级 | 说明 |
-|------|------|
-| LOW | 低风险 |
-| MEDIUM | 中风险 |
-| HIGH | 高风险 |
-
-### 实名认证审核
-
-#### 查看待审核列表
-
-```http
-GET /admin/identity/pending?page=1&limit=20
-Authorization: Bearer <admin_token>
-```
-
-#### 通过认证
-
-```http
-POST /admin/identity/:id/approve
-Authorization: Bearer <admin_token>
-```
-
-#### 拒绝认证
-
-```http
-POST /admin/identity/:id/reject
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "reason": "身份证信息不清晰"
-}
-```
-
-### 人工调账
-
-```http
-POST /admin/accounts/:userId/adjust
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "amount": 100.00,
-  "reason": "系统补偿"
-}
-```
-
----
-
-## 商户管理
-
-### 查看商户列表
-
-```http
-GET /admin/merchants?page=1&limit=20
-Authorization: Bearer <admin_token>
-```
-
-### 审核商户
-
-```http
-POST /admin/merchants/:id/audit
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "action": "APPROVE",
-  "reason": ""
-}
-```
-
-**审核操作：**
-
-| 操作 | 说明 |
-|------|------|
-| APPROVE | 通过 |
-| REJECT | 拒绝 |
-
-### 修改商户配置
-
-```http
-POST /admin/merchants/:id/config
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "payRate": 60,
-  "withdrawRate": 60,
-  "dailyLimit": 10000000
-}
-```
-
-**配置说明：**
-
-| 字段 | 说明 |
-|------|------|
-| payRate | 收款费率（万分比） |
-| withdrawRate | 提现费率（万分比） |
-| dailyLimit | 日限额（分） |
-
----
-
-## 财务管理
-
-### 提现审核
-
-#### 查看提现列表
-
-```http
-GET /admin/withdrawals?page=1&limit=20
-Authorization: Bearer <admin_token>
-```
-
-#### 通过提现
-
-```http
-POST /admin/withdrawals/:id/approve
-Authorization: Bearer <admin_token>
-```
-
-#### 拒绝提现
-
-```http
-POST /admin/withdrawals/:id/reject
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "reason": "信息不完整"
-}
-```
-
-### 财务概览
-
-```http
-GET /admin/finance/overview
-Authorization: Bearer <admin_token>
-```
-
-### 每日收支汇总
-
-```http
-GET /admin/finance/daily-summary?startDate=2024-01-01&endDate=2024-01-31
-Authorization: Bearer <admin_token>
-```
-
-### 导出报表
-
-```http
-GET /admin/finance/daily-summary/export?startDate=2024-01-01&endDate=2024-01-31
-Authorization: Bearer <admin_token>
-```
-
-### 商户结算
-
-```http
-GET /admin/finance/merchant-settlements?startDate=2024-01-01&endDate=2024-01-31
-Authorization: Bearer <admin_token>
-```
-
-### 手续费统计
-
-```http
-GET /admin/finance/fee-income?startDate=2024-01-01&endDate=2024-01-31
-Authorization: Bearer <admin_token>
-```
-
-### 资产快照
-
-```http
-GET /admin/finance/daily-snapshots?startDate=2024-01-01&endDate=2024-01-31
-Authorization: Bearer <admin_token>
-```
-
-### 生成快照
-
-```http
-POST /admin/finance/snapshots/generate
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "date": "2024-01-01"
-}
-```
-
-### 结算管理
-
-#### 查看未结算订单
-
-```http
-GET /admin/finance/settlement/unfinished
-Authorization: Bearer <admin_token>
-```
-
-#### 手动执行结算
-
-```http
-POST /admin/finance/settlement/run
-Authorization: Bearer <admin_token>
-```
-
-### 对账管理
-
-#### 执行对账
-
-```http
-POST /admin/reconciliation/run
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "date": "2024-01-01"
-}
-```
-
-#### 查看对账报告
-
-```http
-GET /admin/reconciliation/reports?startDate=2024-01-01&endDate=2024-01-31
-Authorization: Bearer <admin_token>
-```
-
-#### 导出对账报告
-
-```http
-GET /admin/reconciliation/reports/export?startDate=2024-01-01&endDate=2024-01-31
-Authorization: Bearer <admin_token>
-```
-
----
-
-## 风控管理
-
-### 查看风控事件
-
-```http
-GET /admin/risk-events?page=1&limit=20
-Authorization: Bearer <admin_token>
-```
-
-### 处理风控事件
-
-```http
-POST /admin/risk-events/:id/handle
-Authorization: Bearer <admin_token>
-```
-
-### 风控事件类型
-
-| 类型 | 说明 |
-|------|------|
-| LARGE_TRANSFER | 大额转账 |
-| LARGE_WITHDRAWAL | 大额提现 |
-| LARGE_PAYMENT | 大额支付 |
-| SUSPICIOUS_RED_PACKET | 可疑红包 |
-| FREQUENT_TRANSACTION | 频繁交易 |
-| FREQUENT_LOGIN | 频繁登录 |
-| SUSPICIOUS_DEVICE | 可疑设备 |
-| ACCOUNT_FROZEN | 账户冻结 |
-| STATUS_CHANGED | 状态变更 |
-
-### 查看风控规则
-
-```http
-GET /admin/risk-rules
-Authorization: Bearer <admin_token>
-```
-
-### 更新风控规则
-
-```http
-PUT /admin/risk-rules/:code
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "enabled": true,
-  "threshold": 10000,
-  "action": "ALERT"
-}
-```
-
-### 查看登录日志
-
-```http
-GET /admin/login-logs?page=1&limit=20
-Authorization: Bearer <admin_token>
-```
-
-### 查看审计日志
-
-```http
-GET /admin/audit-logs?page=1&limit=20
-Authorization: Bearer <admin_token>
-```
-
----
-
-## 系统配置
-
-### 查看系统配置
-
-```http
-GET /admin/system-configs
-Authorization: Bearer <admin_token>
-```
-
-### 设置系统配置
-
-```http
-POST /admin/system-configs
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "key": "DAILY_TRANSFER_LIMIT",
-  "value": "100000000"
-}
-```
-
-### 支付渠道管理
-
-#### 查看渠道列表
-
-```http
-GET /admin/channels
-Authorization: Bearer <admin_token>
-```
-
-#### 创建渠道
-
-```http
-POST /admin/channels
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "code": "ALIPAY",
-  "name": "支付宝",
-  "type": "BOTH",
-  "config": {}
-}
-```
-
-#### 更新渠道
-
-```http
-PUT /admin/channels/:code
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "enabled": true,
-  "config": {}
-}
-```
-
-#### 删除渠道
-
-```http
-DELETE /admin/channels/:code
-Authorization: Bearer <admin_token>
-```
-
-#### 测试渠道
-
-```http
-POST /admin/channels/:code/test
-Authorization: Bearer <admin_token>
-```
-
----
-
-## 管理员管理
-
-### 查看管理员列表
-
-```http
-GET /admin/admin-users
-Authorization: Bearer <admin_token>
-```
-
-### 创建管理员
-
-```http
-POST /admin/admin-users
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "username": "new_admin",
-  "password": "password123",
-  "role": "FINANCE"
-}
-```
-
-**管理员角色：**
-
-| 角色 | 说明 |
-|------|------|
-| SUPER_ADMIN | 超级管理员 |
-| FINANCE | 财务 |
-| CUSTOMER_SERVICE | 客服 |
-| RISK_OFFICER | 风控 |
-
-### 更新管理员
-
-```http
-PUT /admin/admin-users/:id
-Authorization: Bearer <admin_token>
-Content-Type: application/json
-
-{
-  "role": "FINANCE",
-  "status": "ACTIVE"
-}
-```
-
-### 删除管理员
-
-```http
-DELETE /admin/admin-users/:id
-Authorization: Bearer <admin_token>
-```
-
-### 重置管理员密码
-
-```http
+POST /admin/auth/login            # 管理员登录
+POST /admin/auth/change-password # 修改密码
+GET  /admin/admin-users           # 管理员列表
+POST /admin/admin-users           # 创建管理员
+PUT  /admin/admin-users/:id       # 更新
+DELETE /admin/admin-users/:id    # 删除
 POST /admin/admin-users/:id/reset-password
-Authorization: Bearer <admin_token>
 ```
 
----
-
-## ~~多平台对账聚合（channel-reconciliation）~~ 与 ~~AI 风控审计（risk-audit）~~（已下线）
-
-> 两组模块属「有接口无消费方」的假功能，与真实资金/风控链路脱节，已随 v0.3.x 精简下线（含数据表）。
-> 对账以「财务对账」`/admin/reconciliation` 为准；风控以内置规则引擎为准。
-
-
-## ~~自定义规则模板管理（custom-rules）~~（已下线）
-
-> 自定义风控规则属「有接口无消费方」的假功能（规则从未接入真实风控评估链路），已随 v0.3.x 精简下线（含数据表）。风控以内置规则引擎为准。
-
-
-## 权限矩阵
-
-下表列出系统全部 10 个细粒度权限码与各管理角色的对应关系。`✓` 表示该角色拥有此权限，`SUPER_ADMIN` 拥有全部权限。
-
-| 权限码 | 说明 | SUPER_ADMIN | FINANCE | CUSTOMER_SERVICE | RISK_OFFICER | AUDITOR |
-|--------|------|:-----------:|:-------:|:----------------:|:------------:|:-------:|
-| account:adjust | 人工调账 | ✓ | ✓ | | | |
-| withdrawal:audit | 提现审核 | ✓ | ✓ | | | |
-| reconciliation:run | 执行对账 / 拉取对账单 / 匹配 | ✓ | ✓ | | | |
-| finance:view | 财务数据查询 | ✓ | ✓ | | | ✓ |
-| identity:audit | 实名认证审核 | ✓ | | ✓ | | |
-| merchant:audit | 商户审核 | ✓ | | ✓ | | |
-| user:status | 用户状态管理 | ✓ | | ✓ | | |
-| risk:config | 风控规则配置 | ✓ | | | ✓ | |
-| risk:event:handle | 风险事件处理 | ✓ | | | ✓ | |
-| admin:view | 管理后台基础查询 | ✓ | ✓ | ✓ | ✓ | ✓ |
-
-**角色说明：**
-
-| 角色 | 职责 |
-|------|------|
-| SUPER_ADMIN | 超级管理员，拥有系统全部权限 |
-| FINANCE | 财务人员，负责调账、提现审核、对账等 |
-| CUSTOMER_SERVICE | 客服人员，负责实名审核、商户审核、用户状态 |
-| RISK_OFFICER | 风控人员，负责规则配置与风险事件处理 |
-| AUDITOR | 审计人员，只读查看财务与管理后台数据 |
-
-> 权限为 OR 关系校验：端点声明多个权限时，拥有其中任一即可通过。权限映射源码见 `src/admin/permissions.decorator.ts` 中的 `ROLE_PERMISSIONS`。
+权限角色：`SUPER_ADMIN` / `FINANCE` / `OPERATIONS` / `RISK` 等，详见代码 `src/admin/permissions.decorator.ts`。
 
 ---
 
-## 常见问题
+## 2. 数据概览
 
-### Q: 如何创建新的管理员？
+```http
+GET /admin/dashboard
+```
 
-通过 `POST /admin/admin-users` 接口创建，需要超级管理员权限。
+平台关键指标：用户数、商户数、今日收单订单、今日金额、待审核商户、待实名审核。
 
-### Q: 管理员角色有什么区别？
+---
 
-- 超级管理员：所有权限
-- 财务：财务相关操作
-- 客服：用户管理相关操作
-- 风控：风控相关操作
+## 3. 用户管理
 
-### Q: 如何查看操作记录？
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/admin/users` | 用户列表 |
+| GET | `/admin/users/:id` | 用户详情 |
+| POST | `/admin/users/:id/status` | 冻结/解冻 |
+| POST | `/admin/users/:id/risk-level` | 修改风控等级 |
 
-通过 `GET /admin/audit-logs` 查看审计日志。
+---
 
-### Q: 人工调账会影响对账吗？
+## 4. 商户管理
 
-人工调账会产生调整记录，对账时会单独显示。
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/admin/merchants` | 商户列表 |
+| POST | `/admin/merchants/:id/audit` | 通过/驳回入驻 |
+| POST | `/admin/merchants/:id/config` | 配置费率/限额 |
 
-### Q: 如何配置风控规则？
+---
 
-通过 `PUT /admin/risk-rules/:code` 更新风控规则。
+## 5. 实名审核
 
-### Q: 结算什么时候执行？
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/admin/identity/pending` | 待审核列表 |
+| POST | `/admin/identity/:id/approve` | 通过 |
+| POST | `/admin/identity/:id/reject` | 驳回（需原因） |
 
-系统每日自动执行结算，也可以手动执行。
+---
 
-### Q: 如何导出财务报表？
+## 6. 收单订单监管
 
-通过对应的 `/export` 接口导出 CSV 格式报表。
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/admin/payment-orders` | 全平台收单订单 |
 
-### Q: 支付渠道测试失败怎么办？
+支持按商户/状态/时间筛选；可查看回调通知状态并手动重发。
 
-检查渠道配置是否正确，联系渠道服务商确认接口状态。
+---
 
-### Q: 多平台对账发现差异后如何处理？
+## 7. 风控
 
-对账以 `/admin/reconciliation`（财务对账）为准：拉取对账单、执行匹配后，差异项按状态流转处理（PENDING → INVESTIGATING → RESOLVED / IGNORED）。
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/admin/risk-events` | 风控事件列表 |
+| POST | `/admin/risk-events/:id/handle` | 人工处置 |
+| GET | `/admin/risk-rules` | 风控规则 |
+| PUT | `/admin/risk-rules/:code` | 更新规则 |
 
-### Q: 审计日志的链式哈希有什么作用？
+---
 
-所有审计操作（调账、状态变更、提现审核、配置修改等）写入审计日志时，每条记录包含上一条记录的 `previousHash`，整体形成 SHA-256 哈希链。任何中间记录被篡改都会导致后续所有哈希校验失败，从而实现对管理员操作的防篡改保护。系统每日自动巡检校验整条哈希链完整性。
+## 8. 渠道配置
 
-### Q: 风控规则如何配置？
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/admin/channels` | 渠道列表 |
+| POST | `/admin/channels` | 新增渠道 |
+| PUT | `/admin/channels/:code` | 更新 |
+| DELETE | `/admin/channels/:code` | 删除 |
+| POST | `/admin/channels/:code/test` | 测试渠道可用性 |
 
-内置风控规则引擎基于阈值（单笔金额、日累计金额/笔数、频次、IP 白名单等）实时评估交易；阈值在系统配置中调整，命中 HIGH 级风险触发人工复核。
+渠道凭据 AES-256-GCM 加密存储，保存后热同步到连接器运行时。
 
-### Q: 各角色的权限范围在哪里查看？
+---
 
-参见本文档 [权限矩阵](#权限矩阵) 一节，列出了全部 11 个权限码与 5 个角色（SUPER_ADMIN / FINANCE / CUSTOMER_SERVICE / RISK_OFFICER / AUDITOR）的对应关系。权限映射源码位于 `src/admin/permissions.decorator.ts` 的 `ROLE_PERMISSIONS`，端点声明的多个权限为 OR 关系，拥有其中任一即可通过校验。
+## 9. 财务与对账
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/admin/finance/overview` | 财务概览 |
+| GET | `/admin/finance/daily-summary` | 每日汇总 |
+| GET | `/admin/finance/merchant-settlements` | 商户结算明细 |
+| GET | `/admin/finance/fee-income` | 手续费收入 |
+| GET | `/admin/finance/daily-snapshots` | 每日快照 |
+| POST | `/admin/finance/snapshots/generate` | 手动生成快照 |
+| GET | `/admin/finance/settlement/unfinished` | 未结算订单 |
+| POST | `/admin/finance/settlement/run` | 手动执行结算 |
+| POST | `/admin/reconciliation/run` | 执行对账 |
+| GET | `/admin/reconciliation/reports` | 对账报告 |
+| POST | `/admin/reconciliation/channel-bill/generate` | 拉取渠道账单 |
+| POST | `/admin/reconciliation/channel-bill/reconcile` | 渠道账单逐笔核对 |
+| GET | `/admin/reconciliation/channel-bill/checks` | 核对结果 |
+
+> 结算明细为**商户自有结算账户**维度的信息，平台不经手资金。
+
+---
+
+## 10. 日志与审计
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/admin/login-logs` | 登录日志 |
+| GET | `/admin/audit-logs` | 操作审计日志（哈希链） |
+
+---
+
+## 11. AI 智能体管理
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/agent/admin/agents` | 创建智能体 |
+| GET | `/agent/admin/agents` | 列表 |
+| PATCH | `/agent/admin/agents/:id` | 更新 |
+| POST | `/agent/admin/agents/:id/rotate-secret` | 轮换密钥 |
+
+---
+
+## 12. 系统配置
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/admin/system-config` | 全部配置 |
+| GET | `/admin/system-config/:key` | 单项 |
+| POST | `/admin/system-config` | 新建 |
+| PUT | `/admin/system-config/:key` | 更新 |
+
+---
+
+## 13. 合规红线（管理员必读）
+
+- **不得**在平台内为用户/商户开设余额账户
+- **不得**通过平台发起任何资金划转（转账/代付/分账/红包）
+- **不得**将平台作为"二清"通道
+- 所有资金清算必须通过持牌支付机构原路完成
+- 配置渠道时必须使用 AES-256-GCM 加密的凭据，禁止明文落库

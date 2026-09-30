@@ -173,14 +173,12 @@ export class LlmService {
 
     // 简单关键词路由
     let reply = ''
-    if (content.includes('余额') || content.includes('balance')) {
-      reply = `[mock] 您的余额查询请求已收到。请使用 kbpay_query_balance 工具查询。可用工具数: ${tools.length}`
+    if (content.includes('订单') || content.includes('order')) {
+      reply = `[mock] 您的订单查询请求已收到。请使用 kbpay_query_order 工具查询。可用工具数: ${tools.length}`
     } else if (content.includes('账单') || content.includes('bill')) {
       reply = `[mock] 已为您查询账单，请使用 kbpay_query_bill 工具查看明细。`
-    } else if (content.includes('转') && content.includes('钱')) {
-      reply = `[mock] 转账请求已收到，请确认收款人与金额。该操作需要您二次确认。`
-    } else if (content.includes('红包')) {
-      reply = `[mock] 红包功能需在钱包端发起（Agent 未开放红包工具）。`
+    } else if (content.includes('退款') || content.includes('refund')) {
+      reply = `[mock] 退款请求已收到，请提供订单号。该操作需要您二次确认。`
     } else if (content.includes('对账') || content.includes('reconcil')) {
       reply = `[mock] 对账任务已记录，正在分析差异。`
     } else if (content.includes('风控') || content.includes('risk')) {

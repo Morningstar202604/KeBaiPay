@@ -21,7 +21,7 @@ describe('CashierController', () => {
     exportMyOrders: jest.fn().mockResolvedValue('csv,data\n1,2'),
     reconciliation: jest.fn().mockResolvedValue({ rows: [] }),
     getOrder: jest.fn().mockResolvedValue({ orderNo: 'ORD1' }),
-    pay: jest.fn().mockResolvedValue({ ok: true }),
+    createChannelPay: jest.fn().mockResolvedValue({ payUrl: 'https://pay.example' }),
     retryNotify: jest.fn().mockResolvedValue({ ok: true }),
     getQrCodeOrderInfo: jest.fn().mockResolvedValue({ code: 'C1' }),
   }
@@ -85,11 +85,11 @@ describe('CashierController', () => {
     expect(mockService.getOrder).toHaveBeenCalledWith('ORD1')
   })
 
-  it('pay 透传 user.id 和 {orderNo, payPassword} 到 service', async () => {
-    await controller.pay({ id: 'u1' } as any, 'ORD1', { payPassword: '123456' } as any)
-    expect(mockService.pay).toHaveBeenCalledWith('u1', {
-      orderNo: 'ORD1',
-      payPassword: '123456',
+  it('channelPay 透传 user.id / orderNo / channel / 选项到 service.createChannelPay', async () => {
+    await controller.channelPay({ id: 'u1' } as any, 'ORD1', { channel: 'mock', payMethod: 'h5', clientIp: '1.2.3.4' } as any)
+    expect(mockService.createChannelPay).toHaveBeenCalledWith('u1', 'ORD1', 'mock', {
+      payMethod: 'h5',
+      clientIp: '1.2.3.4',
     })
   })
 
@@ -140,7 +140,7 @@ describe('CashierController (HTTP)', () => {
     exportMyOrders: jest.fn().mockResolvedValue('csv,data\n1,2'),
     reconciliation: jest.fn().mockResolvedValue({ rows: [] }),
     getOrder: jest.fn().mockResolvedValue({ orderNo: 'ORD1' }),
-    pay: jest.fn().mockResolvedValue({ ok: true }),
+    createChannelPay: jest.fn().mockResolvedValue({ payUrl: 'https://pay.example' }),
     retryNotify: jest.fn().mockResolvedValue({ ok: true }),
     getQrCodeOrderInfo: jest.fn().mockResolvedValue({ code: 'C1' }),
   }
@@ -268,25 +268,25 @@ describe('CashierController (HTTP)', () => {
     return request(app.getHttpServer()).get('/cashier/orders/ORD1').expect(200)
   })
 
-  // pay
-  it('POST /cashier/orders/:orderNo/pay 缺 payPassword 返回 400', () => {
+  // channel-pay
+  it('POST /cashier/orders/:orderNo/channel-pay 缺 channel 返回 400', () => {
     return request(app.getHttpServer())
-      .post('/cashier/orders/ORD1/pay')
+      .post('/cashier/orders/ORD1/channel-pay')
       .send({})
       .expect(400)
   })
 
-  it('POST /cashier/orders/:orderNo/pay payPassword 为空返回 400', () => {
+  it('POST /cashier/orders/:orderNo/channel-pay channel 为空返回 400', () => {
     return request(app.getHttpServer())
-      .post('/cashier/orders/ORD1/pay')
-      .send({ payPassword: '' })
+      .post('/cashier/orders/ORD1/channel-pay')
+      .send({ channel: '' })
       .expect(400)
   })
 
-  it('POST /cashier/orders/:orderNo/pay 参数合法返回 201', () => {
+  it('POST /cashier/orders/:orderNo/channel-pay 参数合法返回 201', () => {
     return request(app.getHttpServer())
-      .post('/cashier/orders/ORD1/pay')
-      .send({ payPassword: '123456' })
+      .post('/cashier/orders/ORD1/channel-pay')
+      .send({ channel: 'mock' })
       .expect(201)
   })
 

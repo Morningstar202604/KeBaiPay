@@ -77,13 +77,13 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kebaipay}?schema=public
-      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (资金操作并发安全依赖 Redis 密码)}@redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (收单操作并发安全依赖 Redis 密码)}@redis:6379
       JWT_USER_SECRET: ${JWT_USER_SECRET:?JWT_USER_SECRET must be set in .env}
       JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET:?JWT_ADMIN_SECRET must be set in .env}
       ADMIN_DEFAULT_PASSWORD: ${ADMIN_DEFAULT_PASSWORD:?ADMIN_DEFAULT_PASSWORD must be set in .env}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY must be set in .env}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (资金操作并发安全依赖 Redis 密码)}
-      RECHARGE_NOTIFY_URL: ${RECHARGE_NOTIFY_URL:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env (收单操作并发安全依赖 Redis 密码)}
+      CHANNEL_NOTIFY_URL: ${CHANNEL_NOTIFY_URL:-}
       CASHIER_BASE_URL: ${CASHIER_BASE_URL:-http://localhost:3001}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001,http://localhost:5173,http://localhost:5174,http://localhost:5175}
       TZ: Asia/Shanghai

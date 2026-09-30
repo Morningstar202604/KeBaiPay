@@ -43,43 +43,8 @@ describe('MockChannel', () => {
       expect(bad).toBe(false)
     })
 
-    it('代付回调使用 orderNo+channelOrderNo+status 验签', () => {
-      const body = { orderNo: 'W1', channelOrderNo: 'MOCK_P_W1', status: 'SUCCESS' }
-      const raw = JSON.stringify(body)
-      const ok = channel.verifyWebhookSignature(raw, { 'x-signature': sign('W1MOCK_P_W1SUCCESS') }, {} as never)
-      expect(ok).toBe(true)
-      const bad = channel.verifyWebhookSignature(raw, { 'x-signature': sign('W1MOCK_P_W1FAILED') }, {} as never)
-      expect(bad).toBe(false)
-    })
-
     it('非 JSON body 返回 false', () => {
       expect(channel.verifyWebhookSignature('not-json', { 'x-signature': 'x' }, {} as never)).toBe(false)
-    })
-  })
-
-  describe('parsePayoutCallback', () => {
-    it('成功回调解析成功并校验签名', () => {
-      const body = { orderNo: 'W1', channelOrderNo: 'MOCK_P_W1', status: 'SUCCESS' }
-      const raw = JSON.stringify(body)
-      const result = channel.parsePayoutCallback(
-        raw,
-        { 'x-signature': sign('W1MOCK_P_W1SUCCESS') },
-        {} as never,
-      )
-      expect(result.status).toBe('SUCCESS')
-      expect(result.orderNo).toBe('W1')
-      expect(result.channelOrderNo).toBe('MOCK_P_W1')
-    })
-
-    it('签名错误时抛出认证异常', () => {
-      const body = { orderNo: 'W1', channelOrderNo: 'MOCK_P_W1', status: 'SUCCESS' }
-      expect(() =>
-        channel.parsePayoutCallback(
-          JSON.stringify(body),
-          { 'x-signature': sign('W1MOCK_P_W1FAILED') },
-          {} as never,
-        ),
-      ).toThrow(/签名/)
     })
   })
 

@@ -10,10 +10,9 @@ import { AGENT_RESULT_PENDING_CONFIRM, AGENT_RESULT_EXPIRED } from '../common/co
 /**
  * Agent 调度任务：
  *  1. 每 10 分钟巡检 ScheduleHealthService，发现连续失败 ≥3 次的任务时 AI 生成告警并推送管理员
- *  2. 每小时扫描 ReconciliationDifferenceItem PENDING 项，AI 生成处置建议
- *  3. 每 30 分钟扫描 RiskEvent REVIEW 状态，AI 生成处置建议
- *  4. 每 5 分钟将超时的 PENDING_CONFIRM 操作日志置为 EXPIRED（confirmOp 内亦有双保险校验）
- *  5. 每日校验所有 Agent 操作审计哈希链（verifyChain 此前只写不验，防篡改形同虚设）
+ *  2. 每 30 分钟扫描 RiskEvent REVIEW 状态，AI 生成处置建议
+ *  3. 每 5 分钟将超时的 PENDING_CONFIRM 操作日志置为 EXPIRED（confirmOp 内亦有双保险校验）
+ *  4. 每日校验所有 Agent 操作审计哈希链（verifyChain 此前只写不验，防篡改形同虚设）
  *
  * 巡检任务本身也注册到 ScheduleHealthService，被自身监控（防止巡检自身失败无人发现）
  */

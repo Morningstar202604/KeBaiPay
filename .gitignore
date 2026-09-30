@@ -13,6 +13,7 @@ dist/
 *.db-journal
 prisma/migrations/*
 !prisma/migrations/.gitkeep
+!prisma/migrations/*/
 !prisma/migrations/*/migration.sql
 
 # Environment
@@ -22,6 +23,7 @@ prisma/migrations/*
 .env.staging
 .env.development
 .env.*.local
+*.local
 
 # Logs
 .mimosa/
@@ -62,6 +64,9 @@ secrets/
 .ai-memory/
 .claude/
 .cursor/
+
+# Uploads
+uploads/
 
 # Prisma compiled artifacts (source is seed.ts)
 prisma/seed.js

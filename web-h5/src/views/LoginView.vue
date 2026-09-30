@@ -2,7 +2,7 @@
   <div class="login-page">
     <div class="brand">
       <img class="brand-mark" src="/logo.svg" alt="KeBaiPay" />
-      <h1>科佰钱包</h1>
+      <h1>科佰收单</h1>
       <p>KeBaiPay 用户端</p>
     </div>
     <div class="login-card">

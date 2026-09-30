@@ -9,7 +9,6 @@ import { RedisService } from '../redis/redis.service.js'
 import { CryptoService } from '../crypto/crypto.service.js'
 import { SmsService } from '../sms/sms.service.js'
 import { RealNameStatus } from '../common/enums.js'
-import { kbError, KBErrorCodes } from '../common/error-codes.js'
 
 jest.mock('bcrypt', () => ({
   hash: jest.fn(async (pwd: string) => `hashed_${pwd}`),
@@ -27,10 +26,7 @@ describe('UsersService', () => {
   type PrismaMock = {
     $transaction: jest.Mock
     user: Record<string, jest.Mock>
-    account: Record<string, jest.Mock>
     identityVerification: Record<string, jest.Mock>
-    systemConfig: Record<string, jest.Mock>
-    dailyLimitUsage: Record<string, jest.Mock>
   } & Record<string, unknown>
 
   let prisma: PrismaMock
@@ -39,10 +35,7 @@ describe('UsersService', () => {
   beforeEach(async () => {
     prisma = {
       user: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
-      account: { create: jest.fn() },
       identityVerification: { upsert: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
-      systemConfig: { findUnique: jest.fn() },
-      dailyLimitUsage: { findUnique: jest.fn(), upsert: jest.fn(), updateMany: jest.fn() },
       $transaction: jest.fn(async (ops: unknown[]) => {
         const results = []
         for (const op of ops) {
@@ -90,30 +83,27 @@ describe('UsersService', () => {
   })
 
   describe('create 创建用户', () => {
-    it('同时创建 user 和 account', async () => {
+    it('透传字段创建 user（聚合收单模式不再自动建 Account 钱包）', async () => {
       const data = { nickname: '张三', phone: '13800138000', loginPassword: 'pwd' }
-      prisma.user.create.mockResolvedValue({ id: 'u1', ...data, account: { id: 'a1' } })
+      prisma.user.create.mockResolvedValue({ id: 'u1', ...data })
 
       const result = await service.create(data)
 
-      expect(prisma.user.create).toHaveBeenCalledWith({
-        data: { ...data, account: { create: {} } },
-        include: { account: true },
-      })
-      expect(result.account).toBeDefined()
+      expect(prisma.user.create).toHaveBeenCalledWith({ data: { ...data } })
+      expect(result.id).toBe('u1')
     })
   })
 
   describe('findById 按 ID 查询', () => {
-    it('包含 account 和 identity', async () => {
-      const user = { id: 'u1', nickname: '张三', account: { id: 'a1' }, identity: null }
+    it('include identity，不再 include account', async () => {
+      const user = { id: 'u1', nickname: '张三', identity: null }
       prisma.user.findUnique.mockResolvedValue(user)
 
       const result = await service.findById('u1')
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'u1' },
-        include: { account: true, identity: true },
+        include: { identity: true },
       })
       expect(result).toEqual(user)
     })
@@ -277,127 +267,6 @@ describe('UsersService', () => {
     })
   })
 
-  describe('getDailyLimit 单日限额', () => {
-    it('默认 5 万元，计算今日已用和剩余', async () => {
-      prisma.systemConfig.findUnique.mockResolvedValue(null)
-      prisma.dailyLimitUsage.findUnique.mockResolvedValue({ usedAmount: 1000000 })
 
-      const result = await service.getDailyLimit('u1')
-
-      expect(prisma.systemConfig.findUnique).toHaveBeenCalledWith({ where: { key: 'transfer_daily_limit' } })
-      expect(prisma.dailyLimitUsage.findUnique).toHaveBeenCalledWith({
-        where: {
-          userId_limitType_date: {
-            userId: 'u1',
-            limitType: 'TRANSFER',
-            date: expect.any(String),
-          },
-        },
-      })
-      expect(result).toEqual({
-        limitYuan: '50000.00',
-        usedYuan: '10000.00',
-        remainingYuan: '40000.00',
-      })
-    })
-
-    it('使用系统配置限额', async () => {
-      prisma.systemConfig.findUnique.mockResolvedValue({ value: '10000' })
-      prisma.dailyLimitUsage.findUnique.mockResolvedValue({ usedAmount: 200000 })
-
-      const result = await service.getDailyLimit('u1')
-
-      expect(result).toEqual({
-        limitYuan: '10000.00',
-        usedYuan: '2000.00',
-        remainingYuan: '8000.00',
-      })
-    })
-
-    it('无记录时今日已用为 0', async () => {
-      prisma.systemConfig.findUnique.mockResolvedValue(null)
-      prisma.dailyLimitUsage.findUnique.mockResolvedValue(null)
-
-      const result = await service.getDailyLimit('u1')
-
-      expect(result).toEqual({
-        limitYuan: '50000.00',
-        usedYuan: '0.00',
-        remainingYuan: '50000.00',
-      })
-    })
-  })
-
-  describe('checkAndIncrementDailyLimit 原子递增单日限额', () => {
-    it('正常递增通过', async () => {
-      const tx = {
-        dailyLimitUsage: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'dlu1', version: 0, usedAmount: 0 }),
-          create: jest.fn(),
-          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-        },
-      }
-
-      await service.checkAndIncrementDailyLimit(tx as unknown as import('@prisma/client').Prisma.TransactionClient, 'u1', 'TRANSFER', '2026-06-24', 1000, 5000000)
-
-      // 实现已从 upsert 改为 findFirst + create + updateMany（先查不存在则建，再乐观锁更新）
-      expect(tx.dailyLimitUsage.findFirst).toHaveBeenCalledWith({
-        where: {
-          userId: 'u1',
-          limitType: 'TRANSFER',
-          date: '2026-06-24',
-        },
-      })
-      // 已存在记录，不应再 create
-      expect(tx.dailyLimitUsage.create).not.toHaveBeenCalled()
-      expect(tx.dailyLimitUsage.updateMany).toHaveBeenCalledWith({
-        where: {
-          id: 'dlu1',
-          version: 0,
-          usedAmount: { lte: 4999000 },
-        },
-        data: {
-          usedAmount: { increment: 1000 },
-          version: { increment: 1 },
-        },
-      })
-    })
-
-    it('超出限额时 updateMany 返回 0 抛错', async () => {
-      const tx = {
-        dailyLimitUsage: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'dlu1', version: 1, usedAmount: 5000000 }),
-          create: jest.fn(),
-          updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-        },
-      }
-
-      await expect(
-        service.checkAndIncrementDailyLimit(tx as unknown as import('@prisma/client').Prisma.TransactionClient, 'u1', 'TRANSFER', '2026-06-24', 1000, 5000000),
-      ).rejects.toThrow(BadRequestException)
-      await expect(
-        service.checkAndIncrementDailyLimit(tx as unknown as import('@prisma/client').Prisma.TransactionClient, 'u1', 'TRANSFER', '2026-06-24', 1000, 5000000),
-      ).rejects.toThrow(kbError(KBErrorCodes.DAILY_LIMIT_EXCEEDED))
-    })
-
-    it('单次金额已超过限额直接抛错', async () => {
-      const tx = {
-        dailyLimitUsage: {
-          findFirst: jest.fn(),
-          create: jest.fn(),
-          updateMany: jest.fn(),
-        },
-      }
-
-      const txClient = tx as unknown as import('@prisma/client').Prisma.TransactionClient
-      await expect(
-        service.checkAndIncrementDailyLimit(txClient, 'u1', 'TRANSFER', '2026-06-24', 6000000, 5000000),
-      ).rejects.toThrow(BadRequestException)
-      await expect(
-        service.checkAndIncrementDailyLimit(txClient, 'u1', 'TRANSFER', '2026-06-24', 6000000, 5000000),
-      ).rejects.toThrow(kbError(KBErrorCodes.DAILY_LIMIT_EXCEEDED))
-      // amount > limit 时直接抛错，不查数据库
-      expect(tx.dailyLimitUsage.findFirst).not.toHaveBeenCalled()
-    })
-  })
 })
+

@@ -13,7 +13,6 @@ import { ToolRegistry } from './tools/tool.registry'
 import { LlmModule } from './llm/llm.module'
 import { MessagesModule } from '../messages/messages.module'
 import { CouponsModule } from '../coupons/coupons.module'
-import { TransfersModule } from '../transfers/transfers.module'
 import { AgentSchedule } from './agent.schedule'
 
 /**
@@ -36,7 +35,6 @@ import { AgentSchedule } from './agent.schedule'
     LlmModule,
     MessagesModule,
     CouponsModule,
-    TransfersModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({

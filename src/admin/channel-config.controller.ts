@@ -22,7 +22,6 @@ import { IsString, IsBoolean, IsNumber, IsOptional, Min } from 'class-validator'
 class CreateChannelConfigDto {
   @IsString() code!: string
   @IsString() name!: string
-  @IsString() type!: string
   @IsBoolean() enabled = false
   @IsNumber() @Min(0) priority = 0
   @IsOptional() @IsString() config = '{}'
@@ -30,7 +29,6 @@ class CreateChannelConfigDto {
 
 class UpdateChannelConfigDto {
   @IsOptional() @IsString() name?: string
-  @IsOptional() @IsString() type?: string
   @IsOptional() @IsBoolean() enabled?: boolean
   @IsOptional() @IsNumber() @Min(0) priority?: number
   @IsOptional() @IsString() config?: string

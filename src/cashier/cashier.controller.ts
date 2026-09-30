@@ -15,7 +15,7 @@ import { CurrentUser } from '../auth/current-user.decorator'
 import { CurrentUser as CurrentUserType } from '../auth/current-user.interface'
 import { CashierService } from './cashier.service'
 import { CreateCashierOrderDto } from './dto/create-cashier-order.dto'
-import { PayCashierOrderDto } from './dto/pay-cashier-order.dto'
+import { PayChannelOrderDto } from './dto/pay-channel-order.dto'
 import { ListMyOrdersQueryDto } from './dto/list-my-orders-query.dto'
 import { ExportOrdersQueryDto } from './dto/export-orders-query.dto'
 import { ReconciliationQueryDto } from './dto/reconciliation-query.dto'
@@ -85,18 +85,18 @@ export class CashierController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post(':orderNo/pay')
-  @ApiOperation({ summary: '支付订单', description: '用户使用余额支付收银台订单' })
-  @ApiResponse({ status: 200, description: '支付成功' })
-  @ApiResponse({ status: 400, description: 'KB208 支付密码错误 / KB005 余额不足' })
-  pay(
+  @Post(':orderNo/channel-pay')
+  @ApiOperation({ summary: '渠道支付', description: '用户发起微信/支付宝渠道支付（合规聚合模式，资金由持牌通道清算）' })
+  @ApiResponse({ status: 200, description: '返回支付链接' })
+  @ApiResponse({ status: 400, description: '渠道不可用 / 订单状态异常' })
+  async channelPay(
     @CurrentUser() user: CurrentUserType,
     @Param('orderNo') orderNo: string,
-    @Body() dto: PayCashierOrderDto,
+    @Body() dto: PayChannelOrderDto,
   ) {
-    return this.cashierService.pay(user.id, {
-      orderNo,
-      payPassword: dto.payPassword,
+    return this.cashierService.createChannelPay(user.id, orderNo, dto.channel, {
+      payMethod: dto.payMethod,
+      clientIp: dto.clientIp,
     })
   }
 

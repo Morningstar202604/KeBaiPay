@@ -1,7 +1,7 @@
 /**
  * 支付渠道抽象接口
  *
- * 每个真实渠道（支付宝、微信、银行代付等）实现此接口。
+ * 每个真实渠道（支付宝、微信等）实现此接口。
  * MockChannel 用于开发和测试环境。
  */
 
@@ -15,7 +15,7 @@ export interface ChannelConfig {
   [key: string]: string | number | boolean | undefined
 }
 
-/** 充值请求参数 */
+/** 收单请求参数 */
 export interface RechargeRequest {
   orderNo: string
   amount: number // 分
@@ -31,7 +31,7 @@ export interface RechargeRequest {
   clientIp?: string
 }
 
-/** 充值响应 */
+/** 收单响应 */
 export interface RechargeResponse {
   channelOrderNo: string
   payUrl?: string
@@ -39,36 +39,13 @@ export interface RechargeResponse {
   status: 'PENDING' | 'SUCCESS' | 'FAILED'
 }
 
-/** 充值回调解析结果 */
+/** 收单回调解析结果 */
 export interface RechargeCallbackResult {
   channelOrderNo: string
   orderNo: string
   amount: number
   status: 'SUCCESS' | 'FAILED'
   signature: string
-}
-
-/** 代付请求参数 */
-export interface PayoutRequest {
-  orderNo: string
-  amount: number // 实际到账金额，分
-  channelAccount: string
-  userName: string
-  channelConfig: ChannelConfig
-}
-
-/** 代付响应 */
-export interface PayoutResponse {
-  channelOrderNo: string
-  status: 'PROCESSING' | 'SUCCESS' | 'FAILED'
-  message?: string
-}
-
-/** 代付查询结果 */
-export interface PayoutQueryResult {
-  channelOrderNo: string
-  status: 'PROCESSING' | 'SUCCESS' | 'FAILED'
-  message?: string
 }
 
 /** 退款请求参数 */
@@ -126,42 +103,18 @@ export interface PaymentChannel {
   /** 渠道名称 */
   readonly name: string
 
-  /** 发起充值 */
+  /** 发起收单 */
   createRecharge(params: RechargeRequest): Promise<RechargeResponse>
 
-  /** 解析充值回调（含验签） */
+  /** 解析收单回调（含验签） */
   parseRechargeCallback(
     rawBody: string,
     headers: Record<string, string>,
     channelConfig: ChannelConfig,
   ): RechargeCallbackResult
 
-  /** 生成充值回调成功响应 */
+  /** 生成收单回调成功响应 */
   buildRechargeCallbackSuccess(): string
-
-  /** 发起代付 */
-  createPayout(params: PayoutRequest): Promise<PayoutResponse>
-
-  /** 查询代付状态 */
-  queryPayout(
-    channelOrderNo: string,
-    channelConfig: ChannelConfig,
-  ): Promise<PayoutQueryResult>
-
-  /** 解析代付回调（含验签） */
-  parsePayoutCallback(
-    rawBody: string,
-    headers: Record<string, string>,
-    channelConfig: ChannelConfig,
-  ): {
-    channelOrderNo: string
-    orderNo: string
-    status: 'SUCCESS' | 'FAILED'
-    signature: string
-  }
-
-  /** 生成代付回调成功响应 */
-  buildPayoutCallbackSuccess(): string
 
   /** 发起退款 */
   refund(params: RefundRequest): Promise<RefundResponse>

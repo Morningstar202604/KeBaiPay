@@ -116,12 +116,11 @@ describe('ChannelConfigController', () => {
   })
 
   it('createChannel 写入并记录审计', async () => {
-    const created = { code: 'wechat', name: '微信', type: 'RECHARGE' }
+    const created = { code: 'wechat', name: '微信' }
     mockPrisma.paymentChannelConfig.create.mockResolvedValue(created)
     const dto = {
       code: 'wechat',
       name: '微信',
-      type: 'RECHARGE',
       enabled: true,
       priority: 5,
       config: '{}',
@@ -136,7 +135,6 @@ describe('ChannelConfigController', () => {
       data: {
         code: 'wechat',
         name: '微信',
-        type: 'RECHARGE',
         enabled: true,
         priority: 5,
         config: '{}',
@@ -148,7 +146,7 @@ describe('ChannelConfigController', () => {
         adminId: 'a1',
         action: 'CHANNEL_CONFIG_CREATE',
         target: 'wechat',
-        detail: { name: '微信', type: 'RECHARGE' },
+        detail: { name: '微信' },
         ip: '127.0.0.1',
         userAgent: 'jest',
       },
@@ -172,7 +170,6 @@ describe('ChannelConfigController', () => {
     const existing = {
       code: 'alipay',
       name: '支付宝',
-      type: 'RECHARGE',
       enabled: true,
       priority: 10,
       config: JSON.stringify({ a: '1', b: '2' }),
@@ -235,7 +232,6 @@ describe('ChannelConfigController', () => {
     mockChannelRegistry.getEnabledConfig.mockResolvedValue({
       code: 'alipay',
       name: '支付宝',
-      type: 'RECHARGE',
       config: {},
     })
     const result = await controller.testChannel('alipay')
@@ -243,7 +239,7 @@ describe('ChannelConfigController', () => {
       code: 'alipay',
       name: '支付宝',
       available: true,
-      message: '支付宝 渠道已启用（RECHARGE）',
+      message: '支付宝 渠道已启用（alipay）',
     })
     expect(mockChannelRegistry.getChannel).toHaveBeenCalledWith('alipay')
     expect(mockChannelRegistry.getEnabledConfig).toHaveBeenCalledWith('alipay')
@@ -254,7 +250,6 @@ describe('ChannelConfigController', () => {
     const created = {
       code: 'wechat',
       name: '微信',
-      type: 'RECHARGE',
       enabled: true,
       priority: 5,
       config: JSON.stringify({ appId: 'wxa', secret: 's' }),
@@ -262,7 +257,7 @@ describe('ChannelConfigController', () => {
     mockPrisma.paymentChannelConfig.create.mockResolvedValue(created)
     mockPrisma.paymentChannelConfig.findUnique.mockResolvedValue(created)
     await controller.createChannel(
-      { code: 'wechat', name: '微信', type: 'RECHARGE', enabled: true, priority: 5, config: '{}' } as any,
+      { code: 'wechat', name: '微信',  enabled: true, priority: 5, config: '{}' } as any,
       { sub: 'a1', role: 'SUPER_ADMIN' } as any,
       { headers: {}, ip: '127.0.0.1' } as any,
     )
@@ -278,7 +273,6 @@ describe('ChannelConfigController', () => {
     const existing = {
       code: 'alipay',
       name: '支付宝',
-      type: 'RECHARGE',
       enabled: true,
       priority: 10,
       config: JSON.stringify({ appId: 'alix', secret: 's' }),
@@ -317,7 +311,7 @@ describe('ChannelConfigController', () => {
     mockConnectorRegistry.get.mockReturnValue(undefined)
     mockPrisma.paymentChannelConfig.create.mockResolvedValue({ code: 'unknown' })
     await controller.createChannel(
-      { code: 'unknown', name: 'x', type: 'RECHARGE', enabled: true, priority: 1, config: '{}' } as any,
+      { code: 'unknown', name: 'x',  enabled: true, priority: 1, config: '{}' } as any,
       { sub: 'a1', role: 'SUPER_ADMIN' } as any,
       { headers: {}, ip: '127.0.0.1' } as any,
     )

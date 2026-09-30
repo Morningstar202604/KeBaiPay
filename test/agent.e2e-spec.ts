@@ -20,7 +20,6 @@ import { PrismaService } from '../src/prisma/prisma.service.js'
 import { MessagesService } from '../src/messages/messages.service.js'
 import { CouponsService } from '../src/coupons/coupons.service.js'
 import { ScheduleHealthService } from '../src/common/schedule-health.service.js'
-import { TransfersService } from '../src/transfers/transfers.service.js'
 import { JWT_TOKEN_TYPE_AGENT } from '../src/common/constants.js'
 import type { AgentCurrentUser } from '../src/agent/agent-current-user.interface.js'
 
@@ -84,6 +83,7 @@ describe('AgentModule (e2e)', () => {
     paymentOrder: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      aggregate: jest.fn(),
     },
     riskEvent: {
       findMany: jest.fn(),
@@ -127,11 +127,11 @@ describe('AgentModule (e2e)', () => {
     sub: TEST_AGENT_ID,
     typ: 'agent',
     scenario: 'wallet',
-    scopes: ['wallet:read', 'wallet:write:transfer'],
+    scopes: ['wallet:read'],
     subjectType: 'user',
     subjectId: TEST_USER_ID,
     authId: TEST_AUTH_ID,
-    authScopes: ['wallet:read', 'wallet:write:transfer'],
+    authScopes: ['wallet:read'],
   }
 
   function signAgentToken(overrides: Partial<any> = {}): string {
@@ -139,11 +139,11 @@ describe('AgentModule (e2e)', () => {
       sub: TEST_AGENT_ID,
       typ: JWT_TOKEN_TYPE_AGENT,
       scenario: 'wallet',
-      scopes: ['wallet:read', 'wallet:write:transfer'],
+      scopes: ['wallet:read'],
       subjectType: 'user',
       subjectId: TEST_USER_ID,
       authId: TEST_AUTH_ID,
-      authScopes: ['wallet:read', 'wallet:write:transfer'],
+      authScopes: ['wallet:read'],
       ...overrides,
     }
     return jwtService.sign(payload, {
@@ -179,7 +179,6 @@ describe('AgentModule (e2e)', () => {
         { provide: MessagesService, useValue: mockMessagesService },
         { provide: CouponsService, useValue: mockCouponsService },
         { provide: ScheduleHealthService, useValue: mockScheduleHealthService },
-        { provide: TransfersService, useValue: { agentTransfer: jest.fn() } },
       ],
     })
       .overrideGuard(AgentAuthGuard)
@@ -225,7 +224,7 @@ describe('AgentModule (e2e)', () => {
     // 重置默认 mock 行为
     mockPrisma.agent.findUnique.mockImplementation(async (args: any) => {
       if (args.where?.id === TEST_AGENT_ID) {
-        return { id: TEST_AGENT_ID, status: 'ACTIVE', scenario: 'wallet', scopes: '["wallet:read","wallet:write:transfer"]' }
+        return { id: TEST_AGENT_ID, status: 'ACTIVE', scenario: 'wallet', scopes: '["wallet:read"]' }
       }
       return null
     })
@@ -234,7 +233,7 @@ describe('AgentModule (e2e)', () => {
       agentId: TEST_AGENT_ID,
       subjectId: TEST_USER_ID,
       subjectType: 'user',
-      scopes: '["wallet:read","wallet:write:transfer"]',
+      scopes: '["wallet:read"]',
       revokedAt: null,
       expiresAt: null,
     })
@@ -261,7 +260,6 @@ describe('AgentModule (e2e)', () => {
           { provide: MessagesService, useValue: mockMessagesService },
           { provide: CouponsService, useValue: mockCouponsService },
           { provide: ScheduleHealthService, useValue: mockScheduleHealthService },
-          { provide: TransfersService, useValue: { agentTransfer: jest.fn() } },
         ],
       }).compile()
       const app2 = moduleRef2.createNestApplication()
@@ -411,7 +409,7 @@ describe('AgentModule (e2e)', () => {
       })
       const res = await request(app.getHttpServer())
         .post('/agent/authorize')
-        .send({ agentId: 'a1', scopes: ['wallet:read', 'wallet:write:transfer'] })
+        .send({ agentId: 'a1', scopes: ['wallet:write:coupon'] })
       expect(res.status).toBe(401)
     })
 
@@ -480,8 +478,8 @@ describe('AgentModule (e2e)', () => {
       mockPrisma.agentOperationLog.findUnique.mockResolvedValue({
         id: 'op-1',
         result: 'PENDING_CONFIRM',
-        action: 'kbpay_transfer',
-        scope: 'wallet:write:transfer',
+        action: 'kbpay_query_bill',
+        scope: 'wallet:read',
         // 属主信息必须与当前 agent token 主体一致（confirmOp 有属主校验）
         subjectType: 'user',
         subjectId: TEST_USER_ID,
@@ -499,8 +497,8 @@ describe('AgentModule (e2e)', () => {
       mockPrisma.agentOperationLog.findUnique.mockResolvedValue({
         id: 'op-2',
         result: 'PENDING_CONFIRM',
-        action: 'kbpay_transfer',
-        scope: 'wallet:write:transfer',
+        action: 'kbpay_query_bill',
+        scope: 'wallet:read',
         subjectType: 'user',
         // 与当前 token 主体（TEST_USER_ID）不同 → 拒绝
         subjectId: 'other-user-9',
@@ -535,7 +533,7 @@ describe('AgentModule (e2e)', () => {
   })
 
   describe('ToolRegistry 工具查找', () => {
-    it('wallet 场景应返回 5 个工具', () => {
+    it('wallet 场景应返回收单工具集', () => {
       const toolRegistry = app.get(ToolRegistry)
       const tools = toolRegistry.getTools(mockAgentUser, 'wallet', {
         messagesService: mockMessagesService,
@@ -543,11 +541,13 @@ describe('AgentModule (e2e)', () => {
         scheduleHealthService: mockScheduleHealthService,
       } as any)
       const names = tools.map((t) => t.name)
-      expect(names).toContain('kbpay_query_balance')
+      expect(names).toContain('kbpay_query_orders')
       expect(names).toContain('kbpay_query_bill')
       expect(names).toContain('kbpay_send_message')
       expect(names).toContain('kbpay_claim_coupon')
-      expect(names).toContain('kbpay_transfer')
+      // 转账/余额查询已随资金池下线，不应再出现
+      expect(names).not.toContain('kbpay_transfer')
+      expect(names).not.toContain('kbpay_query_balance')
     })
 
     it('risk 场景应返回风控相关工具', () => {
@@ -562,22 +562,10 @@ describe('AgentModule (e2e)', () => {
       expect(names).toContain('kbpay_query_health')
     })
 
-    it('kbpay_transfer 工具应标记 requireConfirm=true', () => {
-      const toolRegistry = app.get(ToolRegistry)
-      const tools = toolRegistry.getTools(mockAgentUser, 'wallet', {
-        messagesService: mockMessagesService,
-        couponsService: mockCouponsService,
-        scheduleHealthService: mockScheduleHealthService,
-      } as any)
-      const transferTool = tools.find((t) => t.name === 'kbpay_transfer')
-      expect(transferTool?.requireConfirm).toBe(true)
-    })
-
-    it('kbpay_query_balance 工具查询余额返回字段', async () => {
-      mockPrisma.account.findUnique.mockResolvedValue({
-        availableBalance: 10000,
-        frozenBalance: 500,
-        totalBalance: 10500,
+    it('kbpay_query_orders 查询收单订单统计', async () => {
+      mockPrisma.paymentOrder.aggregate.mockResolvedValue({
+        _count: { id: 2 },
+        _sum: { amount: 3000 },
       })
       const toolRegistry = app.get(ToolRegistry)
       const tools = toolRegistry.getTools(mockAgentUser, 'wallet', {
@@ -585,14 +573,13 @@ describe('AgentModule (e2e)', () => {
         couponsService: mockCouponsService,
         scheduleHealthService: mockScheduleHealthService,
       } as any)
-      const balanceTool = tools.find((t) => t.name === 'kbpay_query_balance')!
-      const result = await balanceTool.execute({})
-      expect(result.balanceYuan).toBe('105.00')
-      expect(result.availableYuan).toBe('100.00')
-      expect(result.frozenYuan).toBe('5.00')
+      const ordersTool = tools.find((t) => t.name === 'kbpay_query_orders')!
+      const result = await ordersTool.execute({})
+      expect(result.paidCount).toBe(2)
+      expect(result.paidAmountYuan).toBe('30.00')
     })
 
-    it('kbpay_query_merchant_balance 通过 Merchant→User→Account 查询', async () => {
+    it('kbpay_query_merchant_stats 查询商户收单统计', async () => {
       const merchantUser: AgentCurrentUser = {
         ...mockAgentUser,
         scenario: 'merchant',
@@ -601,28 +588,23 @@ describe('AgentModule (e2e)', () => {
         authScopes: ['merchant:read'],
       }
       mockPrisma.merchant.findUnique.mockResolvedValue({
-        userId: TEST_USER_ID,
         merchantName: '测试商户',
         status: 'APPROVED',
-        user: {
-          account: {
-            availableBalance: 50000,
-            frozenBalance: 1000,
-            totalBalance: 51000,
-          },
-        },
       })
+      mockPrisma.paymentOrder.aggregate
+        .mockResolvedValueOnce({ _count: { id: 3 }, _sum: { amount: 15000, fee: 300 } })
+        .mockResolvedValueOnce({ _sum: { refundAmount: 500 } })
       const toolRegistry = app.get(ToolRegistry)
       const tools = toolRegistry.getTools(merchantUser, 'merchant', {
         messagesService: mockMessagesService,
         couponsService: mockCouponsService,
         scheduleHealthService: mockScheduleHealthService,
       } as any)
-      const balanceTool = tools.find((t) => t.name === 'kbpay_query_merchant_balance')!
-      const result = await balanceTool.execute({})
+      const statsTool = tools.find((t) => t.name === 'kbpay_query_merchant_stats')!
+      const result = await statsTool.execute({})
       expect(result.merchantName).toBe('测试商户')
-      expect(result.balanceYuan).toBe('510.00')
-      expect(result.availableYuan).toBe('500.00')
+      expect(result.paidCount).toBe(3)
+      expect(result.paidAmountYuan).toBe('150.00')
     })
 
     it('kbpay_query_merchant_orders 查询商户订单', async () => {
@@ -659,8 +641,8 @@ describe('AgentModule (e2e)', () => {
         couponsService: mockCouponsService,
         scheduleHealthService: mockScheduleHealthService,
       } as any)
-      const balanceTool = tools.find((t) => t.name === 'kbpay_query_balance')!
-      await expect(balanceTool.execute({})).rejects.toThrow()
+      const ordersTool = tools.find((t) => t.name === 'kbpay_query_orders')!
+      await expect(ordersTool.execute({})).rejects.toThrow()
     })
   })
 
@@ -685,10 +667,10 @@ describe('AgentModule (e2e)', () => {
         agentId: TEST_AGENT_ID,
         subjectType: 'user',
         subjectId: TEST_USER_ID,
-        action: 'kbpay_transfer',
-        scope: 'wallet:write:transfer',
-        amount: 10000,
-        result: 'PENDING_CONFIRM',
+        action: 'kbpay_query_bill',
+        scope: 'wallet:read',
+        amount: 0,
+        result: 'SUCCESS',
       })
       expect(result.id).toBe('log-1')
       expect(result.hash).toBeDefined()

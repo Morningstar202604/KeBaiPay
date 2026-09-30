@@ -82,7 +82,6 @@ export class MerchantsService {
         businessLicenseNo: dto.businessLicenseNo,
         status: MerchantStatus.PENDING,
         payRate: 60,
-        withdrawRate: 60,
         dailyLimit: DEFAULT_MERCHANT_DAILY_LIMIT_CENTS,
       },
     })
@@ -220,12 +219,11 @@ export class MerchantsService {
     return this.formatMerchant(updated)
   }
 
-  // 后台调整商户收款费率、提现费率、日限额
+  // 后台调整商户收款费率、日限额
   async updateMerchantConfig(
     id: string,
     dto: {
       payRate?: number
-      withdrawRate?: number
       dailyLimit?: number
     },
   )
@@ -239,12 +237,6 @@ export class MerchantsService {
         throw new BadRequestException(kbError(KBErrorCodes.MERCHANT_PAY_RATE_INVALID))
       }
       data.payRate = dto.payRate
-    }
-    if (dto.withdrawRate !== undefined) {
-      if (dto.withdrawRate < 0 || dto.withdrawRate > RATE_DENOMINATOR) {
-        throw new BadRequestException(kbError(KBErrorCodes.MERCHANT_WITHDRAW_RATE_INVALID))
-      }
-      data.withdrawRate = dto.withdrawRate
     }
     if (dto.dailyLimit !== undefined) {
       const limit = yuanToFen(dto.dailyLimit)

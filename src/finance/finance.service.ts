@@ -2,9 +2,6 @@ import { Injectable, Logger } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import {
   PaymentOrderStatus,
-  TransactionStatus,
-  TransactionType,
-  WithdrawalStatus,
 } from '../common/enums'
 import { PrismaService } from '../prisma/prisma.service'
 import { fenToYuan } from '../common/helpers'
@@ -24,16 +21,17 @@ export class FinanceService {
   async getDailySummary(query: { startDate?: string; endDate?: string }) {
     const { start, end } = this.getRange(query.startDate, query.endDate)
 
-    const orders = await this.prisma.transactionOrder.findMany({
+    // 合规聚合模式：日报统计口径改为收单订单（PaymentOrder），不再统计平台资金流水
+    const orders = await this.prisma.paymentOrder.findMany({
       where: {
-        status: TransactionStatus.SUCCESS,
-        completedAt: { gte: start, lte: end },
+        status: { in: [PaymentOrderStatus.PAID, PaymentOrderStatus.REFUNDED] },
+        paidAt: { gte: start, lte: end, not: null },
       },
       select: {
-        type: true,
         amount: true,
         fee: true,
-        completedAt: true,
+        refundAmount: true,
+        paidAt: true,
       },
     })
 
@@ -48,7 +46,7 @@ export class FinanceService {
     >()
 
     for (const order of orders) {
-      const date = this.formatDate(order.completedAt!)
+      const date = this.formatDate(order.paidAt!)
       if (!map.has(date)) {
         map.set(date, {
           totalIncome: 0,
@@ -58,13 +56,10 @@ export class FinanceService {
         })
       }
       const item = map.get(date)!
+      item.totalIncome += order.amount
+      item.totalExpense += order.refundAmount
       item.totalFee += order.fee
       item.transactionCount += 1
-      if (this.isIncomeType(order.type as TransactionType)) {
-        item.totalIncome += order.amount
-      } else if (this.isExpenseType(order.type as TransactionType)) {
-        item.totalExpense += order.amount
-      }
     }
 
     const data = Array.from(map.entries())
@@ -137,26 +132,18 @@ export class FinanceService {
   async getFeeIncome(query: { startDate?: string; endDate?: string }) {
     const { start, end } = this.getRange(query.startDate, query.endDate)
 
-    const [payments, withdrawals] = await Promise.all([
-      this.prisma.paymentOrder.findMany({
-        where: {
-          status: PaymentOrderStatus.PAID,
-          paidAt: { gte: start, lte: end },
-        },
-        select: { fee: true, paidAt: true },
-      }),
-      this.prisma.withdrawalOrder.findMany({
-        where: {
-          status: WithdrawalStatus.SUCCESS,
-          reviewedAt: { gte: start, lte: end },
-        },
-        select: { fee: true, reviewedAt: true },
-      }),
-    ])
+    // 合规聚合模式：手续费收入仅来自收单订单（提现代付手续费已下线）
+    const payments = await this.prisma.paymentOrder.findMany({
+      where: {
+        status: PaymentOrderStatus.PAID,
+        paidAt: { gte: start, lte: end, not: null },
+      },
+      select: { fee: true, paidAt: true },
+    })
 
     const map = new Map<
       string,
-      { paymentFee: number; withdrawalFee: number; totalFee: number }
+      { paymentFee: number; totalFee: number }
     >()
 
     for (const item of payments) {
@@ -167,20 +154,12 @@ export class FinanceService {
       entry.totalFee += item.fee
     }
 
-    for (const item of withdrawals) {
-      const date = this.formatDate(item.reviewedAt!)
-      this.ensureFeeEntry(map, date)
-      const entry = map.get(date)!
-      entry.withdrawalFee += item.fee
-      entry.totalFee += item.fee
-    }
-
     const data = Array.from(map.entries())
       .map(([date, item]) => ({
         date,
         ...item,
         paymentFeeYuan: fenToYuan(item.paymentFee),
-        withdrawalFeeYuan: fenToYuan(item.withdrawalFee),
+        withdrawalFeeYuan: '0.00',
         totalFeeYuan: fenToYuan(item.totalFee),
       }))
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -191,58 +170,30 @@ export class FinanceService {
   async generateDailySnapshot(date: string) {
     const { start, end } = this.getDateRange(date)
 
-    const [
-      accountsAgg,
-      incomeAgg,
-      expenseAgg,
-      paymentFeeAgg,
-      withdrawalFeeAgg,
-      transactionCount,
-    ] = await Promise.all([
-      this.prisma.account.aggregate({ _sum: { totalBalance: true } }),
-      this.prisma.transactionOrder.aggregate({
+    // 合规聚合模式：平台不持有资金（totalAssets=0），快照口径改为收单订单
+    const [paidAgg, refundAgg] = await Promise.all([
+      this.prisma.paymentOrder.aggregate({
         where: {
-          status: TransactionStatus.SUCCESS,
-          completedAt: { gte: start, lte: end },
-          type: { in: this.incomeTypes() },
+          status: { in: [PaymentOrderStatus.PAID, PaymentOrderStatus.REFUNDED] },
+          paidAt: { gte: start, lte: end, not: null },
         },
-        _sum: { amount: true },
-      }),
-      this.prisma.transactionOrder.aggregate({
-        where: {
-          status: TransactionStatus.SUCCESS,
-          completedAt: { gte: start, lte: end },
-          type: { in: this.expenseTypes() },
-        },
-        _sum: { amount: true },
+        _sum: { amount: true, fee: true, refundAmount: true },
+        _count: { id: true },
       }),
       this.prisma.paymentOrder.aggregate({
         where: {
-          status: PaymentOrderStatus.PAID,
-          paidAt: { gte: start, lte: end },
+          status: PaymentOrderStatus.REFUNDED,
+          paidAt: { gte: start, lte: end, not: null },
         },
-        _sum: { fee: true },
-      }),
-      this.prisma.withdrawalOrder.aggregate({
-        where: {
-          status: WithdrawalStatus.SUCCESS,
-          reviewedAt: { gte: start, lte: end },
-        },
-        _sum: { fee: true },
-      }),
-      this.prisma.transactionOrder.count({
-        where: {
-          status: TransactionStatus.SUCCESS,
-          completedAt: { gte: start, lte: end },
-        },
+        _sum: { refundAmount: true },
       }),
     ])
 
-    const totalAssets = accountsAgg._sum.totalBalance || 0
-    const totalIncome = incomeAgg._sum.amount || 0
-    const totalExpense = expenseAgg._sum.amount || 0
-    const totalFee =
-      (paymentFeeAgg._sum.fee || 0) + (withdrawalFeeAgg._sum.fee || 0)
+    const totalAssets = 0 // 平台不持资金，资产列恒 0 兼容
+    const totalIncome = paidAgg._sum.amount || 0
+    const totalExpense = refundAgg._sum.refundAmount || 0
+    const totalFee = paidAgg._sum.fee || 0
+    const transactionCount = paidAgg._count.id || 0
 
     const snapshot = await this.prisma.dailySnapshot.upsert({
       where: { date },
@@ -299,61 +250,32 @@ export class FinanceService {
   async getOverview(query: { startDate?: string; endDate?: string }) {
     const { start, end } = this.getOverviewRange(query.startDate, query.endDate)
 
-    // 单次 groupBy 按 type 聚合，替代原 4 次独立 aggregate（turnover/income/expense/count）
-    const incomeTypeSet = new Set(this.incomeTypes())
-    const expenseTypeSet = new Set(this.expenseTypes())
-
-    const [
-      txGroups,
-      paymentFeeAgg,
-      withdrawalFeeAgg,
-      accountsAgg,
-    ] = await Promise.all([
-      this.prisma.transactionOrder.groupBy({
-        by: ['type'],
+    // 合规聚合模式：总览口径改为收单订单（平台不持有资金，totalAssets=0）
+    const [paidAgg, refundAgg] = await Promise.all([
+      this.prisma.paymentOrder.aggregate({
         where: {
-          status: TransactionStatus.SUCCESS,
-          completedAt: { gte: start, lte: end },
+          status: { in: [PaymentOrderStatus.PAID, PaymentOrderStatus.REFUNDED] },
+          paidAt: { gte: start, lte: end, not: null },
         },
-        _sum: { amount: true },
+        _sum: { amount: true, fee: true },
         _count: { id: true },
       }),
       this.prisma.paymentOrder.aggregate({
         where: {
-          status: PaymentOrderStatus.PAID,
-          paidAt: { gte: start, lte: end },
+          status: PaymentOrderStatus.REFUNDED,
+          paidAt: { gte: start, lte: end, not: null },
         },
-        _sum: { fee: true },
+        _sum: { refundAmount: true },
       }),
-      this.prisma.withdrawalOrder.aggregate({
-        where: {
-          status: WithdrawalStatus.SUCCESS,
-          reviewedAt: { gte: start, lte: end },
-        },
-        _sum: { fee: true },
-      }),
-      this.prisma.account.aggregate({ _sum: { totalBalance: true } }),
     ])
 
-    let totalTurnover = 0
-    let totalIncome = 0
-    let totalExpense = 0
-    let transactionCount = 0
-    for (const g of txGroups) {
-      const amount = g._sum.amount || 0
-      totalTurnover += amount
-      transactionCount += g._count.id
-      if (incomeTypeSet.has(g.type as TransactionType)) {
-        totalIncome += amount
-      } else if (expenseTypeSet.has(g.type as TransactionType)) {
-        totalExpense += amount
-      }
-    }
-
-    const totalFee =
-      (paymentFeeAgg._sum.fee || 0) + (withdrawalFeeAgg._sum.fee || 0)
+    const totalTurnover = paidAgg._sum.amount || 0
+    const totalIncome = totalTurnover
+    const totalExpense = refundAgg._sum.refundAmount || 0
+    const totalFee = paidAgg._sum.fee || 0
     const netIncome = totalFee
-    const totalAssets = accountsAgg._sum.totalBalance || 0
+    const transactionCount = paidAgg._count.id || 0
+    const totalAssets = 0 // 平台不持资金，资产列恒 0 兼容
 
     return {
       totalTurnover,
@@ -420,12 +342,10 @@ export class FinanceService {
     endDate?: string
   }): Promise<string> {
     const { data } = await this.getFeeIncome(query)
-    const header = '日期,支付手续费(元),提现手续费(元),手续费合计(元)'
+    const header = '日期,手续费合计(元)'
     const rows = data.map((item) =>
       [
         item.date,
-        item.paymentFeeYuan,
-        item.withdrawalFeeYuan,
         item.totalFeeYuan,
       ]
         .map((f) => escapeCsvField(f))
@@ -496,28 +416,12 @@ export class FinanceService {
     return businessDayKey(date)
   }
 
-  private incomeTypes(): TransactionType[] {
-    return [TransactionType.RECHARGE, TransactionType.RED_PACKET, TransactionType.REFUND]
-  }
-
-  private expenseTypes(): TransactionType[] {
-    return [TransactionType.TRANSFER, TransactionType.WITHDRAW, TransactionType.PAYMENT]
-  }
-
-  private isIncomeType(type: TransactionType) {
-    return this.incomeTypes().includes(type)
-  }
-
-  private isExpenseType(type: TransactionType) {
-    return this.expenseTypes().includes(type)
-  }
-
   private ensureFeeEntry(
-    map: Map<string, { paymentFee: number; withdrawalFee: number; totalFee: number }>,
+    map: Map<string, { paymentFee: number; totalFee: number }>,
     date: string,
   ) {
     if (!map.has(date)) {
-      map.set(date, { paymentFee: 0, withdrawalFee: 0, totalFee: 0 })
+      map.set(date, { paymentFee: 0, totalFee: 0 })
     }
   }
 

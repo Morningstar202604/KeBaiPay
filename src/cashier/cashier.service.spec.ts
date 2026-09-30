@@ -13,36 +13,28 @@ import { CashierService } from './cashier.service.js'
 import { PrismaService } from '../prisma/prisma.service.js'
 import { UsersService } from '../users/users.service.js'
 import { RiskEngineService } from '../risk/risk-engine.service.js'
-import { JournalService } from '../finance/journal.service.js'
 import { RedisService } from '../redis/redis.service.js'
+import { PaymentChannelRegistry } from '../payment-channels/payment-channel.registry.js'
 
-type UsersServiceMock = Record<'findById' | 'verifyPayPassword' | 'checkAndIncrementDailyLimit', jest.Mock>
-type RiskEngineMock = Record<'check' | 'recordTransaction' | 'recordTransactionFrequency', jest.Mock>
-type JournalServiceMock = { createEntries: jest.Mock }
+type UsersServiceMock = Record<'findById', jest.Mock>
+type RiskEngineMock = Record<'check' | 'recordTransaction', jest.Mock>
+type ChannelRegistryMock = { getChannel: jest.Mock; getEnabledConfig: jest.Mock }
 type RedisMock = Record<'isEnabled' | 'withLock', jest.Mock>
 type PrismaMock = {
   $transaction: jest.Mock
   merchant: Record<string, jest.Mock>
   merchantApp: Record<string, jest.Mock>
   paymentOrder: Record<string, jest.Mock>
-  transactionOrder: Record<string, jest.Mock>
-  account: Record<string, jest.Mock>
-  accountLedger: Record<string, jest.Mock>
-  bill: Record<string, jest.Mock>
-  systemConfig: Record<string, jest.Mock>
-  dailyLimitUsage: Record<string, jest.Mock>
 } & Record<string, unknown>
 
-type FindUniqueArgs = { where: { id?: string; userId?: string } }
 type CreateArgs = { data: Record<string, unknown> }
-type UpdateArgs = { where: { id?: string }; data: Record<string, unknown> }
 
 describe('CashierService', () => {
   let service: CashierService
   let prisma: PrismaMock
   let usersService: UsersServiceMock
   let riskEngine: RiskEngineMock
-  let journalService: JournalServiceMock
+  let channelRegistry: ChannelRegistryMock
   let redis: RedisMock
 
   beforeEach(async () => {
@@ -60,45 +52,27 @@ describe('CashierService', () => {
         updateMany: jest.fn(),
         aggregate: jest.fn(),
       },
-      transactionOrder: { create: jest.fn(), aggregate: jest.fn() },
-      account: {
-        findUnique: jest.fn(),
-        update: jest.fn(),
-        updateMany: jest.fn(),
-      },
-      accountLedger: { create: jest.fn() },
-      bill: { create: jest.fn() },
-      systemConfig: { findUnique: jest.fn() },
-      dailyLimitUsage: {
-        findFirst: jest.fn().mockResolvedValue({
-          id: 'dlu1',
-          usedAmount: 0,
-          version: 0,
-        }),
-        create: jest.fn(),
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-      },
     }
 
     usersService = {
       findById: jest.fn(),
-      verifyPayPassword: jest.fn(),
-      checkAndIncrementDailyLimit: jest.fn(),
     }
 
     riskEngine = {
       check: jest.fn().mockResolvedValue({ passed: true, blocked: false, warnings: [], rules: [] }),
       recordTransaction: jest.fn().mockResolvedValue(undefined),
-      recordTransactionFrequency: jest.fn().mockResolvedValue(undefined),
     }
 
-    journalService = {
-      createEntries: jest.fn().mockResolvedValue(undefined),
+    channelRegistry = {
+      getChannel: jest.fn().mockReturnValue({
+        createRecharge: jest.fn().mockResolvedValue({ channelOrderNo: 'CH1', payUrl: 'https://pay.example/cashier' }),
+      }),
+      getEnabledConfig: jest.fn().mockResolvedValue({ config: {} }),
     }
 
     redis = {
       isEnabled: jest.fn().mockReturnValue(false),
-      withLock: jest.fn(async (_key: string, _ttl: number, fn: () => Promise<unknown>) => fn()),
+      withLock: jest.fn(async (_k: string, _t: number, fn: () => Promise<unknown>) => fn()),
     }
 
     const module = await Test.createTestingModule({
@@ -107,8 +81,8 @@ describe('CashierService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: UsersService, useValue: usersService },
         { provide: RiskEngineService, useValue: riskEngine },
-        { provide: JournalService, useValue: journalService },
         { provide: RedisService, useValue: redis },
+        { provide: PaymentChannelRegistry, useValue: channelRegistry },
       ],
     }).compile()
 
@@ -130,8 +104,23 @@ describe('CashierService', () => {
     merchantNo: 'M1',
     merchantName: '测试商户',
     status: 'APPROVED',
-    payRate: 60, // 0.6%
-    dailyLimit: 10000000, // 10 万元
+    payRate: 60,
+    dailyLimit: 10000000,
+    ...overrides,
+  })
+
+  const pendingOrder = (overrides: Record<string, unknown> = {}) => ({
+    id: 'po1',
+    orderNo: 'P1',
+    merchantId: 'm1',
+    merchantOrderNo: 'MO1',
+    amount: 1000,
+    fee: 0,
+    status: 'PENDING',
+    channel: null,
+    channelOrderNo: null,
+    subject: '商品',
+    merchant: merchant(),
     ...overrides,
   })
 
@@ -139,35 +128,21 @@ describe('CashierService', () => {
     it('商户不存在抛错', async () => {
       prisma.merchant.findUnique.mockResolvedValue(null)
       await expect(
-        service.createOrder('u2', {
-          merchantOrderNo: 'MO1',
-          amount: 10,
-          subject: '商品',
-        }),
+        service.createOrder('u2', { merchantOrderNo: 'MO1', amount: 10, subject: '商品' }),
       ).rejects.toThrow(NotFoundException)
     })
 
     it('商户未审核通过抛错', async () => {
-      prisma.merchant.findUnique.mockResolvedValue(
-        merchant({ status: 'PENDING' }),
-      )
+      prisma.merchant.findUnique.mockResolvedValue(merchant({ status: 'PENDING' }))
       await expect(
-        service.createOrder('u2', {
-          merchantOrderNo: 'MO1',
-          amount: 10,
-          subject: '商品',
-        }),
+        service.createOrder('u2', { merchantOrderNo: 'MO1', amount: 10, subject: '商品' }),
       ).rejects.toThrow(ForbiddenException)
     })
 
     it('金额小于等于 0 抛错', async () => {
       prisma.merchant.findUnique.mockResolvedValue(merchant())
       await expect(
-        service.createOrder('u2', {
-          merchantOrderNo: 'MO1',
-          amount: 0,
-          subject: '商品',
-        }),
+        service.createOrder('u2', { merchantOrderNo: 'MO1', amount: 0, subject: '商品' }),
       ).rejects.toThrow(BadRequestException)
     })
 
@@ -175,17 +150,11 @@ describe('CashierService', () => {
       prisma.merchant.findUnique.mockResolvedValue(merchant())
       prisma.paymentOrder.findFirst.mockResolvedValue({ id: 'po1' })
       await expect(
-        service.createOrder('u2', {
-          merchantOrderNo: 'MO1',
-          amount: 10,
-          subject: '商品',
-        }),
+        service.createOrder('u2', { merchantOrderNo: 'MO1', amount: 10, subject: '商品' }),
       ).rejects.toThrow(BadRequestException)
     })
 
     it('并发创建同商户订单号触发 P2002 时查回原单幂等返回', async () => {
-      // M2：并发场景下两个请求同时通过预检查，第二个 create 触发唯一约束冲突，
-      // 查回原单幂等返回，避免商户并发重试拿不到已创建订单
       prisma.merchant.findUnique.mockResolvedValue(merchant())
       const existed = {
         id: 'po-existing',
@@ -197,8 +166,8 @@ describe('CashierService', () => {
         status: 'PENDING',
       }
       prisma.paymentOrder.findFirst
-        .mockResolvedValueOnce(null) // 预检查通过
-        .mockResolvedValueOnce(existed) // P2002 catch 内查回原单
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(existed)
       prisma.paymentOrder.create.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError('unique constraint failed', {
           code: 'P2002',
@@ -206,11 +175,7 @@ describe('CashierService', () => {
         }),
       )
 
-      const order = await service.createOrder('u2', {
-        merchantOrderNo: 'MO1',
-        amount: 10,
-        subject: '商品',
-      })
+      const order = await service.createOrder('u2', { merchantOrderNo: 'MO1', amount: 10, subject: '商品' })
       expect(order.id).toBe('po-existing')
       expect(order.merchantOrderNo).toBe('MO1')
     })
@@ -223,362 +188,86 @@ describe('CashierService', () => {
         return Promise.resolve({ id: 'po1', status: 'PENDING', ...query.data })
       })
 
-      const order = await service.createOrder('u2', {
-        merchantOrderNo: 'MO1',
-        amount: 10,
-        subject: '商品',
-      })
+      const order = await service.createOrder('u2', { merchantOrderNo: 'MO1', amount: 10, subject: '商品' })
       expect(order.status).toBe('PENDING')
-      expect(order.amount).toBe(1000) // 10 元 = 1000 分
+      expect(order.amount).toBe(1000)
       expect(order.merchantId).toBe('m1')
       expect(order.merchantOrderNo).toBe('MO1')
-      // 默认 30 分钟过期
       expect(order.expiredAt).toBeInstanceOf(Date)
     })
   })
 
-  describe('pay 支付订单', () => {
-    const baseOrder = (overrides: Record<string, unknown> = {}) => ({
-      id: 'po1',
-      orderNo: 'P1',
-      merchantId: 'm1',
-      merchantOrderNo: 'MO1',
-      amount: 1000, // 10 元
-      fee: 0,
-      status: 'PENDING',
-      payerId: null,
-      paidAt: null,
-      expiredAt: new Date(Date.now() + 30 * 60 * 1000),
-      callbackUrl: null,
-      merchant: merchant(),
-      ...overrides,
-    })
-
+  describe('createChannelPay 发起渠道支付', () => {
     const setupHappyPath = (orderOverrides: Record<string, unknown> = {}) => {
-      prisma.paymentOrder.findUnique.mockResolvedValue(baseOrder(orderOverrides))
-      usersService.findById.mockImplementation((id: string) => {
-        if (id === 'u1') return Promise.resolve(verifiedPayer())
-        if (id === 'u2')
-          return Promise.resolve({ id: 'u2', nickname: '商户老板' })
-        return Promise.resolve(null)
+      prisma.paymentOrder.findUnique.mockResolvedValue(pendingOrder(orderOverrides))
+      usersService.findById.mockResolvedValue(verifiedPayer())
+      riskEngine.check.mockResolvedValue({ passed: true, blocked: false, warnings: [], rules: [] })
+      channelRegistry.getChannel.mockReturnValue({
+        createRecharge: jest.fn().mockResolvedValue({ channelOrderNo: 'CH1', payUrl: 'https://pay.example/cashier' }),
       })
-      usersService.verifyPayPassword.mockResolvedValue(true)
-      prisma.account.findUnique.mockImplementation((args: unknown) => {
-        const query = args as FindUniqueArgs
-        // H1: 事务内按 id 重新读取扣款后真实余额（availableBalance 已扣减）
-        if (query.where.id === 'a1')
-          return Promise.resolve({
-            id: 'a1',
-            userId: 'u1',
-            availableBalance: 9000,
-            totalBalance: 9000,
-            status: 'ACTIVE',
-          })
-        if (query.where.id === 'a2')
-          return Promise.resolve({
-            id: 'a2',
-            userId: 'u2',
-            availableBalance: 994,
-            totalBalance: 994,
-            status: 'ACTIVE',
-          })
-        // 按 userId 查询：事务内初始读取，返回扣款前余额
-        if (query.where.userId === 'u1')
-          return Promise.resolve({
-            id: 'a1',
-            userId: 'u1',
-            availableBalance: 10000,
-            totalBalance: 10000,
-            status: 'ACTIVE',
-          })
-        if (query.where.userId === 'u2')
-          return Promise.resolve({
-            id: 'a2',
-            userId: 'u2',
-            availableBalance: 0,
-            totalBalance: 0,
-            status: 'ACTIVE',
-          })
-        return Promise.resolve(null)
-      })
-      prisma.account.update.mockImplementation((args: unknown) => {
-        const query = args as UpdateArgs
-        if (query.where.id === 'a1')
-          return Promise.resolve({ availableBalance: 9000, totalBalance: 9000 })
-        return Promise.resolve({ availableBalance: 994, totalBalance: 994 })
-      })
-      prisma.account.updateMany.mockResolvedValue({ count: 1 })
+      channelRegistry.getEnabledConfig.mockResolvedValue({ config: {} })
       prisma.paymentOrder.updateMany.mockResolvedValue({ count: 1 })
-      // 商户日限额：默认未使用
-      prisma.dailyLimitUsage.findFirst.mockResolvedValue({
-        id: 'dlu1',
-        usedAmount: 0,
-        version: 0,
-      })
-      prisma.dailyLimitUsage.updateMany.mockResolvedValue({ count: 1 })
-      // 付款方日限额：默认 5 万，未使用
-      prisma.systemConfig.findUnique.mockResolvedValue(null)
-      usersService.checkAndIncrementDailyLimit.mockResolvedValue(undefined)
-      prisma.transactionOrder.create.mockImplementation((args: unknown) => {
-        const query = args as CreateArgs
-        return Promise.resolve({ id: 't1', orderNo: 'PAY1', ...query.data })
-      })
-      // update 返回不带 callbackUrl，避免触发异步通知
-      prisma.paymentOrder.update.mockResolvedValue({
-        id: 'po1',
-        orderNo: 'P1',
-        status: 'PAID',
-        paidAt: new Date(),
-        payerId: 'u1',
-        fee: 6,
-      })
+      prisma.paymentOrder.update.mockResolvedValue({})
     }
 
     it('订单不存在抛错', async () => {
       prisma.paymentOrder.findUnique.mockResolvedValue(null)
-      await expect(
-        service.pay('u1', { orderNo: 'NOPE', payPassword: '123456' }),
-      ).rejects.toThrow(NotFoundException)
+      await expect(service.createChannelPay('u1', 'NOPE', 'mock')).rejects.toThrow(NotFoundException)
     })
 
-    it('本人重复支付(已 PAID)幂等返回，不进入事务', async () => {
-      // M1：订单已 PAID 且 payerId 与请求方一致时幂等返回，
-      // 避免网络超时重试时第二次请求命中状态机抛错、用户不知已支付成功
+    it('订单非 PENDING 抛错', async () => {
+      prisma.paymentOrder.findUnique.mockResolvedValue(pendingOrder({ status: 'PAID' }))
+      await expect(service.createChannelPay('u1', 'P1', 'mock')).rejects.toThrow(BadRequestException)
+    })
+
+    it('商户未审批通过抛 Forbidden', async () => {
       prisma.paymentOrder.findUnique.mockResolvedValue(
-        baseOrder({ status: 'PAID', payerId: 'u1' }),
+        pendingOrder({ merchant: merchant({ status: 'PENDING' }) }),
       )
-      const result = await service.pay('u1', {
-        orderNo: 'P1',
-        payPassword: '123456',
-        idempotencyKey: 'idem-1',
-      })
-      expect(result.status).toBe('PAID')
-      expect(result.payerId).toBe('u1')
-      // 幂等返回不应进入事务、不应再次校验支付密码
-      expect(prisma.$transaction).not.toHaveBeenCalled()
-      expect(usersService.verifyPayPassword).not.toHaveBeenCalled()
-      expect(prisma.paymentOrder.updateMany).not.toHaveBeenCalled()
+      await expect(service.createChannelPay('u1', 'P1', 'mock')).rejects.toThrow(ForbiddenException)
     })
 
-    it('订单已被他人支付时重复支付抛错(非本人不可幂等)', async () => {
-      // 安全：仅付款方本人可幂等返回，他人重复请求仍走状态机拦截
-      prisma.paymentOrder.findUnique.mockResolvedValue(
-        baseOrder({ status: 'PAID', payerId: 'u3' }),
-      )
-      prisma.paymentOrder.updateMany.mockResolvedValue({ count: 0 })
-      usersService.findById.mockImplementation((id: string) => {
-        if (id === 'u1') return Promise.resolve(verifiedPayer())
-        if (id === 'u2')
-          return Promise.resolve({ id: 'u2', nickname: '商户老板' })
-        return Promise.resolve(null)
-      })
-      usersService.verifyPayPassword.mockResolvedValue(true)
-      prisma.account.findUnique.mockResolvedValue({
-        id: 'a1',
-        userId: 'u1',
-        availableBalance: 10000,
-        totalBalance: 10000,
-        status: 'ACTIVE',
-      })
-      prisma.dailyLimitUsage.findFirst.mockResolvedValue({
-        id: 'dlu1',
-        usedAmount: 0,
-        version: 0,
-      })
-      prisma.dailyLimitUsage.updateMany.mockResolvedValue({ count: 1 })
-      prisma.systemConfig.findUnique.mockResolvedValue(null)
-      usersService.checkAndIncrementDailyLimit.mockResolvedValue(undefined)
-      await expect(
-        service.pay('u1', { orderNo: 'P1', payPassword: '123456' }),
-      ).rejects.toThrow(BadRequestException)
-    })
-
-    it('订单已关闭 pay 抛错', async () => {
-      prisma.paymentOrder.findUnique.mockResolvedValue(
-        baseOrder({ status: 'CLOSED' }),
-      )
-      prisma.paymentOrder.updateMany.mockResolvedValue({ count: 0 })
-      usersService.findById.mockImplementation((id: string) => {
-        if (id === 'u1') return Promise.resolve(verifiedPayer())
-        if (id === 'u2')
-          return Promise.resolve({ id: 'u2', nickname: '商户老板' })
-        return Promise.resolve(null)
-      })
-      usersService.verifyPayPassword.mockResolvedValue(true)
-      prisma.account.findUnique.mockResolvedValue({
-        id: 'a1',
-        userId: 'u1',
-        availableBalance: 10000,
-        totalBalance: 10000,
-        status: 'ACTIVE',
-      })
-      prisma.dailyLimitUsage.findFirst.mockResolvedValue({
-        id: 'dlu1',
-        usedAmount: 0,
-        version: 0,
-      })
-      prisma.dailyLimitUsage.updateMany.mockResolvedValue({ count: 1 })
-      prisma.systemConfig.findUnique.mockResolvedValue(null)
-      usersService.checkAndIncrementDailyLimit.mockResolvedValue(undefined)
-      await expect(
-        service.pay('u1', { orderNo: 'P1', payPassword: '123456' }),
-      ).rejects.toThrow(BadRequestException)
-    })
-
-    it('余额不足抛错', async () => {
+    it('付款方未实名抛 Forbidden', async () => {
       setupHappyPath()
-      prisma.account.updateMany.mockResolvedValue({ count: 0 })
-      await expect(
-        service.pay('u1', { orderNo: 'P1', payPassword: '123456' }),
-      ).rejects.toThrow(BadRequestException)
+      usersService.findById.mockResolvedValue(verifiedPayer({ realNameStatus: 'PENDING' }))
+      await expect(service.createChannelPay('u1', 'P1', 'mock')).rejects.toThrow(ForbiddenException)
     })
 
-    it('商户日限额超限抛错', async () => {
-      // 商户日限额 1000 分（10 元），本次 10 元，已用 100 → 超限
-      setupHappyPath({
-        merchant: merchant({ dailyLimit: 1000 }),
-      })
-      prisma.dailyLimitUsage.findFirst.mockResolvedValue({
-        id: 'dlu1',
-        usedAmount: 100,
-        version: 0,
-      })
-      prisma.dailyLimitUsage.updateMany.mockResolvedValue({ count: 0 })
-      await expect(
-        service.pay('u1', { orderNo: 'P1', payPassword: '123456' }),
-      ).rejects.toThrow(ForbiddenException)
-    })
-
-    it('支付成功：扣款+商户入账(扣手续费)+流水+账单+订单 PAID', async () => {
+    it('风控拦截抛 Forbidden', async () => {
       setupHappyPath()
-      const result = await service.pay('u1', {
-        orderNo: 'P1',
-        payPassword: '123456',
-      })
-      expect(result.status).toBe('PAID')
+      riskEngine.check.mockResolvedValue({ passed: false, blocked: true, warnings: [], rules: [{ action: 'BLOCK', name: '高频' }] })
+      await expect(service.createChannelPay('u1', 'P1', 'mock')).rejects.toThrow(ForbiddenException)
+    })
 
-      // 手续费：1000 * 60 / 10000 = 6 分；实收 994
-      // 付款方原子扣款 1000
-      expect(prisma.account.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            id: 'a1',
-            availableBalance: { gte: 1000 },
-          },
-          data: {
-            availableBalance: { decrement: 1000 },
-            totalBalance: { decrement: 1000 },
-          },
-        }),
-      )
-      // 商户入账 994（扣手续费）
-      expect(prisma.account.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'a2' },
-          data: {
-            availableBalance: { increment: 994 },
-            totalBalance: { increment: 994 },
-          },
-        }),
-      )
-      // 双方流水
-      expect(prisma.accountLedger.create).toHaveBeenCalledTimes(2)
-      // 流水 balanceBefore 来自事务内 findUnique
-      expect(prisma.accountLedger.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            balanceBefore: 10000,
-            balanceAfter: 9000,
-          }),
-        }),
-      )
-      // 双方账单
-      expect(prisma.bill.create).toHaveBeenCalledTimes(2)
-      // 订单原子更新为 PAID
+    it('渠道未配置抛 BadRequest', async () => {
+      setupHappyPath()
+      channelRegistry.getChannel.mockReturnValue(null)
+      await expect(service.createChannelPay('u1', 'P1', 'mock')).rejects.toThrow(BadRequestException)
+    })
+
+    it('成功：绑定渠道 -> 调渠道下单 -> 回写渠道单号 -> 返回支付链接', async () => {
+      setupHappyPath()
+      const result = await service.createChannelPay('u1', 'P1', 'mock', { clientIp: '1.2.3.4' })
+
+      expect(result.orderNo).toBe('P1')
+      expect(result.payUrl).toBe('https://pay.example/cashier')
+      // 订单原子绑定渠道
       expect(prisma.paymentOrder.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({
-            id: 'po1',
-            status: 'PENDING',
-          }),
-          data: expect.objectContaining({
-            status: 'PAID',
-            payerId: 'u1',
-            fee: 6,
-          }),
+          where: expect.objectContaining({ id: 'po1', status: 'PENDING', channel: null }),
+          data: { channel: 'mock' },
         }),
       )
-      // 交易订单 type=PAYMENT status=SUCCESS，记录手续费
-      expect(prisma.transactionOrder.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            type: 'PAYMENT',
-            status: 'SUCCESS',
-            amount: 1000,
-            fee: 6,
-            fromUserId: 'u1',
-            toUserId: 'u2',
-            relatedOrderNo: 'P1',
-          }),
-        }),
+      // 渠道下单后回写渠道单号
+      expect(prisma.paymentOrder.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { channelOrderNo: 'CH1' } }),
       )
-    })
-
-    it('付款方账户被冻结抛错', async () => {
-      setupHappyPath()
-      prisma.account.findUnique.mockImplementation((args: unknown) => {
-        const query = args as FindUniqueArgs
-        if (query.where.userId === 'u1')
-          return Promise.resolve({
-            id: 'a1',
-            userId: 'u1',
-            availableBalance: 10000,
-            totalBalance: 10000,
-            status: 'FROZEN',
-          })
-        return Promise.resolve({
-          id: 'a2',
-          userId: 'u2',
-          availableBalance: 0,
-          totalBalance: 0,
-          status: 'ACTIVE',
-        })
-      })
-      await expect(
-        service.pay('u1', { orderNo: 'P1', payPassword: '123456' }),
-      ).rejects.toThrow(ForbiddenException)
-    })
-
-    it('收款方账户被冻结抛错', async () => {
-      setupHappyPath()
-      prisma.account.findUnique.mockImplementation((args: unknown) => {
-        const query = args as FindUniqueArgs
-        if (query.where.userId === 'u1')
-          return Promise.resolve({
-            id: 'a1',
-            userId: 'u1',
-            availableBalance: 10000,
-            totalBalance: 10000,
-            status: 'ACTIVE',
-          })
-        return Promise.resolve({
-          id: 'a2',
-          userId: 'u2',
-          availableBalance: 0,
-          totalBalance: 0,
-          status: 'FROZEN',
-        })
-      })
-      await expect(
-        service.pay('u1', { orderNo: 'P1', payPassword: '123456' }),
-      ).rejects.toThrow(ForbiddenException)
     })
   })
 
   describe('closeExpiredOrders 关闭过期订单', () => {
     it('批量关闭过期订单', async () => {
       prisma.paymentOrder.updateMany.mockResolvedValue({ count: 3 })
-      // 补偿通知分支查不到待重试订单时直接返回
       prisma.paymentOrder.findMany.mockResolvedValue([])
       await service.closeExpiredOrders()
       expect(prisma.paymentOrder.updateMany).toHaveBeenCalledWith(
@@ -611,9 +300,7 @@ describe('CashierService', () => {
 
       await service.listMyOrders('u2', { status: PaymentOrderStatus.PAID, page: 1, limit: 10 })
       expect(prisma.paymentOrder.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { merchantId: 'm1', status: 'PAID' },
-        }),
+        expect.objectContaining({ where: { merchantId: 'm1', status: 'PAID' } }),
       )
     })
 
@@ -640,12 +327,10 @@ describe('CashierService', () => {
   describe('notifyMerchant 商户回调验签', () => {
     it('X-KB-Signature 可被只有明文 appSecret 的商户验证（sha256 预哈希密钥口径）', async () => {
       const plaintextSecret = 'plain_secret_abc'
-      // DB 只存 SHA-256 hex 摘要；商户侧拿不到它，只有明文
       const secretHash = createHash('sha256').update(plaintextSecret).digest('hex')
       prisma.merchantApp = {
         findUnique: jest.fn().mockResolvedValue({ appSecret: secretHash }),
       }
-      // 锁内重读：通知未成功过
       prisma.paymentOrder.findUnique.mockResolvedValue({
         notifyStatus: 'PENDING',
         notifyCount: 0,
@@ -653,7 +338,6 @@ describe('CashierService', () => {
       })
       prisma.paymentOrder.update.mockResolvedValue({ notifyStatus: 'SUCCESS', notifyCount: 1 })
 
-      // 拦截外呼与 URL 安全校验（后者会做真实 DNS 解析）
       jest.spyOn(helpers, 'isCallbackUrlSafe').mockResolvedValue({ safe: true })
       let receivedSig = ''
       let receivedBody = ''
@@ -677,7 +361,6 @@ describe('CashierService', () => {
       })
 
       expect(result.notifyStatus).toBe('SUCCESS')
-      // 商户侧验证：以 sha256(明文 appSecret) 的 32 字节原始摘要为 HMAC 密钥可复现签名
       const merchantExpected = createHmac('sha256', createHash('sha256').update(plaintextSecret).digest())
         .update(receivedBody)
         .digest('hex')

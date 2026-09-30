@@ -14,13 +14,12 @@
         <el-menu-item index="/merchants"><el-icon><Shop /></el-icon><span>商户管理</span></el-menu-item>
         <el-menu-item index="/identities"><el-icon><Postcard /></el-icon><span>实名审核</span></el-menu-item>
         <el-menu-item index="/channels"><el-icon><Connection /></el-icon><span>渠道配置</span></el-menu-item>
-        <el-menu-item index="/withdrawals"><el-icon><Money /></el-icon><span>提现审核</span></el-menu-item>
         <el-menu-item index="/orders"><el-icon><List /></el-icon><span>支付订单</span></el-menu-item>
         <el-menu-item index="/finance"><el-icon><DataBoard /></el-icon><span>财务总览</span></el-menu-item>
         <el-menu-item index="/risk"><el-icon><Warning /></el-icon><span>风控事件</span></el-menu-item>
         <el-menu-item index="/agents"><el-icon><MagicStick /></el-icon><span>智能体管理</span></el-menu-item>
       </el-menu>
-      <div class="aside-foot">科佰支付 · 管理服务</div>
+      <div class="aside-foot">科佰收单 · 管理服务</div>
     </el-aside>
 
     <el-container>
@@ -60,7 +59,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataAnalysis, User, Shop, Money, List, DataBoard, Warning, ArrowDown, MagicStick, Postcard, Connection, Expand, Fold } from '@element-plus/icons-vue'
+import { DataAnalysis, User, Shop, List, DataBoard, Warning, ArrowDown, MagicStick, Postcard, Connection, Expand, Fold } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 

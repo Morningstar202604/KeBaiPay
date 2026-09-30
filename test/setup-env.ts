@@ -23,7 +23,7 @@ const TEST_ENV = {
   ENCRYPTION_KEY: 'test-encryption-key-32chars-minimum-length',
   ADMIN_DEFAULT_PASSWORD: 'Test' + 'Admin2026',
   SMS_PROVIDER: 'mock',
-  RECHARGE_NOTIFY_URL: 'http://localhost:3001/webhooks/recharge/mock',
+  CHANNEL_NOTIFY_URL: 'http://localhost:3001/webhooks/recharge/mock',
   CORS_ORIGINS: 'http://localhost:3001',
   // Agent v2.1.0：LLM 走 mock 降级模式，无需真实 LLM API Key
   LLM_PROVIDER: 'mock',

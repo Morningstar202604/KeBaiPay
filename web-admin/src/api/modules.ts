@@ -1,11 +1,10 @@
-import http, { extractError } from './http'
+import http from './http'
 import type {
   AdminLoginResult,
   DashboardStats,
   Paged,
   AdminUser,
   AdminMerchant,
-  AdminWithdrawal,
   PaymentOrder,
   RiskEvent,
   FinanceOverview,
@@ -48,22 +47,6 @@ export async function fetchMerchants(params: { status?: string; page?: number; l
 
 export async function auditMerchant(id: string, body: { action: 'APPROVE' | 'REJECT'; reason?: string }): Promise<unknown> {
   const { data } = await http.post(`/admin/merchants/${id}/audit`, body)
-  return data
-}
-
-// ---------- 提现 ----------
-export async function fetchWithdrawals(params: { status?: string; page?: number; limit?: number }): Promise<Paged<AdminWithdrawal>> {
-  const { data } = await http.get<Paged<AdminWithdrawal>>('/admin/withdrawals', { params })
-  return data
-}
-
-export async function approveWithdrawal(id: string): Promise<unknown> {
-  const { data } = await http.post(`/admin/withdrawals/${id}/approve`)
-  return data
-}
-
-export async function rejectWithdrawal(id: string, reason: string): Promise<unknown> {
-  const { data } = await http.post(`/admin/withdrawals/${id}/reject`, { reason })
   return data
 }
 
@@ -139,8 +122,6 @@ export async function updateAgent(
   return data
 }
 
-export { extractError }
-
 // ---------- 实名审核（P1-2） ----------
 export interface PendingIdentity {
   id: string
@@ -171,7 +152,6 @@ export interface ChannelConfigRow {
   id?: string
   code: string
   name: string
-  type: string
   enabled: boolean
   priority: number
   config: string
@@ -199,5 +179,60 @@ export async function deleteChannel(code: string): Promise<unknown> {
 
 export async function testChannel(code: string): Promise<{ available: boolean; message: string }> {
   const { data } = await http.post(`/admin/channels/${code}/test`)
+  return data
+}
+
+// ============ 通道账单对账（模拟演练） ============
+
+export interface MockBillResult {
+  date: string
+  channel: string
+  source: string
+  billCount: number
+  totalAmountFen: number
+  totalFeeFen: number
+  bill: string
+  note: string
+}
+
+export interface ChannelBillDifference {
+  type: string
+  orderNo: string
+  platformAmountFen?: number
+  billAmountFen?: number
+  message: string
+}
+
+export interface ChannelBillCheckResult {
+  date: string
+  channel: string
+  status: 'MATCHED' | 'MISMATCH'
+  billSource?: string
+  billCount: number
+  platformCount: number
+  matchedCount: number
+  mismatchCount: number
+  totalAmountFen: number
+  differences: ChannelBillDifference[]
+  parseWarnings?: string[]
+}
+
+export async function generateMockChannelBill(date: string, channel = 'mock'): Promise<MockBillResult> {
+  const { data } = await http.post<MockBillResult>(
+    `/admin/reconciliation/channel-bill/generate?date=${date}&channel=${channel}`,
+  )
+  return data
+}
+
+export async function runChannelReconciliation(body: {
+  date: string
+  channel?: string
+  missingPlatformOrders?: number
+  extraChannelOrders?: number
+  amountMismatchOrders?: number
+  billSource?: 'mock' | 'official'
+  billText?: string
+}): Promise<ChannelBillCheckResult> {
+  const { data } = await http.post<ChannelBillCheckResult>('/admin/reconciliation/channel-bill/reconcile', body)
   return data
 }

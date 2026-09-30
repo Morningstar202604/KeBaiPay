@@ -9,7 +9,6 @@ export interface DashboardStats {
   totalUsers: number
   totalMerchants: number
   todayOrders: number
-  pendingWithdrawals: number
   pendingMerchants: number
 }
 
@@ -41,16 +40,6 @@ export interface AdminMerchant {
   dailyLimitYuan: string
   createdAt: string
   user?: { nickname: string; phone: string | null; email: string | null }
-}
-
-export interface AdminWithdrawal {
-  id: string
-  orderNo: string
-  amountYuan?: string
-  status: string
-  channelAccount: string | null
-  createdAt: string
-  user?: { nickname: string }
 }
 
 export interface PaymentOrder {

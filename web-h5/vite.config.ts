@@ -27,11 +27,6 @@ export default defineConfig(({ mode }) => {
       port: 5174,
       proxy: {
         '/auth': { target: apiBase || 'http://localhost:3001', changeOrigin: true },
-        '/accounts': { target: apiBase || 'http://localhost:3001', changeOrigin: true },
-        '/transactions': { target: apiBase || 'http://localhost:3001', changeOrigin: true },
-        '/transfers': { target: apiBase || 'http://localhost:3001', changeOrigin: true },
-        '/withdrawals': { target: apiBase || 'http://localhost:3001', changeOrigin: true },
-        '/red-packets': { target: apiBase || 'http://localhost:3001', changeOrigin: true },
         '/bills': { target: apiBase || 'http://localhost:3001', changeOrigin: true },
         '/cashier': { target: apiBase || 'http://localhost:3001', changeOrigin: true },
         '/qr-codes': { target: apiBase || 'http://localhost:3001', changeOrigin: true },

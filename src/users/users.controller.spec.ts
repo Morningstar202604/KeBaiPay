@@ -19,7 +19,6 @@ describe('UsersController', () => {
     getSafeProfile: jest.fn().mockResolvedValue({ id: 'u1' }),
     verifyIdentity: jest.fn().mockResolvedValue({ status: 'PENDING' }),
     resetPayPassword: jest.fn().mockResolvedValue({ id: 'u1' }),
-    getDailyLimit: jest.fn().mockResolvedValue({ limitYuan: '5000.00' }),
   }
 
   beforeAll(async () => {
@@ -63,13 +62,6 @@ describe('UsersController', () => {
 
     expect(mockService.resetPayPassword).toHaveBeenCalledWith('u1', dto)
   })
-
-  it('getDailyLimit 透传 user.id 到 service', async () => {
-    const user = { id: 'u1' }
-    await controller.getDailyLimit(user as any)
-
-    expect(mockService.getDailyLimit).toHaveBeenCalledWith('u1')
-  })
 })
 
 /**
@@ -81,7 +73,6 @@ describe('UsersController (HTTP)', () => {
     getSafeProfile: jest.fn().mockResolvedValue({ id: 'u1' }),
     verifyIdentity: jest.fn().mockResolvedValue({ status: 'PENDING' }),
     resetPayPassword: jest.fn().mockResolvedValue({ id: 'u1' }),
-    getDailyLimit: jest.fn().mockResolvedValue({ limitYuan: '5000.00' }),
   }
 
   beforeAll(async () => {
@@ -108,10 +99,6 @@ describe('UsersController (HTTP)', () => {
 
   it('GET /users/me 返回 200', () => {
     return request(app.getHttpServer()).get('/users/me').expect(200)
-  })
-
-  it('GET /users/daily-limit 返回 200', () => {
-    return request(app.getHttpServer()).get('/users/daily-limit').expect(200)
   })
 
   it('verify-identity 缺 realName 返回 400', () => {

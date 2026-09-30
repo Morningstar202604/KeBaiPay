@@ -17,7 +17,6 @@ const router = createRouter({
         { path: 'merchants', name: 'merchants', component: () => import('@/views/MerchantsView.vue'), meta: { title: '商户管理' } },
         { path: 'identities', name: 'identities', component: () => import('@/views/IdentityReviewView.vue'), meta: { title: '实名审核' } },
         { path: 'channels', name: 'channels', component: () => import('@/views/ChannelsView.vue'), meta: { title: '渠道配置' } },
-        { path: 'withdrawals', name: 'withdrawals', component: () => import('@/views/WithdrawalsView.vue'), meta: { title: '提现审核' } },
         { path: 'orders', name: 'orders', component: () => import('@/views/OrdersView.vue'), meta: { title: '支付订单' } },
         { path: 'finance', name: 'finance', component: () => import('@/views/FinanceView.vue'), meta: { title: '财务总览' } },
         { path: 'risk', name: 'risk', component: () => import('@/views/RiskEventsView.vue'), meta: { title: '风控事件' } },

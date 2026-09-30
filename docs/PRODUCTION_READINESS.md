@@ -1,242 +1,88 @@
-﻿# 生产就绪指南：哪些功能不能直接用 & 怎么启用
+# 生产就绪指南：合规要点与上线前检查
 
-> **用途**：交给部署/运维/交付人员。明确列出"现在还不能直接使用"的功能、为什么不能用、以及如何申请资质/配置使其可用。**在对外营业前，请务必先读这一篇。**
+> **用途**：交给部署/运维/交付人员。明确列出对外营业前必须完成的合规与技术检查。
 >
-> 配套文档：`docs/DEPLOYMENT.md`（部署操作）、`docs/sms-integration.md`（短信接入）、`docs/MERCHANT_INTEGRATION.md`（商户对接）、`docs/API_REFERENCE.md`（接口）。
+> 配套文档：`docs/DEPLOYMENT.md`（部署操作）、`docs/sms-integration.md`（短信接入）、`docs/MERCHANT_INTEGRATION.md`（商户对接）、`docs/API_REFERENCE.md`（接口）、`docs/COMPLIANCE_MODE.md`（合规模式说明）。
 
 ---
 
-## 0.1 外部依赖与额外准备总清单（一页速查）
+## 1. 合规模式（最重要）
 
-> 这是"上线前需要外接/额外准备什么"的完整清单。当前系统默认全部走 mock/关闭，**生产环境必须逐项准备并替换配置**，否则对应功能不可用；其中部分（支付、短信）生产环境未配置会直接启动失败（设计如此，防止误上线）。
+KeBaiPay 按**合规聚合技术服务商**模式设计：
 
-| # | 外部服务 | 用于什么功能 | 需要额外准备什么（资质/账号/材料） | 关键配置项 | 详细 |
-|---|---------|-------------|-----------------------------------|-----------|------|
-| 1 | **短信 SMS**（手机号验证码） | 注册 / 登录 / 改密 / 绑定手机号 | 阿里云/腾讯云/华为云**实名认证** + 申请并审核**短信签名**（如"科佰支付"）+ 申请并审核**短信模板**（变量名须为 `code`） | `SMS_PROVIDER` `SMS_SIGN_NAME` `SMS_TEMPLATE_CODE` `SMS_ACCESS_KEY_ID/SECRET`（或腾讯/华为对应项） | §3 |
-| 2 | **支付宝** | 充值 / 代付 / 退款 | 企业主体支付宝开放平台**实名 + 创建应用 + 生成密钥 + 签约产品**（当面付/网站支付/单笔转账） | 渠道 `alipay` 的 `appId/privateKey/alipayPublicKey`，`ALIPAY_NOTIFY_URL` | §2.1 |
-| 3 | **微信支付** | 收款 / 代付 / 退款 | 企业微信支付**商户号** + **APIv3 密钥** + **商户私钥** + **证书序列号** + 签约产品 | 渠道 `wechat` 的 `mchId/apiV3Key/privateKey/certSerialNo`，`WECHAT_PAY_NOTIFY_URL` | §2.2 |
-| 4 | **支付牌照 / 合规通道** | 对外收单 / 代收代付 | 持牌支付机构/银行/**四方聚合**服务商签约（自营收单必须持牌，否则非法经营） | 合作通道 SDK/参数接入 `PaymentChannel` | §2.3 |
-| 5 | **SMTP 邮件** | 邮件通知（到账/审核等） | 企业邮箱或第三方邮件服务的 SMTP 账号与授权码 | `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `SMTP_FROM` | §4 |
-| 6 | **LLM API** | AI 客服 / AI 风控审计 / 智能体 | OpenAI 兼容服务的 API Key（DeepSeek/通义/Kimi/Moonshot 等） | `LLM_PROVIDER` `LLM_API_KEY` `LLM_BASE_URL` `LLM_MODEL` | §5 |
-| 7 | **Stripe / PayPal** | 外部支付工具（可选 MCP） | 对应平台 API 密钥 | `MCP_STRIPE_ENABLED` `STRIPE_SECRET_KEY` 等 | §6 |
-| 8 | **OTEL / Sentry** | 链路追踪 / 异常上报（可选） | OTLP Collector（Jaeger/Tempo）/ Sentry 项目 DSN | `OTEL_EXPORTER_OTLP_ENDPOINT` `SENTRY_DSN` | §7 |
-| 9 | **PostgreSQL / Redis** | 数据存储 / 缓存与分布式锁 | 生产数据库实例 + 强密码 + 定时备份；Redis 开 `requirepass` | `DATABASE_URL` `REDIS_URL` | `docs/DEPLOYMENT.md` |
-| 10 | **公网域名 + HTTPS 证书** | 支付回调 / 前端访问 | 备案域名 + TLS 证书（回调和 CORS 都要求 HTTPS） | `RECHARGE_NOTIFY_URL` `CORS_ORIGINS` `WECHAT/ALIPAY_NOTIFY_URL` | §8.2 |
+- 平台**不设**用户余额账户
+- 平台**不提供**充值、提现、转账、红包、分账、担保、批量代付、订阅扣款、邀请返现、绑卡
+- 所有资金由持牌支付机构直接清算，退款原路退回
+- 平台仅做：收单订单管理、渠道回调、渠道账单对账、审计留痕
 
-> **一句话**：代码本身完整可跑；要真正对外营业，**手机号验证（短信）、真实资金进出（支付渠道）、（可选）邮件与 AI** 这几类都必须由企业主体提前申请外部账号与资质后替换配置。纯内部演示/联调可直接用 mock。
+> 历史版本（v0.2.x 及更早）曾实现"个人钱包 + 资金池"模式，已于 v0.3.x 物理删除。本指南不再罗列已下线能力。
 
 ---
 
-## 0. 一句话结论
+## 2. 上线前必须完成的检查
 
-**系统代码本身是完整、可运行的，但当前默认配置下大部分"资金出入 + 对外通知"能力处于 mock（模拟）状态，不能用于真实业务。** 要让系统真正可用，必须由企业主体去申请：**支付牌照/合规通道 → 支付渠道商户号 → 短信签名模板 →（可选）LLM/SMTP 等外部服务**，然后按本文逐一替换配置。生产环境安全校验（`src/security/security-validator.service.ts`）会强制拦截默认/弱密钥与 mock 渠道，配错了根本起不来——这是设计如此，不是 bug。
+### 2.1 资质与合作
 
----
+- [ ] 已取得支付业务相应资质，或与持牌机构签订正式合作协议
+- [ ] 不在中国大陆无证从事"二清"（二次清算）业务
+- [ ] 用户协议、隐私政策、商户协议、退款规则已在 `docs/legal/` 中发布并公示
+- [ ] 已在页脚公示 ICP 备案、支付合作机构信息
 
-## 1. 功能可用性速览表
+### 2.2 渠道配置
 
-| # | 功能 | 当前状态 | 能否用于真实业务 | 启用所需 | 参考 |
-|---|------|---------|:---:|----------|------|
-| 1 | 充值 / 提现 / 代付（资金进出） | 默认走 mock 渠道 | ❌ 否 | 真实支付渠道（见 §2） | `src/payment-channels/` |
-| 2 | 支付宝收款/代付 | 未配置 | ❌ 否 | 企业支付宝开放平台资质 + AppId + 密钥 | §2.1 |
-| 3 | 微信支付收款/代付 | 未配置 | ❌ 否 | 微信支付商户号 + APIv3 证书 | §2.2 |
-| 4 | 短信验证码（注册/登录/改密/绑定） | 默认 mock（只打日志） | ❌ 否 | 阿里云/腾讯云/华为云短信实名 + 签名 + 模板 | §3 |
-| 5 | 邮件通知 | 未配置 SMTP 时降级为日志 | ⚠️ 部分 | SMTP 账号（企业邮箱/第三方） | §4 |
-| 6 | LLM 智能体（AI 客服/风控审计） | 默认 mock（本地模板） | ⚠️ 演示级 | DeepSeek/通义/Kimi 等 API Key | §5 |
-| 7 | 第三方支付工具 MCP（Stripe/PayPal） | 默认关闭 | ⚠️ 需开启 | 对应平台密钥 | §6 |
-| 8 | 可观测性 OTEL/Sentry | 未配置时零开销 no-op | ✅ 可选 | OTLP Collector / Sentry DSN | §7 |
-| 9 | 商户开放 API（HMAC 签名对接） | 可用 | ✅ 可用（但资金最终仍走渠道） | 商户后台自助注册 | `docs/MERCHANT_INTEGRATION.md` |
-| 10 | 内部钱包/转账/红包/分账/批量代付 | 代码完整 | ✅ 内部自用可用 | 不依赖外部（除资金进出渠道） | — |
+- [ ] 已接入真实持牌渠道（微信/支付宝），mock 渠道已关闭
+- [ ] 渠道凭据 AES-256-GCM 加密落库
+- [ ] `CHANNEL_NOTIFY_URL` 为公网可达 HTTPS 地址
+- [ ] 已在渠道侧配置相同的回调地址并完成联调
 
-> ⚠️ **注意**：即使第 9/10 项代码可用，**凡涉及"平台收到钱 / 平台付出钱"的业务，最终都依赖真实支付渠道（第 1 项）**。没有真实渠道，整体只能作为演示/内测环境跑通流程，不能产生真实资金。
+### 2.3 安全
 
----
+- [ ] `JWT_USER_SECRET` / `JWT_ADMIN_SECRET` / `ENCRYPTION_KEY` 已改为强随机值
+- [ ] 初始管理员密码已修改
+- [ ] 管理后台、开放 API 已配置防火墙/IP 白名单（如需要）
+- [ ] HTTPS 全站启用，HSTS 已开启
+- [ ] 数据库、Redis 不暴露公网
+- [ ] Webhook 验签逻辑已联调通过（伪造回调必须返回 400）
 
-## 2. 支付渠道：当前只有 mock，真实业务必须接入真实渠道
+### 2.4 业务连续性
 
-### 2.1 为什么现在不能用
+- [ ] 定时任务（掉单补单、渠道账单拉取、对账、快照）在生产 cron/scheduler 中已启用
+- [ ] 已配置告警：PENDING 订单超 15 分钟、对账差异、渠道回调失败
+- [ ] 数据库每日备份策略已落地
+- [ ] 日志已接入 ELK / Loki 等集中平台，traceId 全链路
 
-- `prisma/seed.ts` 只创建了 **mock 渠道**（`paymentChannelConfig` 表，`code='mock'`），用于开发环境跑通充值/代付流程。
-- `src/payment-channels/payment-channel.registry.ts:43-46`：**生产环境（`NODE_ENV=production`）调用 mock 渠道直接抛 `NotFoundException`**，不会静默降级。
-- 真实渠道（支付宝/微信）需要**企业资质、商户号、密钥证书**，系统代码已实现对接（`alipay.channel.ts` / `wechat-pay.channel.ts`），但默认未配置。
+### 2.5 可观测性
 
-### 2.2 如何启用（按渠道）
-
-**支付宝（收款 + 代付）**
-1. 企业主体注册并实名认证 [支付宝开放平台](https://open.alipay.com)。
-2. 创建"网页&移动应用"或"商家自运营应用"，签约你要用的产品（当面付、手机网站支付、单笔转账到支付宝账户等）。
-3. 在 [蚂蚁开放平台密钥管理](https://open.alipay.com/grantvolume/manage) 生成**应用私钥**、拿到**应用公钥**与**支付宝公钥**。
-4. 在管理后台「渠道管理」页配置渠道 `alipay`，填写：
-   ```json
-   {
-     "appId": "2021002xxxxxxx",
-     "privateKey": "-----BEGIN PRIVATE KEY-----...",
-     "alipayPublicKey": "-----BEGIN PUBLIC KEY-----...",
-     "sandbox": false
-   }
-   ```
-5. 把渠道 `enabled=true`，设好 `priority`。生产环境 `ALIPAY_NOTIFY_URL` 必须是外网 HTTPS 可访问的回调地址。
-
-**微信支付（收款 + 代付）**
-1. 企业主体注册 [微信支付商户平台](https://pay.weixin.qq.com)。
-2. 完成商户号申请、产品开通（JSAPI / Native / 转账到零钱 / 企业付款到银行卡）。
-3. 获取 **商户号 `WECHAT_PAY_MCH_ID`**、**APIv3 密钥**、**商户私钥（apiclient_key.pem）**、**证书序列号**。
-4. 在管理后台「渠道管理」页配置渠道 `wechat`，将上述值填入 `config` JSON。
-5. `WECHAT_PAY_NOTIFY_URL` 必须外网 HTTPS 可达。
-
-**提交结算资质时**：平台若为商户代收代付，通常需要与持牌支付机构/银行签订 **"代收付合作协议"** 或走 **四方（聚合）支付** 通道（如拉卡拉、汇付、易宝等）。此时把合作方提供的通道 SDK/参数按 `PaymentChannel` 接口实现即可（`src/payment-channels/channels/` 下新增一个渠道类并注册到 `payment-channel.registry.ts`）。
-
-### 2.3 合规红线（务必先读）
-
-> **在中国大陆，未经央行批准擅自从事支付业务（收单、代收代付、资金结算、沉淀资金池）属于非法经营。** 本系统天然具备支付与资金池属性。
-
-- **对外给商户做收单/代付** → 必须持有或挂靠《支付业务许可证》。三个现实路径：
-  1. **自营模式**：由持牌支付机构（银行/支付公司）作为通道方，你只做系统集成方，资金不经过你账户。
-  2. **四方/聚合模式**：与持牌聚合支付服务商签约，借用其通道与结算资质。
-  3. **收购/入股持牌公司**：成本高、周期长，仅适合大型项目。
-- **企业内部使用（内部员工钱包、内部结算、客户积分/储值，不面向公众收单）** → 不涉及对外支付牌照，可正常使用本系统（第 10 项）。
-- **拿不准**：上线前咨询专业律师/支付合规顾问。系统不构成合规意见。
+- [ ] Prometheus `/metrics` 已被抓取
+- [ ] OpenTelemetry 已接入
+- [ ] 关键业务指标（收单成功率、回调成功率、对账差异数）已建看板
 
 ---
 
-## 3. 短信验证码：mock 不发送真实短信，必须接运营商
+## 3. 合规红线（违反即不能上线）
 
-### 3.1 为什么现在不能用
-
-- `src/sms/sms.service.ts` 默认 `SMS_PROVIDER=mock`，只往日志打印验证码，**不会真正发送短信**。
-- `sms.service.ts:84-88`：**生产环境 `SMS_PROVIDER=mock` 直接启动失败**，强制你必须配置真实 provider。
-
-### 3.2 如何启用
-
-支持的厂商：**阿里云 / 腾讯云 / 华为云**。三家都需要：
-1. 企业主体（或个体工商户）完成云厂商**实名认证**。
-2. 申请并审核**短信签名**（如"科佰支付"，需提供营业执照等材料，审核一般 1-2 天）。
-3. 申请并审核**短信模板**（如"您的验证码是${code}，10分钟内有效"，需注明用途）。
-
-**阿里云**（`.env`）：
-```bash
-SMS_PROVIDER="aliyun"
-SMS_SIGN_NAME="你的已审核签名"
-SMS_TEMPLATE_CODE="SMS_123456789"       # 模板 CODE，模板内容需含 ${code}
-SMS_ACCESS_KEY_ID="你的AK"
-SMS_ACCESS_KEY_SECRET="你的SK"
-```
-
-**腾讯云**（`.env`）：
-```bash
-SMS_PROVIDER="tencent"
-SMS_SIGN_NAME="你的签名"
-SMS_TEMPLATE_CODE="模板ID（数字）"
-SMS_TENCENT_SECRET_ID="..."
-SMS_TENCENT_SECRET_KEY="..."
-SMS_TENCENT_SDK_APP_ID="短信应用ID"
-```
-
-**华为云**（`.env`）：
-```bash
-SMS_PROVIDER="huawei"
-SMS_SIGN_NAME="你的签名"
-SMS_TEMPLATE_CODE="模板ID"
-SMS_HUAWEI_APP_ID="AK"
-SMS_HUAWEI_APP_SECRET="SK"
-SMS_HUAWEI_SENDER="签名通道号"
-```
-
-> 注意：模板变量名必须与代码约定一致（验证码变量为 `code`）。详细步骤见 `docs/sms-integration.md`。
+1. 不得在平台内为用户或商户开立任何形式的余额账户
+2. 不得通过平台发起任何资金划转（转账/代付/分账/红包/担保）
+3. 不得将平台作为"二清"通道
+4. 不得对用户宣称"平台存钱""平台理财""平台红包"等资金池能力
+5. 不得在前端或文档中保留任何已下线资金功能的活跃入口
 
 ---
 
-## 4. SMTP 邮件通知
+## 4. 已下线能力清单（不要再问"怎么开"）
 
-- 未配置 `SMTP_USER` 时邮件通知自动降级为日志，不影响主流程。
-- 启用：配置企业邮箱 SMTP 或第三方邮件服务（阿里云邮件推送等）：
-  ```bash
-  SMTP_HOST="smtp.example.com"
-  SMTP_PORT=465            # 或 587
-  SMTP_USER="noreply@your-domain.com"
-  SMTP_PASS="授权码"
-  SMTP_FROM="KeBaiPay <noreply@your-domain.com>"
-  ```
+| 能力 | 状态 |
+|---|---|
+| 用户余额 / 钱包 | 已物理删除 |
+| 充值 | 已删除（`/webhooks/recharge/:channel` 已重构为收单回调） |
+| 提现 / 提现审核 | 已删除 |
+| P2P 转账 / 批量代付 | 已删除 |
+| 红包 | 已删除 |
+| 担保交易 | 已删除 |
+| 分账 | 已删除 |
+| 订阅扣款 | 已删除 |
+| 邀请返现 | 已删除 |
+| 银行卡管理 / 绑卡 | 已删除 |
+| 调账双人复核 | 已删除 |
 
----
-
-## 5. LLM 智能体（AI 客服 / 风控审计）
-
-- `LLM_PROVIDER=mock` 时使用本地模板，仅演示。
-- 启用真实能力：任意 OpenAI 兼容服务均可（DeepSeek/通义/Kimi/Moonshot）：
-  ```bash
-  LLM_PROVIDER="deepseek"          # openai / deepseek / qwen / kimi / moonshot
-  LLM_API_KEY="sk-..."
-  LLM_BASE_URL="https://api.deepseek.com"
-  LLM_MODEL="deepseek-chat"
-  ```
-- Agent 资金操作默认需要人工二次确认（`AGENT_CONFIRM_TIMEOUT_SEC`），并受 `AGENT_MAX_AMOUNT_PER_OP/DAY` 限额保护，可放心配置。
-
----
-
-## 6. 第三方支付工具 MCP（Stripe / PayPal）
-
-- 默认关闭。需要对应平台 API 密钥并开启：
-  ```bash
-  MCP_STRIPE_ENABLED="true"
-  STRIPE_SECRET_KEY="sk_..."
-  MCP_PAYPAL_ENABLED="true"
-  PAYPAL_CLIENT_ID="..."
-  PAYPAL_CLIENT_SECRET="..."
-  ```
-
----
-
-## 7. 可观测性（可选，不影响可用性）
-
-- OTEL trace：配 `OTEL_EXPORTER_OTLP_ENDPOINT` 即启用（Jaeger/Tempo 等）。
-- ~~Sentry：配 `SENTRY_DSN` 即启用异常上报~~（2026-08-26 勘误：项目**未接入 Sentry SDK**，该配置项当前无效；如需异常上报请自建 OTLP → 临时方案接 Grafana/Tempo，或贡献 Sentry exporter）。
-- Prometheus：`/metrics` 默认暴露。
-- 详见 `docs/DEPLOYMENT.md` §8。
-
----
-
-## 8. 部署到服务器：已知问题与"不能直接导入"的地方
-
-### 8.1 ✅ 已修复：Docker Compose 未透传环境变量（重要）
-
-**问题**：原 `docker-compose.yml` 的 `app` 服务只用 `environment:` 显式列出部分变量，**SMS_*、LLM_*、SMTP_*、OTEL_*、SENTRY_DSN、JWT_AGENT_SECRET、MCP_* 等全部不会进入容器**。即使你在宿主机 `.env` 配好了短信，Docker 部署下容器里也读不到 → 短信等功能永远不可用，且难以排查。
-
-**修复**：`docker-compose.yml` 已为 `app` 服务增加 `env_file: [.env]`，将宿主机 `.env` 全部变量透传进容器；显式 `environment:`（容器间地址等）优先级更高，行为不变。**升级后部署时注意同步 `docker-compose.yml`，不要再使用旧文件。**
-
-### 8.2 部署前必须检查清单（不检查会启动失败或功能不可用）
-
-| 检查项 | 说明 | 不做的后果 |
-|--------|------|-----------|
-| 6 个 secret 全部改成强随机值 | `POSTGRES_PASSWORD` / `JWT_USER_SECRET` / `JWT_ADMIN_SECRET` / `ADMIN_DEFAULT_PASSWORD` / `ENCRYPTION_KEY` / `REDIS_PASSWORD`（≥32 位，admin 密码含大小写+数字） | 生产环境 `security-validator` 拒绝启动 |
-| `NODE_ENV=production` | | 否则 Swagger 暴露、mock 可用、日志非 JSON |
-| `CORS_ORIGINS` 改为真实域名 | 不能含 localhost | 前端跨域被拒 |
-| `RECHARGE_NOTIFY_URL` 为外网 HTTPS | 不能 localhost | 充值回调到不了，订单永远 PENDING |
-| `DATABASE_URL` / `REDIS_URL` | Docker 模式由 compose 注入；裸机手填 | 启动即失败 |
-| 执行 `prisma migrate deploy` + `db:seed` | entrypoint 自动 migrate，seed 手动一次 | 表不存在 / 无管理员 |
-| 真实支付渠道配置（§2） | 管理后台渠道管理 | 充值/提现代付不可用 |
-| 短信 provider 非 mock（§3） | `.env` | 生产启动失败 |
-| Nginx TLS + HSTS + `/metrics` 内网限制 | 见 DEPLOYMENT.md §4.7 | 明文传输/指标泄露 |
-| 数据库定时备份 + Redis 密码 | crontab + `requirepass` | 数据丢失无法恢复 |
-
-### 8.3 已知代码层面的注意点
-
-- **Swagger 仅开发环境开启**（`src/main.ts`，`NODE_ENV !== 'production'` 才挂载）。生产环境 `GET /api/docs` 应为 404，若可见说明 NODE_ENV 配错。
-- **前端 `API_BASE=''`（`public/app.js:22`）**：所有请求走相对路径，生产必须由 Nginx 将 `/` 与 `/api` 反代到同一后端，否则前端 404。
-- **管理员初始密码**：seed 用 `ADMIN_DEFAULT_PASSWORD` 创建 `admin` 账号，**首次登录后必须立即改密**。
-- **`.env` 请勿提交版本库**（已在 `.gitignore`）。`.env.example` 里是占位值，直接 copy 使用会被安全校验拦截（这是保护机制）。
-- **CI 已就绪**：`.github/workflows/ci.yml` 已包含 `tsc` 类型检查 + 单测 + 三前端构建 + 版本号一致性校验（2026-08-26 勘误，原文"没有 CI"已过期）。
-
----
-
-## 9. 交付路径建议（按业务场景选）
-
-| 场景 | 建议 |
-|------|------|
-| **企业内部钱包 / 员工结算 / 积分储值（不对外收单）** | 立即可用。配置支付渠道为对公转账（银行流水人工对账）或接持牌通道代发即可。 |
-| **给商户做聚合收款 / 代收代付** | 必须先与持牌支付机构（银行、支付公司、聚合服务商）签约，拿到真实通道参数后接入 §2；上线前过合规审查。 |
-| **只想先做产品演示 / 联调** | 保持 mock + `NODE_ENV=development`，跑通全流程后再逐项替换真实渠道。 |
-
----
-
-*最后更新：由部署审查生成。发现问题请回填本文档对应章节，保持"生产就绪清单"始终可用。*
+如业务确有上述资金池需求，应与持牌支付机构合作实现，而不是在本平台上重新加回。

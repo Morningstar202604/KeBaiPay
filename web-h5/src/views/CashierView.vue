@@ -10,7 +10,7 @@
           <el-input v-model="merchantOrderNo" placeholder="唯一订单号" size="large" />
         </el-form-item>
         <el-form-item label="商品名称">
-          <el-input v-model="subject" placeholder="如：会员充值" size="large" />
+          <el-input v-model="subject" placeholder="如：会员订单" size="large" />
         </el-form-item>
         <el-form-item label="金额（元）">
           <el-input-number v-model="amount" :min="0.01" :precision="2" size="large" style="width: 100%" />
@@ -30,7 +30,10 @@
         </div>
         <div class="right">
           <div class="amt">¥{{ o.amountYuan }}</div>
-          <el-button v-if="o.status === 'PENDING'" size="small" type="primary" @click="pay(o)">支付</el-button>
+          <div v-if="o.status === 'PENDING'" class="pay-btns">
+            <el-button size="small" type="primary" :loading="payingNo === o.orderNo" @click="pay(o, 'alipay')">支付宝</el-button>
+            <el-button size="small" type="success" :loading="payingNo === o.orderNo" @click="pay(o, 'wechat')">微信</el-button>
+          </div>
         </div>
       </div>
     </el-card>
@@ -40,7 +43,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import type { CashierOrder } from '@/types'
 import {
   createCashierOrder,
@@ -58,6 +61,7 @@ const creating = ref(false)
 const loading = ref(true)
 const orders = ref<CashierOrder[]>([])
 const payeeName = ref('')
+const payingNo = ref('')
 
 function statusText(s: string) {
   const map: Record<string, string> = { PENDING: '待支付', PAID: '已支付', CLOSED: '已关闭', REFUNDED: '已退款' }
@@ -86,20 +90,21 @@ async function create() {
   }
 }
 
-async function pay(o: CashierOrder) {
+async function pay(o: CashierOrder, channel: 'alipay' | 'wechat') {
+  payingNo.value = o.orderNo
   try {
-    const { value } = await ElMessageBox.prompt('请输入 6 位支付密码', '支付确认', {
-      inputType: 'password',
-      inputPattern: /^\d{6}$/,
-      inputErrorMessage: '支付密码为 6 位数字',
-    })
-    await payCashierOrder(o.orderNo, value)
-    ElMessage.success('支付成功')
+    const res = (await payCashierOrder(o.orderNo, { channel })) as { payUrl?: string; payParams?: Record<string, string>; message?: string }
+    if (res.payUrl) {
+      // 跳转持牌通道收银台（H5 支付/二维码页）
+      window.location.href = res.payUrl
+      return
+    }
+    ElMessage.success('支付已发起，等待支付结果')
     load()
   } catch (e: unknown) {
-    // ElMessageBox 取消/关闭时 reject 字符串 'cancel'/'close'（非 axios __CANCEL__）
-    if (e === 'cancel' || e === 'close') return
     ElMessage.error(extractError(e))
+  } finally {
+    payingNo.value = ''
   }
 }
 
@@ -141,5 +146,6 @@ onMounted(async () => {
 .sub { font-size: 12px; color: #9ca3af; margin-top: 2px; }
 .right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .amt { color: #ef4444; font-weight: 600; }
+.pay-btns { display: flex; gap: 6px; }
 .empty { color: #9ca3af; text-align: center; padding: 24px; font-size: 13px; }
 </style>

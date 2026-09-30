@@ -29,20 +29,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { User, Wallet, List, Present, Money, MagicStick } from '@element-plus/icons-vue'
+import { User, HomeFilled, List, Money, MagicStick } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const title = computed(() => (route.meta.title as string) || '科佰钱包')
+const title = computed(() => (route.meta.title as string) || '科佰收单')
 const navs = [
-  { to: '/home', label: '钱包', icon: Wallet },
+  { to: '/home', label: '首页', icon: HomeFilled },
   { to: '/bills', label: '账单', icon: List },
-  { to: '/redpacket', label: '红包', icon: Present },
-  { to: '/agent', label: 'AI助手', icon: MagicStick },
   { to: '/cashier', label: '收银台', icon: Money },
+  { to: '/agent', label: 'AI助手', icon: MagicStick },
 ]
 
 async function onCommand(cmd: string) {

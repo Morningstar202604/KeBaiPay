@@ -1,4 +1,4 @@
-import { IsEmpty, IsNotEmpty, IsOptional, IsString, IsUrl, MaxLength, ValidateIf } from 'class-validator'
+import { IsNotEmpty, IsOptional, IsString, IsUrl, MaxLength, ValidateIf } from 'class-validator'
 
 /** 更新商户应用：前端 PATCH /merchants/apps/:appId 调用 */
 export class UpdateMerchantAppDto {

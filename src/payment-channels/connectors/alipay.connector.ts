@@ -18,7 +18,7 @@ export class AlipayConnector implements Connector {
   readonly metadata: ConnectorMetadata = {
     name: 'alipay',
     displayName: '支付宝',
-    capabilities: ['RECHARGE', 'PAYOUT', 'REFUND', 'BALANCE_QUERY'],
+    capabilities: ['RECHARGE', 'REFUND'],
     supportedCurrencies: ['CNY'],
     supportedMethods: ['page', 'wap', 'app'],
     version: '3.0.0',
@@ -28,7 +28,7 @@ export class AlipayConnector implements Connector {
   private config: ConnectorConfig = {
     name: 'alipay',
     displayName: '支付宝',
-    capabilities: ['RECHARGE', 'PAYOUT', 'REFUND', 'BALANCE_QUERY'],
+    capabilities: ['RECHARGE', 'REFUND'],
     priority: 90,
     timeout: 30_000,
     retryConfig: {

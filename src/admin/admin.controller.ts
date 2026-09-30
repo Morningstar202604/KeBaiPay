@@ -19,13 +19,11 @@ import { PermissionsGuard } from './permissions.guard'
 import { RequirePermissions } from './permissions.decorator'
 import { AdminCurrentUser } from './admin-current-user.decorator'
 import { AdminCurrentUser as AdminCurrentUserType } from './admin-current-user.interface'
-import { WithdrawalsService } from '../withdrawals/withdrawals.service'
 import { MerchantsService } from '../merchants/merchants.service'
 import { ListUsersQueryDto } from './dto/list-users-query.dto'
 import { UpdateUserStatusDto } from './dto/update-user-status.dto'
 import { UpdateUserRiskLevelDto } from './dto/update-user-risk-level.dto'
 import { ListMerchantsQueryDto } from './dto/list-merchants-query.dto'
-import { ListWithdrawalsQueryDto } from './dto/list-withdrawals-query.dto'
 import { ListPaymentOrdersQueryDto } from './dto/list-payment-orders-query.dto'
 import { ListRiskEventsQueryDto } from './dto/list-risk-events-query.dto'
 import { ListLoginLogsQueryDto } from './dto/list-login-logs-query.dto'
@@ -33,12 +31,8 @@ import { UpdateRiskRuleDto } from './dto/update-risk-rule.dto'
 import { AuditMerchantDto } from './dto/audit-merchant.dto'
 import { HandleRiskEventDto } from './dto/handle-risk-event.dto'
 import { UpdateMerchantConfigDto } from './dto/update-merchant-config.dto'
-import { AdjustAccountDto } from './dto/adjust-account.dto'
-import { ListAdjustmentsQueryDto } from './dto/list-adjustments-query.dto'
-import { RejectAdjustmentDto } from './dto/reject-adjustment.dto'
 import { RejectIdentityDto } from './dto/reject-identity.dto'
 import { kbError, KBErrorCodes } from '../common/error-codes'
-import { RejectWithdrawalDto } from './dto/reject-withdrawal.dto'
 import { ListPendingIdentitiesQueryDto } from './dto/list-pending-identities-query.dto'
 import { ListAuditLogsQueryDto } from './dto/list-audit-logs-query.dto'
 
@@ -49,7 +43,6 @@ import { ListAuditLogsQueryDto } from './dto/list-audit-logs-query.dto'
 export class AdminController {
   constructor(
     private readonly adminService: AdminService,
-    private readonly withdrawalsService: WithdrawalsService,
     private readonly merchantsService: MerchantsService,
   ) {}
 
@@ -183,55 +176,6 @@ export class AdminController {
     return result
   }
 
-  @Get('withdrawals')
-  @RequirePermissions('admin:view')
-  @ApiOperation({ summary: '提现审核列表' })
-  @ApiResponse({ status: 200, description: '返回提现订单列表' })
-  listWithdrawals(@Query() query: ListWithdrawalsQueryDto) {
-    return this.adminService.listWithdrawals(query)
-  }
-
-  @Post('withdrawals/:id/approve')
-  @RequirePermissions('withdrawal:audit')
-  @ApiOperation({ summary: '通过提现申请' })
-  @ApiResponse({ status: 200, description: '审核通过，资金已打款' })
-  async approveWithdrawal(
-    @Param('id') id: string,
-    @AdminCurrentUser() admin: AdminCurrentUserType,
-    @Req() req: Request,
-  ) {
-    const result = await this.withdrawalsService.approve(id, admin.sub)
-    await this.adminService.logAction(
-      admin.sub,
-      'WITHDRAWAL_AUDIT',
-      id,
-      { action: 'APPROVE' },
-      this.extractAuditMeta(req),
-    )
-    return result
-  }
-
-  @Post('withdrawals/:id/reject')
-  @RequirePermissions('withdrawal:audit')
-  @ApiOperation({ summary: '拒绝提现申请' })
-  @ApiResponse({ status: 200, description: '已拒绝，资金退回余额' })
-  async rejectWithdrawal(
-    @Param('id') id: string,
-    @Body() dto: RejectWithdrawalDto,
-    @AdminCurrentUser() admin: AdminCurrentUserType,
-    @Req() req: Request,
-  ) {
-    const result = await this.withdrawalsService.reject(id, admin.sub, dto.reason)
-    await this.adminService.logAction(
-      admin.sub,
-      'WITHDRAWAL_AUDIT',
-      id,
-      { action: 'REJECT', reason: dto.reason },
-      this.extractAuditMeta(req),
-    )
-    return result
-  }
-
   @Get('payment-orders')
   @RequirePermissions('admin:view')
   @ApiOperation({ summary: '支付订单列表' })
@@ -340,63 +284,6 @@ export class AdminController {
       admin.sub,
       this.extractAuditMeta(req),
     )
-  }
-
-  @Post('accounts/:userId/adjust')
-  @RequirePermissions('account:adjust')
-  @ApiOperation({
-    summary: '人工调账',
-    description:
-      '管理员手动调整用户账户余额。|amount| >= 大额阈值（默认 5 万元）时不立即执行，' +
-      '创建审批单返回 PENDING_APPROVAL，需第二名管理员调用 /admin/adjustments/:id/approve 批准后执行',
-  })
-  @ApiResponse({ status: 200, description: '小额调账直接执行（EXECUTED）' })
-  @ApiResponse({ status: 200, description: '大额调账创建审批单（PENDING_APPROVAL）' })
-  adjustAccount(
-    @Param('userId') userId: string,
-    @Body() dto: AdjustAccountDto,
-    @AdminCurrentUser() admin: AdminCurrentUserType,
-    @Req() req: Request,
-  ) {
-    return this.adminService.adjustAccountWithPolicy(
-      userId,
-      dto.amount,
-      dto.reason,
-      admin.sub,
-      this.extractAuditMeta(req),
-    )
-  }
-
-  @Get('adjustments')
-  @RequirePermissions('account:adjust')
-  @ApiOperation({ summary: '大额调账审批单列表', description: '可按 status 过滤（PENDING/EXECUTING/EXECUTED/REJECTED）' })
-  listAdjustments(@Query() query: ListAdjustmentsQueryDto) {
-    return this.adminService.listAdjustmentApprovals(query)
-  }
-
-  @Post('adjustments/:id/approve')
-  @RequirePermissions('account:adjust')
-  @ApiOperation({ summary: '批准并执行大额调账', description: '审批人不得为发起人；批准后立即执行调账' })
-  @ApiResponse({ status: 200, description: '已批准并执行' })
-  @ApiResponse({ status: 403, description: '发起人不能审批自己的申请' })
-  approveAdjustment(
-    @Param('id') id: string,
-    @AdminCurrentUser() admin: AdminCurrentUserType,
-    @Req() req: Request,
-  ) {
-    return this.adminService.approveAdjustment(id, admin.sub, this.extractAuditMeta(req))
-  }
-
-  @Post('adjustments/:id/reject')
-  @RequirePermissions('account:adjust')
-  @ApiOperation({ summary: '驳回大额调账申请' })
-  rejectAdjustment(
-    @Param('id') id: string,
-    @Body() dto: RejectAdjustmentDto,
-    @AdminCurrentUser() admin: AdminCurrentUserType,
-    @Req() req: Request,
-  ) {
-    return this.adminService.rejectAdjustment(id, admin.sub, dto.reason, this.extractAuditMeta(req))
   }
 
   @Get('audit-logs')

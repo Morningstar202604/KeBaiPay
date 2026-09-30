@@ -6,7 +6,6 @@ import { ToolRegistry, type ToolDeps } from './tools/tool.registry'
 import { AgentAuditLogService } from './agent-audit-log.service'
 import { MessagesService } from '../messages/messages.service'
 import { CouponsService } from '../coupons/coupons.service'
-import { TransfersService } from '../transfers/transfers.service'
 import { ScheduleHealthService } from '../common/schedule-health.service'
 import { generateOrderNo } from '../common/helpers'
 import {
@@ -46,14 +45,12 @@ export class AgentService {
     private readonly messagesService: MessagesService,
     private readonly couponsService: CouponsService,
     private readonly scheduleHealthService: ScheduleHealthService,
-    private readonly transfersService: TransfersService,
     private readonly configService: ConfigService,
   ) {
     this.toolDeps = {
       messagesService,
       couponsService,
       scheduleHealthService,
-      transfersService,
     }
   }
 
@@ -290,25 +287,6 @@ export class AgentService {
    * 对资金类工具解析收款人昵称与金额，避免向用户展示晦涩 ID 导致误确认。
    */
   private async describeOpForConfirm(toolName: string, args: any): Promise<string> {
-    if (toolName === 'kbpay_transfer' && args && typeof args === 'object') {
-      const toUserId = String(args.toUserId ?? '').slice(0, 64)
-      const amount = Number(args.amountYuan)
-      const amountText = Number.isFinite(amount) ? amount.toFixed(2) : '未知金额'
-      let receiverText = toUserId || '未知用户'
-      if (toUserId) {
-        try {
-          const target = await this.prisma.user.findUnique({
-            where: { id: toUserId },
-            select: { nickname: true },
-          })
-          if (target?.nickname) receiverText = `${target.nickname}（${toUserId}）`
-        } catch {
-          // 查询失败时退化为原始 ID，不影响确认流程
-        }
-      }
-      const remark = typeof args.remark === 'string' ? args.remark : ''
-      return `向用户「${receiverText}」转账 ¥${amountText} 元${remark ? `，备注：${remark.slice(0, 100)}` : ''}`
-    }
     return `${toolName}：${JSON.stringify(args ?? {})}`
   }
 
@@ -419,7 +397,7 @@ export class AgentService {
 - 你的权限范围：${(user.authScopes ?? user.scopes ?? []).join(', ')}
 
 规则：
-1. 资金类操作（转账、退款、发红包等）必须先告知用户金额和对象，等待用户确认后才执行
+1. 涉及退款的资金类操作必须先告知用户金额和对象，等待用户确认后才执行
 2. 查询类操作可以直接执行
 3. 不要编造数据，调用工具获取真实数据
 4. 如果工具执行失败，告诉用户原因并建议下一步
@@ -434,7 +412,7 @@ E. 如果用户请求超出你的权限范围，礼貌拒绝并说明原因
 F. 不要在回复中输出原始的身份证号、银行卡完整卡号等敏感信息`
 
     if (scenario === 'wallet') {
-      return base + `\n\n场景说明：钱包管家，帮助 C 端用户管理钱包、查账单、转账、发红包、领优惠券等。`
+      return base + `\n\n场景说明：收单助手，帮助 C 端用户查询收单订单、账单、实名状态等（平台不设钱包/余额，无转账发红包功能）。`
     } else if (scenario === 'merchant') {
       return base + `\n\n场景说明：店长助理，帮助 B 端商户查询订单、对账、退款、营销等。只能查询本商户的数据。`
     } else if (scenario === 'risk') {
@@ -447,7 +425,7 @@ F. 不要在回复中输出原始的身份证号、银行卡完整卡号等敏�
 
   private welcomeMessage(scenario: string): string {
     const map: Record<string, string> = {
-      wallet: '您好，我是钱包管家，可以帮您查询余额、转账、发红包、推荐优惠券等。',
+      wallet: '您好，我是收单助手，可以帮您查询收单账单、查看订单状态、了解退款进度等。',
       merchant: '您好，我是店长助理，可以帮您查询订单、对账、营销等。',
       risk: '您好，我是风控审计官，正在监控风险事件和系统健康。',
       support: '您好，我是客服助手，有什么可以帮您？',

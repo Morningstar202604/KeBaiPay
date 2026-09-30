@@ -11,7 +11,6 @@ import { CurrentUser } from '../auth/current-user.decorator'
 import { CurrentUser as CurrentUserType } from '../auth/current-user.interface'
 import { QrCodesService } from './qr-codes.service'
 import { CreateFixedCodeDto } from './dto/create-fixed-code.dto'
-import { PayByQrCodeDto } from './dto/pay-by-qr-code.dto'
 
 @ApiTags('收款码')
 @ApiBearerAuth('user-auth')
@@ -35,12 +34,6 @@ export class QrCodesController {
     return this.qrCodesService.createFixedCode(user.id, dto)
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Post('pay')
-  @ApiOperation({ summary: '扫码付款', description: '扫描收款码进行付款' })
-  @ApiResponse({ status: 201, description: '付款成功' })
-  @ApiResponse({ status: 400, description: 'KB610 收款码无效 / KB611 不能扫自己的码' })
-  pay(@CurrentUser() user: CurrentUserType, @Body() dto: PayByQrCodeDto) {
-    return this.qrCodesService.pay(user.id, dto)
-  }
+  // POST /qr-codes/pay（扫码付款）已下线：合规聚合模式下平台无余额，
+  // 收款码仅作为收单入口，付款一律走收银台渠道支付（/cashier/orders/:orderNo/channel-pay）
 }

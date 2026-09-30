@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KeBaiPay 科佰支付 · 自托管开源支付中台</title>
-<meta name="description" content="能自己跑起来的一套支付中台：钱包、收单、开放 API、对账、AI 智能体。NestJS 12 + Prisma 7 + PostgreSQL 16 + Redis 7 + Vue 3。">
+<title>KeBaiPay 科佰支付 · 自托管开源合规聚合收单平台</title>
+<meta name="description" content="能自己跑起来的一套合规聚合收单技术服务：持牌通道收单、开放 API、渠道对账、AI 智能体。资金绝不过平台。NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7 + Vue 3。">
 <style>
 :root{
   --bg0:#070B14; --bg1:#0B1220; --card:rgba(255,255,255,.035); --line:rgba(255,255,255,.09);
@@ -120,16 +120,14 @@ footer .sep{color:#3A4759}
 </div></nav>
 
 <header class="hero"><div class="wrap">
-  <h1>能自己跑起来的一套支付中台</h1>
-  <p class="tag"><b>钱包 · 收单 · 开放 API · 对账 · AI 智能体</b>，五层打通。<br>微信/支付宝 SDK 直连、复式记账、分布式锁、幂等键、审计哈希链——工业级该有的都在。</p>
+  <h1>能自己跑起来的一套合规聚合收单平台</h1>
+  <p class="tag"><b>持牌通道收单 · 开放 API · 渠道对账 · AI 智能体</b>，四层打通。<br>微信/支付宝 SDK 直连、分布式锁、幂等键、审计哈希链——工业级该有的都在；资金全程由持牌机构清算，平台不经手。</p>
   <div class="stack">
-    <span>NestJS 12</span><span>TypeScript</span><span>Prisma 7</span><span>PostgreSQL 16</span>
+    <span>NestJS 11</span><span>TypeScript</span><span>Prisma 7</span><span>PostgreSQL 16</span>
     <span>Redis 7</span><span>Vue 3</span>
   </div>
   <div class="badges">
-    <img src="https://img.shields.io/badge/version-0.3.2-0FA968" alt="version">
-    <img src="https://img.shields.io/badge/tests-1293_passing-0FA968" alt="tests">
-    <img src="https://img.shields.io/badge/coverage-55.6%25-0FA968" alt="coverage">
+    <img src="https://img.shields.io/badge/version-0.3.5-0FA968" alt="version">
     <img src="https://img.shields.io/badge/license-MIT-0FA968" alt="license">
   </div>
   <a class="cta" href="#quickstart">⚡ 三条命令跑起来</a>
@@ -174,22 +172,22 @@ footer .sep{color:#3A4759}
   <p class="kicker">Features</p>
   <h2>不是玩具 Demo，是参考实现</h2>
   <div class="feats">
-    <div class="feat"><div class="em">👛</div><h3>个人钱包</h3><p>复式记账、充值/提现、红包、账单流水，余额变动全程留痕可审计。</p></div>
-    <div class="feat"><div class="em">🏪</div><h3>商户收款</h3><p>商户门户 + 收银台 + 收款码，H5 收单全流程，默认 mock 渠道开箱即跑。</p></div>
-    <div class="feat"><div class="em">🔌</div><h3>开放 API</h3><p>192 个 OpenAPI 端点，HMAC-SHA256 签名、幂等键、回调验签优先。</p></div>
-    <div class="feat"><div class="em">🧾</div><h3>财务对账</h3><p>渠道交易流水核对与差异处理，管理端一键审查提现，内置风控规则引擎。</p></div>
-    <div class="feat"><div class="em">🤖</div><h3>AI 智能体</h3><p>内置 Agent 工具集，自然语言查账、风控事件、商户数据，一站式管理。</p></div>
-    <div class="feat"><div class="em">🛡</div><h3>资金安全工程</h3><p>分布式锁防并发、审计哈希链防篡改、风险控制与提现复审闭环。</p></div>
+    <div class="feat"><div class="em">🏪</div><h3>持牌通道收单</h3><p>微信/支付宝/mock 多渠道连接器，收银台 + 收款码，H5 收单全流程；资金由持牌机构直接清算。</p></div>
+    <div class="feat"><div class="em">🚫</div><h3>不设资金池</h3><p>无余额、无充值、无提现、无转账、无红包、无分账、无担保；退款原路退回，合规底线默认开启。</p></div>
+    <div class="feat"><div class="em">🔌</div><h3>开放 API</h3><p>136 个 OpenAPI 操作 / 121 条路径，HMAC-SHA256 签名、幂等键、回调验签优先。</p></div>
+    <div class="feat"><div class="em">🧾</div><h3>渠道对账</h3><p>渠道官方账单与平台订单逐笔匹配，差异工作流 + CSV 导出，掉单自动补单 fail-closed。</p></div>
+    <div class="feat"><div class="em">🤖</div><h3>AI 智能体</h3><p>内置 Agent 工具集，自然语言查单、查账、风控事件、商户数据，scope + 限额 + 二次确认。</p></div>
+    <div class="feat"><div class="em">🛡</div><h3>安全工程</h3><p>分布式锁防并发、审计哈希链防篡改、渠道凭据 AES-256-GCM 信封加密、风险控制规则引擎。</p></div>
   </div>
 </div></section>
 
 <!-- ============ 数据 ============ -->
 <section><div class="wrap">
   <div class="stats">
-    <div class="stat"><b>192</b><span>OpenAPI 端点</span></div>
-    <div class="stat"><b>41</b><span>业务模块</span></div>
-    <div class="stat"><b>1293</b><span>单元测试</span></div>
+    <div class="stat"><b>136</b><span>OpenAPI 操作</span></div>
+    <div class="stat"><b>121</b><span>路径</span></div>
     <div class="stat"><b>3</b><span>端：H5 · Portal · Admin</span></div>
+    <div class="stat"><b>0</b><span>平台资金池</span></div>
   </div>
 </div></section>
 
@@ -198,12 +196,8 @@ footer .sep{color:#3A4759}
   <p class="kicker">Screenshots</p>
   <h2>界面预览</h2>
   <div class="shots">
-    <figure class="shot"><img src="assets/h5-home.png" alt="用户端 H5 首页" loading="lazy"><figcaption>用户端 H5 · 首页</figcaption></figure>
-    <figure class="shot"><img src="assets/h5-cashier.png" alt="H5 收银台" loading="lazy"><figcaption>用户端 H5 · 收银台</figcaption></figure>
     <figure class="shot"><img src="assets/portal-dashboard.png" alt="商户门户工作台" loading="lazy"><figcaption>商户 Portal · 工作台</figcaption></figure>
     <figure class="shot"><img src="assets/portal-reconciliation.png" alt="商户对账" loading="lazy"><figcaption>商户 Portal · 对账中心</figcaption></figure>
-    <figure class="shot"><img src="assets/admin-dashboard.png" alt="管理后台仪表盘" loading="lazy"><figcaption>管理后台 · 仪表盘</figcaption></figure>
-    <figure class="shot"><img src="assets/admin-agents.png" alt="AI 智能体" loading="lazy"><figcaption>管理后台 · AI 智能体</figcaption></figure>
   </div>
 </div></section>
 
@@ -222,7 +216,7 @@ footer .sep{color:#3A4759}
 <span class="c"># 测试账号 13800000001 / Abc12345 · 管理后台 /admin（admin / ChangeAdmin2026）</span></pre>
   </div>
   <div style="height:18px"></div>
-  <div class="warn">⚠️ <b>合规提示</b>：代码 MIT 开源，随便用。但系统含平台内账本，在中国大陆实际运营涉及无证支付业务与"二清"红线——这是运营资质问题，不是许可证能解决的。默认只启用 mock 渠道。</div>
+  <div class="warn">⚠️ <b>合规提示</b>：代码 MIT 开源，随便用。本系统按"合规聚合技术服务商"模式设计，平台本身不经手任何用户资金；但在中国大陆实际对外营业仍需取得相应支付业务资质或与持牌机构合规合作——这是运营资质问题，不是许可证能解决的。默认只启用 mock 渠道。</div>
 </div></section>
 
 <footer><div class="wrap">

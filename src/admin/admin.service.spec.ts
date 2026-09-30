@@ -24,14 +24,10 @@ type PrismaMock = {
   $transaction: jest.Mock
   user: Record<string, jest.Mock>
   identityVerification: Record<string, jest.Mock>
-  account: Record<string, jest.Mock>
-  accountLedger: Record<string, jest.Mock>
-  bill: Record<string, jest.Mock>
   riskEvent: Record<string, jest.Mock>
   adminUser: Record<string, jest.Mock>
   systemConfig: Record<string, jest.Mock>
   adminOperationLog: Record<string, jest.Mock>
-  adjustmentApproval: Record<string, jest.Mock>
 } & Record<string, unknown>
 
 type CreateArgs = { data: Record<string, unknown> }
@@ -56,13 +52,6 @@ describe('AdminService', () => {
         update: jest.fn(),
         updateMany: jest.fn(),
       },
-      account: {
-        findUnique: jest.fn(),
-        update: jest.fn(),
-        updateMany: jest.fn(),
-      },
-      accountLedger: { create: jest.fn() },
-      bill: { create: jest.fn() },
       riskEvent: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
       adminUser: {
         findUnique: jest.fn(),
@@ -77,13 +66,6 @@ describe('AdminService', () => {
         upsert: jest.fn(),
       },
       adminOperationLog: { create: jest.fn() },
-      adjustmentApproval: {
-        create: jest.fn(),
-        findUnique: jest.fn(),
-        findMany: jest.fn(),
-        update: jest.fn(),
-        updateMany: jest.fn(),
-      },
     }
 
     const crypto = {
@@ -106,7 +88,7 @@ describe('AdminService', () => {
       listAllRules: jest.fn().mockResolvedValue([]),
     } as unknown as RiskEngineService
 
-    // H2: adjustAccount 使用 Redis 锁，mock 直接执行回调
+    // Redis 锁 mock 直接执行回调
     redis = {
       isEnabled: jest.fn().mockReturnValue(false),
       withLock: jest.fn(async (_key: string, _ttl: number, fn: () => Promise<unknown>) => fn()),
@@ -291,175 +273,6 @@ describe('AdminService', () => {
       await expect(
         service.rejectIdentity('iv1', '原因', 'admin1'),
       ).rejects.toThrow(BadRequestException)
-    })
-  })
-
-  describe('adjustAccount 管理员调账', () => {
-    it('调账金额为 0 抛错', async () => {
-      await expect(
-        service.adjustAccount('u1', 0, '原因', 'admin1'),
-      ).rejects.toThrow(BadRequestException)
-    })
-
-    it('未填写原因抛错', async () => {
-      await expect(
-        // @ts-expect-error 测试无原因场景
-        service.adjustAccount('u1', 10, undefined, 'admin1'),
-      ).rejects.toThrow(BadRequestException)
-    })
-
-    it('账户不存在抛错', async () => {
-      prisma.account.findUnique.mockResolvedValue(null)
-      await expect(
-        service.adjustAccount('uX', 10, '原因', 'admin1'),
-      ).rejects.toThrow(NotFoundException)
-    })
-
-    it('加款成功：余额增加 + 写流水 + 写账单 + 写日志', async () => {
-      prisma.account.findUnique.mockResolvedValue({
-        id: 'a1',
-        userId: 'u1',
-        availableBalance: 1000,
-        frozenBalance: 0,
-        totalBalance: 1000,
-      })
-      prisma.account.update.mockResolvedValue({
-        id: 'a1',
-        availableBalance: 2000,
-        frozenBalance: 0,
-        totalBalance: 2000,
-      })
-      prisma.accountLedger.create.mockResolvedValue({})
-      prisma.bill.create.mockResolvedValue({})
-      auditLog.log.mockResolvedValue({})
-
-      const result = await service.adjustAccount('u1', 10, '补偿', 'admin1')
-      // 余额增加 10 元 = 1000 分
-      expect(prisma.account.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'a1' },
-          data: {
-            availableBalance: { increment: 1000 },
-            totalBalance: { increment: 1000 },
-          },
-        }),
-      )
-      // 流水：加款 → DEBIT
-      expect(prisma.accountLedger.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            accountId: 'a1',
-            type: 'ADJUSTMENT',
-            amount: 1000,
-            balanceBefore: 1000,
-            balanceAfter: 2000,
-            direction: 'DEBIT',
-          }),
-        }),
-      )
-      // 账单：加款 → RECEIPT / INCOME
-      expect(prisma.bill.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            userId: 'u1',
-            type: 'RECEIPT',
-            direction: 'INCOME',
-            amount: 1000,
-          }),
-        }),
-      )
-      // 防篡改审计日志
-      expect(auditLog.log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          adminId: 'admin1',
-          action: 'ACCOUNT_ADJUST',
-          target: 'u1',
-        }),
-        expect.anything(),
-      )
-      // 返回带元单位字段
-      expect(result.availableBalanceYuan).toBe('20.00')
-      expect(result.totalBalanceYuan).toBe('20.00')
-    })
-
-    it('扣款成功：余额减少 + 写流水(CREDIT) + 写账单(EXPENSE)', async () => {
-      prisma.account.findUnique
-        .mockResolvedValueOnce({
-          id: 'a1',
-          userId: 'u1',
-          availableBalance: 5000,
-          frozenBalance: 0,
-          totalBalance: 5000,
-        })
-        .mockResolvedValueOnce({
-          id: 'a1',
-          userId: 'u1',
-          availableBalance: 4000,
-          frozenBalance: 0,
-          totalBalance: 4000,
-        })
-      prisma.account.updateMany.mockResolvedValue({ count: 1 })
-
-      await service.adjustAccount('u1', -10, '扣回多付', 'admin1')
-      // 余额原子扣减
-      expect(prisma.account.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            id: 'a1',
-            availableBalance: { gte: 1000 },
-          },
-          data: {
-            availableBalance: { decrement: 1000 },
-            totalBalance: { decrement: 1000 },
-          },
-        }),
-      )
-      expect(prisma.account.update).not.toHaveBeenCalled()
-      // 流水：扣款 → CREDIT，balanceAfter 以更新后余额为准
-      expect(prisma.accountLedger.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            direction: 'CREDIT',
-            amount: 1000,
-            balanceBefore: 5000,
-            balanceAfter: 4000,
-          }),
-        }),
-      )
-      // 账单：扣款 → PAYMENT / EXPENSE
-      expect(prisma.bill.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            type: 'PAYMENT',
-            direction: 'EXPENSE',
-            amount: 1000,
-          }),
-        }),
-      )
-    })
-
-    it('扣款余额不足抛错', async () => {
-      prisma.account.findUnique.mockResolvedValue({
-        id: 'a1',
-        userId: 'u1',
-        availableBalance: 500, // 5 元
-        frozenBalance: 0,
-        totalBalance: 500,
-      })
-      prisma.account.updateMany.mockResolvedValue({ count: 0 })
-      await expect(
-        service.adjustAccount('u1', -10, '扣款', 'admin1'),
-      ).rejects.toThrow(BadRequestException)
-      // updateMany 已执行但无匹配行，account.update 未被调用
-      expect(prisma.account.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            id: 'a1',
-            availableBalance: { gte: 1000 },
-          },
-        }),
-      )
-      expect(prisma.account.update).not.toHaveBeenCalled()
     })
   })
 
@@ -658,139 +471,6 @@ describe('AdminService', () => {
     })
   })
 
-  describe('大额调账双人复核（adjustAccountWithPolicy / approveAdjustment / rejectAdjustment）', () => {
-    const meta = { ip: '127.0.0.1', userAgent: 'jest' }
 
-    afterEach(() => {
-      delete process.env.LARGE_ADJUSTMENT_THRESHOLD_YUAN
-    })
-
-    it('小额调账（< 阈值）直接执行，不建审批单', async () => {
-      prisma.account.findUnique.mockResolvedValue({ id: 'acc1', userId: 'u1', availableBalance: 100000, totalBalance: 100000, frozenBalance: 0 })
-      prisma.account.update.mockResolvedValue({ id: 'acc1', availableBalance: 200000, totalBalance: 200000, frozenBalance: 0 })
-
-      const result = await service.adjustAccountWithPolicy('u1', 100, '补偿', 'admin1', meta)
-
-      expect(result.status).toBe('EXECUTED')
-      expect(prisma.adjustmentApproval.create).not.toHaveBeenCalled()
-    })
-
-    it('大额调账（>= 阈值）只建审批单，不动资金', async () => {
-      process.env.LARGE_ADJUSTMENT_THRESHOLD_YUAN = '50000'
-      prisma.adjustmentApproval.create.mockResolvedValue({ id: 'ap1' })
-
-      const result = await service.adjustAccountWithPolicy('u1', 60000, '大额补偿', 'admin1', meta)
-
-      expect(result.status).toBe('PENDING_APPROVAL')
-      expect(prisma.adjustmentApproval.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          targetUserId: 'u1',
-          amountFen: 6000000,
-          reason: '大额补偿',
-          initiatorAdminId: 'admin1',
-        }),
-      })
-      // 未触碰账户余额
-      expect(prisma.account.update).not.toHaveBeenCalled()
-      // 审计留痕
-      expect(auditLog.log).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'ACCOUNT_ADJUST_APPROVAL_REQUESTED' }),
-      )
-    })
-
-    it('批准执行：金额按审批单带符号还原，成功后置 EXECUTED', async () => {
-      process.env.LARGE_ADJUSTMENT_THRESHOLD_YUAN = '50000'
-      prisma.adjustmentApproval.findUnique.mockResolvedValue({
-        id: 'ap1',
-        targetUserId: 'u1',
-        amountFen: -6000000, // 扣款 6 万元
-        reason: '扣回多付',
-        initiatorAdminId: 'admin1',
-        status: 'PENDING',
-      })
-      prisma.adjustmentApproval.updateMany.mockResolvedValue({ count: 1 })
-      prisma.adjustmentApproval.update.mockResolvedValue({ id: 'ap1', status: 'EXECUTED' })
-      prisma.account.findUnique.mockResolvedValue({ id: 'acc1', userId: 'u1', availableBalance: 6000000, totalBalance: 6000000, frozenBalance: 0 })
-      prisma.account.updateMany.mockResolvedValue({ count: 1 })
-      prisma.account.update.mockResolvedValue({ id: 'acc1', availableBalance: 0, totalBalance: 0, frozenBalance: 0 })
-
-      const result = await service.approveAdjustment('ap1', 'admin2', meta)
-
-      expect(result.status).toBe('EXECUTED')
-      // 乐观锁声明：PENDING → EXECUTING
-      expect(prisma.adjustmentApproval.updateMany).toHaveBeenCalledWith({
-        where: { id: 'ap1', status: 'PENDING' },
-        data: expect.objectContaining({ status: 'EXECUTING', approverAdminId: 'admin2' }),
-      })
-      // 执行后置 EXECUTED
-      expect(prisma.adjustmentApproval.update).toHaveBeenCalledWith({
-        where: { id: 'ap1' },
-        data: expect.objectContaining({ status: 'EXECUTED' }),
-      })
-      expect(auditLog.log).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'ACCOUNT_ADJUST_APPROVAL_APPROVED' }),
-        expect.anything(), // 第二参数为事务客户端 tx
-      )
-    })
-
-    it('发起人不能审批自己的申请', async () => {
-      prisma.adjustmentApproval.findUnique.mockResolvedValue({
-        id: 'ap1',
-        initiatorAdminId: 'admin1',
-        status: 'PENDING',
-      })
-      await expect(service.approveAdjustment('ap1', 'admin1', meta)).rejects.toThrow()
-      expect(prisma.adjustmentApproval.updateMany).not.toHaveBeenCalled()
-    })
-
-    it('非 PENDING 状态的审批单不能批准', async () => {
-      prisma.adjustmentApproval.findUnique.mockResolvedValue({
-        id: 'ap1',
-        initiatorAdminId: 'admin1',
-        status: 'EXECUTED',
-      })
-      await expect(service.approveAdjustment('ap1', 'admin2', meta)).rejects.toThrow()
-      expect(prisma.adjustmentApproval.updateMany).not.toHaveBeenCalled()
-    })
-
-    it('执行失败时整体原子回滚，不写 EXECUTED 状态', async () => {
-      prisma.adjustmentApproval.findUnique.mockResolvedValue({
-        id: 'ap1',
-        targetUserId: 'ghost',
-        amountFen: 6000000,
-        reason: 'r',
-        initiatorAdminId: 'admin1',
-        status: 'PENDING',
-      })
-      prisma.adjustmentApproval.updateMany.mockResolvedValue({ count: 1 })
-      // 账户不存在 → adjustAccountCore 抛 NotFoundException，事务整体回滚
-      prisma.account.findUnique.mockResolvedValue(null)
-
-      await expect(service.approveAdjustment('ap1', 'admin2', meta)).rejects.toThrow(NotFoundException)
-      // 不置 EXECUTED（事务失败回滚，审批单保持 PENDING 可重试，杜绝重复打款窗口）
-      expect(prisma.adjustmentApproval.update).not.toHaveBeenCalled()
-    })
-
-    it('驳回：置 REJECTED 并写审批人与原因', async () => {
-      prisma.adjustmentApproval.findUnique.mockResolvedValue({
-        id: 'ap1',
-        targetUserId: 'u1',
-        amountFen: 6000000,
-        initiatorAdminId: 'admin1',
-        status: 'PENDING',
-      })
-      prisma.adjustmentApproval.updateMany.mockResolvedValue({ count: 1 })
-
-      const result = await service.rejectAdjustment('ap1', 'admin2', '依据不足', meta)
-
-      expect(result.status).toBe('REJECTED')
-      expect(prisma.adjustmentApproval.updateMany).toHaveBeenCalledWith({
-        where: { id: 'ap1', status: 'PENDING' },
-        data: expect.objectContaining({ status: 'REJECTED', approverAdminId: 'admin2', decisionReason: '依据不足' }),
-      })
-      expect(auditLog.log).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'ACCOUNT_ADJUST_APPROVAL_REJECTED' }),
-      )
-    })
-  })
 })
+
