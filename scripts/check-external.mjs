@@ -100,8 +100,8 @@ if (E.NODE_ENV === 'production') {
   if (E.CORS_ORIGINS && E.CORS_ORIGINS.includes('localhost')) {
     add(MISS, 'CORS_ORIGINS', '生产环境不能包含 localhost')
   }
-  if (E.RECHARGE_NOTIFY_URL && E.RECHARGE_NOTIFY_URL.startsWith('http://localhost')) {
-    add(MISS, 'RECHARGE_NOTIFY_URL', '生产环境必须是外网 HTTPS 回调地址')
+  if (E.CHANNEL_NOTIFY_URL && E.CHANNEL_NOTIFY_URL.startsWith('http://localhost')) {
+    add(MISS, 'CHANNEL_NOTIFY_URL', '生产环境必须是外网 HTTPS 回调地址')
   }
 }
 

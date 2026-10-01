@@ -36,4 +36,4 @@ Crawl-delay: 10
 User-agent: GPTBot
 Crawl-delay: 10
 
-Sitemap: /sitemap.xml
+Sitemap: https://x33834.github.io/KeBaiPay/sitemap.xml

@@ -11,34 +11,39 @@ src/common/** @Morningstar202604
 src/config/** @Morningstar202604
 src/prisma/** @Morningstar202604
 
-# 支付渠道
-src/channels/** @Morningstar202604
+# 支付渠道（收单/退款通道适配）
+src/payment-channels/** @Morningstar202604
 
-# 支付核心
-src/payment/** @Morningstar202604
+# 收银台与订单
+src/cashier/** @Morningstar202604
 
-# 商户与钱包
-src/merchant/** @Morningstar202604
-src/wallet/** @Morningstar202604
+# 商户与用户
+src/merchants/** @Morningstar202604
+src/users/** @Morningstar202604
 
 # AI Agent 层
 src/agent/** @Morningstar202604
-src/mcp/** @Morningstar202604
 
-# 对账
-src/reconciliation/** @Morningstar202604
+# 财务与对账
+src/finance/** @Morningstar202604
 
 # 风控
-src/risk-control/** @Morningstar202604
+src/risk/** @Morningstar202604
 
-# 网关/API
-src/gateway/** @Morningstar202604
+# 健康与指标
+src/health/** @Morningstar202604
 
-# 前端 web (管理后台)
+# 开放 API
+src/open-api/** @Morningstar202604
+
+# 前端 web (商户门户)
 web/** @Morningstar202604
 
-# 前端 web-h5 (H5 收银台)
+# 前端 web-h5 (用户 H5)
 web-h5/** @Morningstar202604
+
+# 前端 web-admin (管理后台)
+web-admin/** @Morningstar202604
 
 # 文档
 docs/** @Morningstar202604
@@ -51,7 +56,6 @@ test/** @Morningstar202604
 jest.config.js @Morningstar202604
 
 # 配置与工具
-.eslintrc.js @Morningstar202604
 .prettierrc @Morningstar202604
 tsconfig*.json @Morningstar202604
 scripts/** @Morningstar202604

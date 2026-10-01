@@ -1,7 +1,7 @@
 # KeBaiPay 部署指南
 
 > 生产环境部署、配置、运维与故障恢复的**权威参考**。  
-> 适用于 KeBaiPay v2.0（NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7）。
+> 适用于 KeBaiPay v0.3.5（NestJS 11 + Prisma 7 + PostgreSQL 16 + Redis 7）。
 
 ## 目录
 

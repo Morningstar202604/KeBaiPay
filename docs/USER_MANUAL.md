@@ -34,7 +34,7 @@
 
 ### 2.1 登录页 `#/login`
 
-![H5 登录](demo/screenshots/h5-login.png)
+![H5 登录](../demo/screenshots/h5-login.png)
 
 | 元素 | 说明 |
 |---|---|
@@ -61,7 +61,7 @@
 
 ### 2.4 账单 `#/bills`
 
-![H5 账单](demo/screenshots/h5-bills.png)
+![H5 账单](../demo/screenshots/h5-bills.png)
 
 | 元素 | 说明 |
 |---|---|
@@ -88,7 +88,7 @@
 
 ### 2.7 AI 助手 `#/agent`
 
-![H5 AI 助手](demo/screenshots/h5-agent.png)
+![H5 AI 助手](../demo/screenshots/h5-agent.png)
 
 | 元素 | 说明 |
 |---|---|
@@ -108,19 +108,19 @@
 
 ### 3.1 登录/注册 `#/login`
 
-![门户登录](demo/screenshots/portal-login.png)
+![门户登录](../demo/screenshots/portal-login.png)
 
 商户账号与个人账号体系独立。「立即入驻」进入商户注册流程：**实名认证 → 商户入驻申请 → 管理员审核**。
 
 ### 3.2 数据看板 `#/dashboard`
 
-![门户看板](demo/screenshots/portal-dashboard.png)
+![门户看板](../demo/screenshots/portal-dashboard.png)
 
 展示商户维度的收单总额、订单数、收款码收款、退款等关键指标。
 
 ### 3.3 应用管理 `#/apps`
 
-![门户应用](demo/screenshots/portal-apps.png)
+![门户应用](../demo/screenshots/portal-apps.png)
 
 | 元素 | 说明 |
 |---|---|
@@ -130,7 +130,7 @@
 
 ### 3.4 收款码 `#/qrcodes`
 
-![门户收款码](demo/screenshots/portal-qrcodes.png)
+![门户收款码](../demo/screenshots/portal-qrcodes.png)
 
 | 元素 | 说明 |
 |---|---|
@@ -139,13 +139,13 @@
 
 ### 3.5 订单管理 `#/orders`
 
-![门户订单](demo/screenshots/portal-orders.png)
+![门户订单](../demo/screenshots/portal-orders.png)
 
 收单订单列表支持按状态筛选、查看回调通知状态（成功/失败/重试次数），未成功通知的订单可**手动重发回调**。
 
 ### 3.6 对账查询 `#/reconciliation`
 
-![门户对账](demo/screenshots/portal-reconciliation.png)
+![门户对账](../demo/screenshots/portal-reconciliation.png)
 
 按日期导出/查询商户收单订单与渠道账单的对账明细，支持 CSV 导出。
 
@@ -155,7 +155,7 @@
 
 ### 4.1 登录 `#/login`
 
-![后台登录](demo/screenshots/admin-login.png)
+![后台登录](../demo/screenshots/admin-login.png)
 
 账号由超级管理员创建；初始密码来自部署时 `ADMIN_DEFAULT_PASSWORD`，**首次登录后请立即在「管理员管理」中修改**。
 
@@ -165,7 +165,7 @@
 
 ### 4.3 用户管理 `#/users`
 
-![后台用户](demo/screenshots/admin-users.png)
+![后台用户](../demo/screenshots/admin-users.png)
 
 | 元素 | 说明 |
 |---|---|
@@ -175,7 +175,7 @@
 
 ### 4.4 商户管理 `#/merchants`
 
-![后台商户](demo/screenshots/admin-merchants.png)
+![后台商户](../demo/screenshots/admin-merchants.png)
 
 「通过 / 驳回」商户入驻申请（驳回需填原因）；配置收单费率与单日限额。费率影响商户手续费收入。
 
@@ -199,19 +199,19 @@
 
 ### 4.7 支付订单 `#/orders`
 
-![后台订单](demo/screenshots/admin-orders.png)
+![后台订单](../demo/screenshots/admin-orders.png)
 
 全平台收单订单列表，支持按状态筛选，可查看回调通知状态并手动重发。
 
 ### 4.8 财务总览 `#/finance`
 
-![后台财务](demo/screenshots/admin-finance.png)
+![后台财务](../demo/screenshots/admin-finance.png)
 
 收单总额、手续费收入、商户结算明细、每日快照；数据来自每日快照与实时聚合。
 
 ### 4.9 风控事件 `#/risk`
 
-![后台风控](demo/screenshots/admin-risk.png)
+![后台风控](../demo/screenshots/admin-risk.png)
 
 大额交易、频繁交易、异常登录等风控事件列表；按级别（LOW/MEDIUM/HIGH）与状态筛选，支持人工处置。
 
