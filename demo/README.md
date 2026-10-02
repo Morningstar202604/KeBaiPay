@@ -19,7 +19,6 @@
 |----|------|------|
 | **精编合集（推荐）** | [`videos/kebaipay-showcase.mp4`](videos/kebaipay-showcase.mp4) | **标题卡 + 三端精华**（商户后台 → 用户H5 → 管理后台），场景淡入过渡，H.264 统一 1440×900 |
 | 管理后台 | [`videos/admin-demo.webm`](videos/admin-demo.webm) | 登录 → 数据概览 → 用户 → 商户 → 实名审核 → 订单 → 财务 → 风控 → 智能体 |
-| 商户端 / 用户端演示素材 | [`videos/demo-3.webm`](videos/demo-3.webm) · [`videos/demo-4.webm`](videos/demo-4.webm) · [`videos/demo-5.webm`](videos/demo-5.webm) · [`videos/demo-6.webm`](videos/demo-6.webm) | 商户后台与用户 H5 各功能走查录屏 |
 
 > 使用与配置总指南：[docs/USER_CONFIGURATION_GUIDE.md](../docs/USER_CONFIGURATION_GUIDE.md)
 
