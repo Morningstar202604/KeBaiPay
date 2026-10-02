@@ -32,7 +32,11 @@ module.exports = {
     // ioredis / bcrypt / dns：CJS 包在 Jest ESM 运行时 jest.mock 工厂被忽略，须 mapper 指到本地 mock
     '^ioredis$': '<rootDir>/test/mocks/ioredis.mock.ts',
     '^bcrypt$': '<rootDir>/test/mocks/bcrypt.mock.ts',
-    '^dns$': '<rootDir>/test/mocks/dns.mock.ts',
+    // 2026-10-03：与单测 jest.config.js 同步——dns 改 CJS/ESM 双端 mock（pg 等 CJS 包
+    // require('dns') 命中 ESM mock 会触发 require(esm) 成环，Node 24 下 5 个 e2e 套件全挂）；
+    // libphonenumber-js/max 映射到官方 ESM 构建（type:module 包的 .cjs 在 ESM 管线裸奔）。
+    '^dns$': '<rootDir>/test/mocks/dns.mock.cjs',
+    '^libphonenumber-js/max$': '<rootDir>/node_modules/libphonenumber-js/max/es6/index.js',
   },
   transform: {
     '^.+\\.ts$': [
